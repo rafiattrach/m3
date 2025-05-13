@@ -6,7 +6,7 @@
 
 1.  **Easy Setup:** `pip install m3`
 2.  **Secure Login:** `m3 login` (for PhysioNet)
-3.  **Local Ingestion:** `m3 init --dataset mimic-iv --db-uri sqlite:///mimic.db` (downloads & prepares data)
+3.  **Local Ingestion:** `m3 init --dataset mimic-iv-demo --db-path ./mimic_demo.db` (downloads & prepares data)
 4.  **Private Data Server:** `m3 serve` (starts a local MCP server)
 5.  **Intuitive Querying:** `m3 ui` (opens a web UI to chat with your data via LLMs)
 
@@ -27,7 +27,7 @@ Pre-alpha. Initial development focused on the data pipeline.
 pip install m3
 m3 login # PhysioNet credentials
 m3 init --dataset mimic-iv-demo --db-path ./mimic_demo.db # ~200MB
-m3 serve --db-path ./mimic_demo.db &
+m3 serve &
 m3 ui
 ```
 
