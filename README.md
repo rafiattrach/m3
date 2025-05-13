@@ -1,5 +1,36 @@
 # M3: MIMIC-IV + MCP + Models
 
+## Development Setup
+
+To contribute to M3:
+
+1.  **Create and activate a virtual environment:**
+    ```bash
+    python -m venv .venv
+    source .venv/bin/activate  # On Linux/macOS
+    .venv\Scripts\activate    # On Windows
+    ```
+
+2.  **Install editable mode with development dependencies:**
+    This installs the project itself, plus tools like Ruff, pre-commit, and pytest.
+    ```bash
+    pip install -e ".[dev]"
+    ```
+
+3.  **Install Git hooks (for auto-formatting/linting on commit):**
+    ```bash
+    pre-commit install
+    ```
+
+4.  **Run tests:**
+    ```bash
+    pytest
+    ```
+
+You're now set up for development!
+
+## Idea Draft
+
 **M3** brings the power of MIMIC-IV to your local machine, enhanced with a Model Context Protocol (MCP) server and natural language querying via Large Language Models (LLMs).
 
 ## Vision

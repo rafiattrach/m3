@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "m3"
+version = "0.0.1"
+description = "MIMIC-IV + MCP + Models: Local MIMIC-IV querying with LLMs."
+requires-python = ">=3.9"
+authors = [
+    { name = "Rafi Al Attrach", email = "rafiaa@mit.edu" },
+    { name = "Pedro Moreira", email = "pedrojfm@mit.edu" },
+]
+dependencies = [
+    "typer", # Typer as a core dependency for the CLI
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff",
+    "pre-commit",
+    "pytest",
+]
+
+# --- Ruff Configuration ---
+[tool.ruff]
+line-length = 88
+target-version = "py39"
+
+[tool.ruff.lint]
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # Pyflakes
+    "I",  # isort (import sorting)
+    "UP", # pyupgrade (modernize syntax)
+    "RUF",# Ruff-specific rules
+]
+
+[tool.ruff.format]
+# Ruff's default formatter will be used.
