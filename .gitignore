@@ -1,0 +1,74 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+.installed.cfg
+*.egg
+*.whl
+
+# Distribution / packaging
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+MANIFEST
+
+# Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.python-version
+
+# IDE specific files
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# Test and coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+junit.xml
+
+# Logs and temporary files
+*.log
+*.tmp
+*.swp
+
+# SQLite databases (if you don't want to commit local test/demo dbs)
+*.db
+*.db-journal*
+mimic*.db
+
+# Operating System specific files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# MyPy
+.mypy_cache/
+
+# Ruff
+.ruff_cache/
