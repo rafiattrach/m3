@@ -1,4 +1,36 @@
 # M3: MIMIC-IV + MCP + Models
+## Quick Start
+
+1. **Install locally**
+   From your project root, run:
+   ```bash
+   pip install .
+   # —or for editable/development install—
+   pip install -e .
+   ```
+
+2. **Initialize the demo dataset**
+   ```bash
+   # Uses the built-in "mimic-iv-demo" dataset by default,
+   # and writes to data/databases/mimic_iv_demo.db
+   m3 init
+   ```
+   - To override the database file location, add `--db-path`:
+     ```bash
+     m3 init --db-path ./mimic_demo.db
+     ```
+
+3. **Verify**
+   ```bash
+   ls data/databases
+   # → mimic_iv_demo.db
+   ```
+
+---
+
+## Current Status
+
+**Pre-alpha.** Only `m3 init` (download + ETL into SQLite) is implemented.
 
 ## Development Setup
 
@@ -47,19 +79,3 @@ You're now set up for development!
 *   **MCP Server:** Exposes the local database via an MCP-compliant API.
 *   **LLM Integration:** Allows users to query the data using natural language, translated to SQL/MCP queries by LLMs.
 *   **Local UI:** A simple web interface for interacting with the system.
-
-## Current Status
-
-Pre-alpha. Initial development focused on the data pipeline.
-
-## Getting Started (Target)
-
-```bash
-pip install m3
-m3 login # PhysioNet credentials
-m3 init --dataset mimic-iv-demo --db-path ./mimic_demo.db # ~200MB
-m3 serve &
-m3 ui
-```
-
-(In the UI, select an LLM, type "How many patients died during their hospital admission?")

@@ -11,21 +11,32 @@ authors = [
     { name = "Rafi Al Attrach", email = "rafiaa@mit.edu" },
     { name = "Pedro Moreira", email = "pedrojfm@mit.edu" },
 ]
+readme = "README.md"
+
 dependencies = [
-    "typer", # Typer as a core dependency for the CLI
+    "typer>=0.9.0",  # Typer as a core dependency for the CLI
+    "rich>=13.0.0", # For Typer's rich output
+    "requests>=2.30.0",
+    "beautifulsoup4>=4.12.0",
+    "polars[pyarrow]>=0.20.10",
+    "appdirs>=1.4.0",
+    "sqlalchemy>=2.0.0",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "ruff",
-    "pre-commit",
-    "pytest",
+    "ruff>=0.4.0",
+    "pre-commit>=3.0.0",
+    "pytest>=7.0.0",
 ]
 
-# --- Ruff Configuration ---
+[project.scripts]
+m3 = "m3.cli:app"
+
 [tool.ruff]
 line-length = 88
 target-version = "py39"
+src = ["src"]
 
 [tool.ruff.lint]
 select = [
@@ -39,3 +50,6 @@ select = [
 
 [tool.ruff.format]
 # Ruff's default formatter will be used.
+
+[tool.ruff.lint.isort]
+known-first-party = ["m3"]
