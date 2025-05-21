@@ -379,10 +379,10 @@ async def find_admissions_with_criteria(
             - "label": str (Lab item label from d_labitems, e.g., "Creatinine")
             - "value_min": Optional[float] (Minimum value for labevents.valuenum)
             - "value_max": Optional[float] (Maximum value for labevents.valuenum)
-            - "time_window_hours": Optional[int] (Max hours after admission time)
+            -
             Example: [{"label": "Troponin T", "value_min": 0.1},
                       {"label": "Creatinine", "value_max": 1.5,
-                      "time_window_hours": 24}]
+                        "time_window_hours": 24}]
         match_all_labs (bool): If True (default), admissions must meet ALL
                               specified lab criteria. If False, meeting ANY
                               specified lab criterion is sufficient.

@@ -14,14 +14,18 @@ authors = [
 dependencies = [
     "typer", # Typer as a core dependency for the CLI
     "google-cloud-bigquery",
-    "google-api-core"
+    "google-api-core",
+    "pandas"
 ]
 
 [project.optional-dependencies]
 dev = [
     "ruff",
     "pre-commit",
-    "pytest",
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.23.0",
+    "pandas>=2.0.0",
+    "pytest-mock>=3.10.0",
 ]
 
 # --- Ruff Configuration ---
