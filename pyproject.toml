@@ -13,6 +13,8 @@ authors = [
 ]
 dependencies = [
     "typer", # Typer as a core dependency for the CLI
+    "google-cloud-bigquery",
+    "google-api-core"
 ]
 
 [project.optional-dependencies]
