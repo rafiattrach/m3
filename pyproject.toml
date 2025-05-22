@@ -48,6 +48,10 @@ select = [
     "RUF",# Ruff-specific rules
 ]
 
+ignore = [
+    "E501",  # Line too long (let ruff-format handle line length)
+]
+
 [tool.ruff.format]
 # Ruff's default formatter will be used.
 

@@ -176,6 +176,106 @@ def _download_dataset_files(
     return downloaded_count == len(unique_files_to_process)
 
 
+def _load_csv_with_robust_parsing(csv_file_path: Path, table_name: str) -> pl.DataFrame:
+    """
+    Load a CSV file with proper type inference strategy.
+
+    Uses larger sample sizes to fix type inference issues rather than masking them.
+    """
+    try:
+        # PROPER APPROACH: Use entire file for type inference to avoid edge cases
+        df = pl.read_csv(
+            source=csv_file_path,
+            infer_schema_length=None,  # Scan entire file - don't miss mixed types!
+            try_parse_dates=True,
+            ignore_errors=False,  # Don't mask problems - solve them!
+            null_values=["", "NULL", "null", "\\N", "NA"],
+        )
+
+        # Log empty columns (this is normal, not an error)
+        if df.height > 0:
+            empty_columns = []
+            for col_name in df.columns:
+                if df[col_name].is_null().all():
+                    empty_columns.append(col_name)
+
+            if empty_columns:
+                logger.info(
+                    f"  Table '{table_name}': Found {len(empty_columns)} empty column(s): "
+                    f"{', '.join(empty_columns[:5])}"
+                    + (
+                        f" (and {len(empty_columns) - 5} more)"
+                        if len(empty_columns) > 5
+                        else ""
+                    )
+                )
+
+        return df
+
+    except Exception as parse_error:
+        logger.warning(
+            f"  Full file scan failed for '{csv_file_path.name}': {parse_error}. "
+            "Trying schema override approach..."
+        )
+
+        try:
+            # BETTER FALLBACK: Use schema overrides for known problematic patterns
+            # First, read a small sample to understand the column structure
+            sample_df = pl.read_csv(
+                source=csv_file_path,
+                infer_schema_length=100,
+                try_parse_dates=False,
+                ignore_errors=True,  # Only for schema detection
+            )
+
+            # Build intelligent schema overrides
+            schema_overrides = {}
+            for col in sample_df.columns:
+                col_lower = col.lower()
+
+                # ICD codes, medication IDs, etc. should be strings (mixed alphanumeric)
+                if (
+                    any(keyword in col_lower for keyword in ["code", "id"])
+                    and col_lower != "subject_id"
+                ):
+                    schema_overrides[col] = pl.Utf8
+
+                # Columns that might have mixed numeric formats (int + decimal)
+                elif any(
+                    keyword in col_lower
+                    for keyword in ["amount", "dose", "value", "rate", "disp"]
+                ):
+                    schema_overrides[col] = pl.Float64  # Handle both ints and decimals
+
+            if schema_overrides:
+                logger.info(
+                    f"  Applying schema overrides for known mixed-type columns: {list(schema_overrides.keys())}"
+                )
+
+            # Now read with proper schema and full file scan
+            df = pl.read_csv(
+                source=csv_file_path,
+                infer_schema_length=None,  # Still scan entire file for other columns
+                try_parse_dates=True,
+                ignore_errors=False,  # No masking!
+                null_values=["", "NULL", "null", "\\N", "NA"],
+                schema_overrides=schema_overrides,
+            )
+
+            logger.info(
+                f"  Schema override successful for '{csv_file_path.name}' "
+                f"({df.height} rows, {df.width} columns)"
+            )
+            return df
+
+        except Exception as fallback_error:
+            logger.error(
+                f"  Both full scan and schema override failed for '{csv_file_path.name}': "
+                f"{fallback_error}"
+            )
+            raise fallback_error
+
+
 def _etl_csv_collection_to_sqlite(csv_source_dir: Path, db_target_path: Path) -> bool:
     """Loads all .csv.gz files from a directory structure into an SQLite database."""
     db_target_path.parent.mkdir(parents=True, exist_ok=True)
@@ -214,27 +314,10 @@ def _etl_csv_collection_to_sqlite(csv_source_dir: Path, db_target_path: Path) ->
             f"[{i + 1}/{len(csv_file_paths)}] ETL: Processing '{relative_path}' "
             f"into SQLite table '{table_name}'..."
         )
-        try:
-            df = pl.read_csv(
-                source=csv_file_path,
-                infer_schema_length=10000,  # Number of rows to infer schema from
-                try_parse_dates=True,
-                # TODO: This can mask issues by turning problematic columns into nulls
-                # Check later why for example column 'quantity'
-                # in Table 'hosp_microbiologyevents' was read as all nulls
-                ignore_errors=True,
-            )
 
-            # Log columns that were read as all nulls, which might indicate
-            # parsing issues masked by ignore_errors
-            if df.height > 0:  # Only check non-empty dataframes
-                for col_name in df.columns:
-                    if df[col_name].is_null().all():
-                        logger.warning(
-                            f"  Table '{table_name}', column '{col_name}' was read as "
-                            "all nulls. This might be due to 'ignore_errors=True' "
-                            "or the column genuinely being empty/problematic."
-                        )
+        try:
+            # Use the robust parsing function
+            df = _load_csv_with_robust_parsing(csv_file_path, table_name)
 
             df.write_database(
                 table_name=table_name,
@@ -243,9 +326,11 @@ def _etl_csv_collection_to_sqlite(csv_source_dir: Path, db_target_path: Path) ->
                 engine="sqlalchemy",  # Recommended engine for Polars with SQLite
             )
             logger.info(
-                f"  Successfully loaded '{relative_path}' into table '{table_name}'."
+                f"  Successfully loaded '{relative_path}' into table '{table_name}' "
+                f"({df.height} rows, {df.width} columns)."
             )
             successfully_loaded_count += 1
+
         except Exception as e:
             err_msg = (
                 f"Unexpected error during ETL for '{relative_path}' "
