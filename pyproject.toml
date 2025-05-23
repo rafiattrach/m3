@@ -37,6 +37,11 @@ dev = [
 [project.scripts]
 m3 = "m3.cli:app"
 
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["m3*"]
+exclude = ["mcp*", "tests*"]
+
 [tool.ruff]
 line-length = 88
 target-version = "py39"
