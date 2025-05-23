@@ -72,3 +72,6 @@ Desktop.ini
 
 # Ruff
 .ruff_cache/
+
+# Datasets and other large files
+data/
