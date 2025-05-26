@@ -24,7 +24,7 @@ MANIFEST
 
 # Virtual environments
 .env
-.venv
+.venv*
 env/
 venv/
 ENV/
@@ -61,6 +61,10 @@ junit.xml
 *.db
 *.db-journal*
 mimic*.db
+
+# Configuration files
+config.json
+*config*.json
 
 # Operating System specific files
 .DS_Store

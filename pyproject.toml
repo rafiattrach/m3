@@ -21,26 +21,30 @@ dependencies = [
     "polars[pyarrow]>=0.20.10",
     "appdirs>=1.4.0",
     "sqlalchemy>=2.0.0",
+    "pandas>=2.0.0",
+    "fastmcp>=0.1.0",  # MCP server functionality
+    "google-cloud-bigquery>=3.0.0",  # BigQuery support
+    "db-dtypes>=1.0.0",  # BigQuery data types
+    "sqlparse>=0.4.0",  # SQL parsing for security validation
 ]
 
 [project.optional-dependencies]
 dev = [
     "ruff>=0.4.0",
     "pre-commit>=3.0.0",
-    "pytest>=7.0.0",
     "pytest>=7.4.0",
     "pytest-asyncio>=0.23.0",
-    "pandas>=2.0.0",
     "pytest-mock>=3.10.0",
+    "aiohttp>=3.8.0",  # For MCP client testing
 ]
 
 [project.scripts]
 m3 = "m3.cli:app"
+m3-mcp-server = "m3.mcp_server:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["m3*"]
-exclude = ["mcp*", "tests*"]
 
 [tool.ruff]
 line-length = 88
@@ -66,3 +70,6 @@ ignore = [
 
 [tool.ruff.lint.isort]
 known-first-party = ["m3"]
+
+[tool.pytest.ini_options]
+asyncio_default_fixture_loop_scope = "function"
