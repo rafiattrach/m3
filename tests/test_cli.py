@@ -31,7 +31,13 @@ def test_version_option_exits_zero_and_shows_version():
 def test_unknown_command_reports_error():
     result = runner.invoke(app, ["not-a-cmd"])
     assert result.exit_code != 0
-    assert "No such command" in result.stdout
+    # Check both stdout and stderr since error messages might go to either depending on environment
+    error_message = "No such command 'not-a-cmd'"
+    assert (
+        error_message in result.stdout
+        or (hasattr(result, "stderr") and error_message in result.stderr)
+        or error_message in result.output
+    )
 
 
 @patch("m3.cli.initialize_dataset")
