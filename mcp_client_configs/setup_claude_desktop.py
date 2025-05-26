@@ -88,12 +88,16 @@ def setup_claude_desktop(backend="sqlite", db_path=None, project_id=None):
         print(f"Found Claude Desktop config at: {claude_config_path}")
 
         # Load existing config or create new one
-        if claude_config_path.exists():
-            with open(claude_config_path) as f:
-                existing_config = json.load(f)
-            print("Loaded existing Claude Desktop configuration")
+        existing_config = {}
+        if claude_config_path.exists() and claude_config_path.stat().st_size > 0:
+            try:
+                with open(claude_config_path) as f:
+                    existing_config = json.load(f)
+                print("Loaded existing Claude Desktop configuration")
+            except json.JSONDecodeError:
+                print("Found corrupted config file, creating new configuration")
+                existing_config = {}
         else:
-            existing_config = {}
             print("Creating new Claude Desktop configuration")
 
         # Create MCP config
