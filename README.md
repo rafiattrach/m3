@@ -189,7 +189,7 @@ m3 init mimic-iv-demo
 ### Development Setup
 
 ```bash
-git clone https://github.com/rafiattrach/m3 #https as example
+git clone https://github.com/rafiattrach/m3 # HTTPS as an example
 cd m3
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
