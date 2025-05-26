@@ -13,25 +13,35 @@ Transform medical data analysis with AI! Ask questions about MIMIC-IV data in pl
 
 ## 🚀 Quick Start
 
+### Prerequisites
+
+```bash
+# Create virtual environment (recommended)
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
+```
+
 ### Option 1: Local Demo (Recommended for Beginners)
 
 **Perfect for learning and development - completely free!**
 
 1. **Install M3**:
-
    ```bash
    pip install -e .
    ```
+
 2. **Download demo database**:
 
    ```bash
    m3 init mimic-iv-demo
    ```
+
 3. **Setup Claude Desktop**:
 
    ```bash
    python mcp_client_configs/setup_claude_desktop.py
    ```
+
 4. **Restart Claude Desktop** and ask:
 
    - "What tools do you have for MIMIC-IV data?"
@@ -42,53 +52,40 @@ Transform medical data analysis with AI! Ask questions about MIMIC-IV data in pl
 **For researchers needing complete MIMIC-IV data**
 
 #### Prerequisites
-
-- Google Cloud account
+- Google Cloud account and project with billing enabled
 - Access to MIMIC-IV on BigQuery (requires PhysioNet credentialing)
-- Google Cloud project with billing enabled
 
-#### Step 1: Install Google Cloud CLI
+#### Setup Steps
 
-```bash
-# macOS (with Homebrew)
-brew install google-cloud-sdk
+1. **Install Google Cloud CLI**:
+   ```bash
+   # macOS (with Homebrew)
+   brew install google-cloud-sdk
 
-# Windows
-# Download from: https://cloud.google.com/sdk/docs/install
+   # Windows: Download from https://cloud.google.com/sdk/docs/install
+   # Linux
+   curl https://sdk.cloud.google.com | bash
+   ```
 
-# Linux
-curl https://sdk.cloud.google.com | bash
-```
+2. **Authenticate**:
+   ```bash
+   gcloud auth application-default login
+   ```
 
-#### Step 2: Authenticate
+3. **Install M3**:
+   ```bash
+   pip install -e .
+   ```
 
-```bash
-gcloud auth application-default login
-```
+4. **Setup Claude Desktop for BigQuery**:
+   ```bash
+   python mcp_client_configs/setup_claude_desktop.py --backend bigquery --project-id YOUR_PROJECT_ID
+   ```
 
-This opens your browser for Google authentication.
-
-#### Step 3: Install M3 with BigQuery
-
-```bash
-pip install -e .
-```
-
-#### Step 4: Setup Claude Desktop for BigQuery
-
-```bash
-python mcp_client_configs/setup_claude_desktop.py --backend bigquery --project-id YOUR_PROJECT_ID
-```
-
-Replace `YOUR_PROJECT_ID` with your Google Cloud project ID.
-
-#### Step 5: Test BigQuery Access
-
-**Restart Claude Desktop** and ask:
-
-```
-Use the get_race_distribution function to show me the top 5 races in MIMIC-IV admissions.
-```
+5. **Test BigQuery Access** - Restart Claude Desktop and ask:
+   ```
+   Use the get_race_distribution function to show me the top 5 races in MIMIC-IV admissions.
+   ```
 
 ## 🔧 Configuration Options
 
@@ -184,10 +181,7 @@ m3 init mimic-iv-demo
 **MCP server not starting:**
 
 1. Check Claude Desktop logs (Help → View Logs)
-2. Verify configuration:
-   ```bash
-   cat ~/Library/Application\ Support/Claude/claude_desktop_config.json
-   ```
+2. Verify configuration: `cat ~/Library/Application\ Support/Claude/claude_desktop_config.json`
 3. Restart Claude Desktop completely
 
 ## 👩‍💻 For Developers
@@ -195,7 +189,7 @@ m3 init mimic-iv-demo
 ### Development Setup
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/rafiattrach/m3 #https as example
 cd m3
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
@@ -203,7 +197,7 @@ pip install -e ".[dev]"
 pre-commit install
 ```
 
-### Run Tests
+### Testing
 
 ```bash
 pytest  # All tests (uses mocks for BigQuery)
