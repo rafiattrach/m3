@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Optional
 
 import pandas as pd
+import sqlparse
 from fastmcp import FastMCP
 
 from m3.config import get_default_database_path
@@ -21,6 +22,38 @@ _backend = None
 _db_path = None
 _bq_client = None
 _project_id = None
+
+
+def is_safe_query(sql_query: str) -> tuple[bool, str]:
+    """More robust SQL safety check."""
+    try:
+        parsed = sqlparse.parse(sql_query)
+        if not parsed or parsed[0].get_type() != "SELECT":
+            return False, "Only SELECT queries are allowed"
+
+        # Block dangerous patterns: ';', '--', 'UNION', etc.
+        # Use word boundaries for patterns that could be part of table names
+        dangerous_patterns = [";", "--", "/*", "*/"]
+        dangerous_words = ["UNION", "EXEC"]  # These need word boundaries
+
+        sql_upper = sql_query.upper()
+
+        # Check for dangerous patterns
+        for pattern in dangerous_patterns:
+            if pattern in sql_upper:
+                return False, f"Dangerous pattern detected: {pattern}"
+
+        # Check for dangerous words with word boundaries
+        import re
+
+        for word in dangerous_words:
+            if re.search(r"\b" + word + r"\b", sql_upper):
+                return False, f"Dangerous pattern detected: {word}"
+
+        return True, "Safe"
+    except Exception as e:
+        # If parsing fails, let it through to get proper SQL error from database
+        return True, f"SQL parsing warning: {e}"
 
 
 def _init_backend():
@@ -67,12 +100,10 @@ def execute_mimic_query(sql_query: str) -> str:
     Returns:
         Query results as formatted text
     """
-    # Security check - only allow SELECT queries
-    if any(
-        keyword in sql_query.upper()
-        for keyword in ["UPDATE", "DELETE", "INSERT", "DROP", "CREATE", "ALTER"]
-    ):
-        return "Error: Only SELECT queries are allowed"
+    # Enhanced security check using SQL parsing
+    is_safe, message = is_safe_query(sql_query)
+    if not is_safe:
+        return f"Error: {message}"
 
     try:
         if _backend == "sqlite":

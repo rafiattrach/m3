@@ -213,7 +213,8 @@ class TestMCPTools:
                     "execute_mimic_query", {"sql_query": "INVALID SQL QUERY"}
                 )
                 result_text = str(result)
-                assert "SQLite query error" in result_text
+                # With enhanced security, invalid SQL is caught by parser before reaching SQLite
+                assert "Error: Only SELECT queries are allowed" in result_text
 
     @pytest.mark.asyncio
     async def test_empty_results(self, test_db):
