@@ -169,6 +169,24 @@ def get_database_schema() -> str:
     return execute_mimic_query(query)
 
 
+@mcp.tool()
+def get_race_distribution(limit: int = 10) -> str:
+    """Get race distribution from hospital admissions.
+
+    Args:
+        limit: Maximum number of race categories to return
+
+    Returns:
+        Race distribution as formatted text
+    """
+    if _backend == "sqlite":
+        query = f"SELECT race, COUNT(*) as count FROM hosp_admissions GROUP BY race ORDER BY count DESC LIMIT {limit}"
+    else:  # bigquery
+        query = f"SELECT race, COUNT(*) as count FROM `physionet-data.mimiciv_3_1_hosp.admissions` GROUP BY race ORDER BY count DESC LIMIT {limit}"
+
+    return execute_mimic_query(query)
+
+
 def _execute_sqlite_query(sql_query: str) -> str:
     """Execute SQLite query."""
     try:

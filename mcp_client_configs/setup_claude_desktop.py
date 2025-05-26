@@ -77,6 +77,7 @@ def create_mcp_config(backend="sqlite", db_path=None, project_id=None):
         config["mcpServers"]["m3"]["env"]["M3_DB_PATH"] = db_path
     elif backend == "bigquery" and project_id:
         config["mcpServers"]["m3"]["env"]["M3_PROJECT_ID"] = project_id
+        config["mcpServers"]["m3"]["env"]["GOOGLE_CLOUD_PROJECT"] = project_id
 
     return config
 
