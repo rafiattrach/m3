@@ -22,21 +22,12 @@ dependencies = [
     "appdirs>=1.4.0",
     "sqlalchemy>=2.0.0",
     "pandas>=2.0.0",
+    "fastmcp>=0.1.0",  # MCP server functionality
+    "google-cloud-bigquery>=3.0.0",  # BigQuery support
+    "db-dtypes>=1.0.0",  # BigQuery data types
 ]
 
 [project.optional-dependencies]
-mcp = [
-    "fastmcp>=0.1.0",
-]
-bigquery = [
-    "google-cloud-bigquery>=3.0.0",
-    "db-dtypes>=1.0.0",
-]
-mcp-full = [
-    "fastmcp>=0.1.0",
-    "google-cloud-bigquery>=3.0.0",
-    "db-dtypes>=1.0.0",
-]
 dev = [
     "ruff>=0.4.0",
     "pre-commit>=3.0.0",

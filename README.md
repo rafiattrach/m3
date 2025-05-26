@@ -17,28 +17,27 @@ Query MIMIC-IV medical data using natural language through Claude Desktop or oth
 ### For Users
 
 1. **Setup virtual environment** (recommended):
-
    ```bash
    python -m venv .venv
    source .venv/bin/activate  # On Windows: .venv\Scripts\activate
    ```
-2. **Install M3 with MCP support**:
 
+2. **Install M3**:
    ```bash
-   pip install -e ".[mcp]"
+   pip install -e .
    ```
-3. **Download MIMIC-IV demo database**:
 
+3. **Download MIMIC-IV demo database**:
    ```bash
    m3 init mimic-iv-demo
    ```
-4. **Setup Claude Desktop** (automatically detects your environment):
 
+4. **Setup Claude Desktop** (automatically detects your environment):
    ```bash
    python mcp_client_configs/setup_claude_desktop.py
    ```
-5. **Restart Claude Desktop** and start asking questions like:
 
+5. **Restart Claude Desktop** and start asking questions like:
    - "What tools do you have for MIMIC-IV data?"
    - "Show me patient demographics from the ICU"
    - "Find lab results for patient 10000032"
@@ -46,7 +45,6 @@ Query MIMIC-IV medical data using natural language through Claude Desktop or oth
 ### For Developers
 
 1. **Clone and install with dev dependencies**:
-
    ```bash
    git clone <repo-url>
    cd m3
@@ -55,13 +53,8 @@ Query MIMIC-IV medical data using natural language through Claude Desktop or oth
    pip install -e ".[dev]"
    pre-commit install  # Install git hooks
    ```
-2. **For full MCP development** (includes BigQuery):
 
-   ```bash
-   pip install -e ".[mcp-full]"
-   ```
-3. **Run tests**:
-
+2. **Run tests**:
    ```bash
    pytest
    ```
@@ -69,20 +62,16 @@ Query MIMIC-IV medical data using natural language through Claude Desktop or oth
 ## 🔧 Configuration
 
 ### SQLite (Default) - Local Demo Dataset
-
 - Uses MIMIC-IV demo database (subset of full data)
 - **No cloud costs** - everything runs locally
 - Perfect for development, testing, and learning
 - Requires `m3 init mimic-iv-demo` to download the demo database first
 
 ### BigQuery - Full Dataset (Cloud)
-
 For access to the complete MIMIC-IV dataset:
-
 ```bash
 python mcp_client_configs/setup_claude_desktop.py --backend bigquery --project-id your-project-id
 ```
-
 ⚠️ **Note**: BigQuery usage incurs cloud costs
 
 ### 🔮 Coming Soon: Local Full Dataset
