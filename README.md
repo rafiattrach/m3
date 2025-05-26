@@ -27,12 +27,17 @@ Query MIMIC-IV medical data using natural language through Claude Desktop or oth
    ```bash
    pip install -e ".[mcp]"
    ```
-3. **Setup Claude Desktop** (automatically detects your environment):
+3. **Download MIMIC-IV demo database**:
+
+   ```bash
+   m3 init mimic-iv-demo
+   ```
+4. **Setup Claude Desktop** (automatically detects your environment):
 
    ```bash
    python mcp_client_configs/setup_claude_desktop.py
    ```
-4. **Restart Claude Desktop** and start asking questions like:
+5. **Restart Claude Desktop** and start asking questions like:
 
    - "What tools do you have for MIMIC-IV data?"
    - "Show me patient demographics from the ICU"
@@ -68,7 +73,7 @@ Query MIMIC-IV medical data using natural language through Claude Desktop or oth
 - Uses MIMIC-IV demo database (subset of full data)
 - **No cloud costs** - everything runs locally
 - Perfect for development, testing, and learning
-- No additional setup required
+- Requires `m3 init mimic-iv-demo` to download the demo database first
 
 ### BigQuery - Full Dataset (Cloud)
 
