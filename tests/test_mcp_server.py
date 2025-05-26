@@ -13,6 +13,16 @@ from fastmcp import Client
 from m3.mcp_server import _init_backend, mcp
 
 
+def _bigquery_available():
+    """Check if BigQuery dependencies are available."""
+    try:
+        import importlib.util
+
+        return importlib.util.find_spec("google.cloud.bigquery") is not None
+    except ImportError:
+        return False
+
+
 class TestMCPServerSetup:
     """Test MCP server setup and configuration."""
 
@@ -51,7 +61,7 @@ class TestMCPServerSetup:
                         _init_backend()
 
     @pytest.mark.skipif(
-        True, reason="BigQuery dependencies not available in test environment"
+        not _bigquery_available(), reason="BigQuery dependencies not available"
     )
     def test_backend_init_bigquery(self):
         """Test BigQuery backend initialization."""
@@ -64,6 +74,7 @@ class TestMCPServerSetup:
                 mock_client.return_value = Mock()
                 _init_backend()
                 # If no exception raised, initialization succeeded
+                mock_client.assert_called_once_with(project="test-project")
 
     def test_backend_init_invalid(self):
         """Test initialization with invalid backend."""
@@ -223,15 +234,15 @@ class TestMCPTools:
                 assert "No results found" in result_text
 
 
-@pytest.mark.skipif(
-    True, reason="BigQuery dependencies not available in test environment"
-)
 class TestBigQueryIntegration:
-    """Test BigQuery integration (skipped in test environment)."""
+    """Test BigQuery integration with mocks (no real API calls)."""
 
+    @pytest.mark.skipif(
+        not _bigquery_available(), reason="BigQuery dependencies not available"
+    )
     @pytest.mark.asyncio
     async def test_bigquery_tools(self):
-        """Test BigQuery tools functionality."""
+        """Test BigQuery tools functionality with mocks."""
         with patch.dict(
             os.environ,
             {"M3_BACKEND": "bigquery", "M3_PROJECT_ID": "test-project"},
@@ -243,7 +254,7 @@ class TestBigQueryIntegration:
                 mock_df = Mock()
                 mock_df.empty = False
                 mock_df.to_string.return_value = "Mock BigQuery result"
-                mock_df.__len__.return_value = 5
+                mock_df.__len__ = Mock(return_value=5)
                 mock_job.to_dataframe.return_value = mock_df
 
                 mock_client_instance = Mock()
@@ -253,13 +264,26 @@ class TestBigQueryIntegration:
                 _init_backend()
 
                 async with Client(mcp) as client:
+                    # Test execute_mimic_query tool
                     result = await client.call_tool(
                         "execute_mimic_query",
                         {
                             "sql_query": "SELECT COUNT(*) FROM `physionet-data.mimiciv_3_1_icu.icustays`"
                         },
                     )
-                    assert "Mock BigQuery result" in result.text
+                    result_text = str(result)
+                    assert "Mock BigQuery result" in result_text
+
+                    # Test get_race_distribution tool
+                    result = await client.call_tool(
+                        "get_race_distribution", {"limit": 5}
+                    )
+                    result_text = str(result)
+                    assert "Mock BigQuery result" in result_text
+
+                    # Verify BigQuery client was called
+                    mock_client.assert_called_once_with(project="test-project")
+                    assert mock_client_instance.query.called
 
 
 class TestServerIntegration:
