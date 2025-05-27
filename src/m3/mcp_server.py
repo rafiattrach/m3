@@ -94,6 +94,74 @@ def _init_backend():
 def execute_mimic_query(sql_query: str) -> str:
     """Execute SQL query against MIMIC-IV data.
 
+    This tool provides direct SQL access to MIMIC-IV database. Use this for complex queries
+    or when the specialized tools don't meet your needs.
+
+    IMPORTANT DATABASE SCHEMA INFORMATION:
+
+    SQLite Tables (use these table names for SQLite backend):
+    - icu_icustays: ICU stay information (subject_id, hadm_id, stay_id, intime, outtime, los)
+    - hosp_labevents: Laboratory test results (subject_id, hadm_id, itemid, charttime, value, valuenum, valueuom)
+    - hosp_admissions: Hospital admissions (subject_id, hadm_id, admittime, dischtime, race, insurance, language)
+
+    BigQuery Tables (use these fully qualified names for BigQuery backend):
+    - `physionet-data.mimiciv_3_1_icu.icustays`: ICU stay information
+    - `physionet-data.mimiciv_3_1_hosp.labevents`: Laboratory test results
+    - `physionet-data.mimiciv_3_1_hosp.admissions`: Hospital admissions
+
+    COMMON QUERY PATTERNS (based on existing specialized tools):
+
+    1. Patient Demographics from ICU stays:
+       SQLite: "SELECT * FROM icu_icustays WHERE subject_id = 12345"
+       BigQuery: "SELECT * FROM `physionet-data.mimiciv_3_1_icu.icustays` WHERE subject_id = 12345"
+
+    2. Laboratory Results:
+       SQLite: "SELECT * FROM hosp_labevents WHERE subject_id = 12345 AND value LIKE '%glucose%' LIMIT 20"
+       BigQuery: "SELECT * FROM `physionet-data.mimiciv_3_1_hosp.labevents` WHERE subject_id = 12345 LIMIT 20"
+
+    3. Race Distribution:
+       SQLite: "SELECT race, COUNT(*) as count FROM hosp_admissions GROUP BY race ORDER BY count DESC LIMIT 10"
+       BigQuery: "SELECT race, COUNT(*) as count FROM `physionet-data.mimiciv_3_1_hosp.admissions` GROUP BY race ORDER BY count DESC"
+
+    4. Database Schema Discovery:
+       SQLite: "SELECT name FROM sqlite_master WHERE type='table'"
+       BigQuery: "SELECT table_name FROM `physionet-data.mimiciv_3_1_hosp.INFORMATION_SCHEMA.TABLES`"
+
+    5. Advanced Patient Analysis with Joins:
+       SQLite: "SELECT i.subject_id, i.los, a.race, a.insurance FROM icu_icustays i JOIN hosp_admissions a ON i.subject_id = a.subject_id AND i.hadm_id = a.hadm_id LIMIT 20"
+       BigQuery: "SELECT i.subject_id, i.los, a.race FROM `physionet-data.mimiciv_3_1_icu.icustays` i JOIN `physionet-data.mimiciv_3_1_hosp.admissions` a ON i.subject_id = a.subject_id LIMIT 20"
+
+    KEY COLUMNS TO KNOW:
+    - subject_id: Patient identifier (links across all tables)
+    - hadm_id: Hospital admission identifier
+    - stay_id: ICU stay identifier
+    - charttime: Timestamp for events/measurements
+    - itemid: Identifier for specific lab tests, medications, etc.
+    - value/valuenum: Test results (value=text, valuenum=numeric)
+    - intime/outtime: ICU admission/discharge times
+    - admittime/dischtime: Hospital admission/discharge times
+    - los: Length of stay in days
+    - race, insurance, language: Patient demographics
+
+    QUERY CONSTRUCTION TIPS:
+    - Always use LIMIT to prevent overwhelming results (recommended: 10-50 rows)
+    - Use subject_id to filter for specific patients
+    - Use LIKE '%pattern%' for text searching in values
+    - Use ORDER BY with COUNT(*) for distributions and rankings
+    - Join tables on subject_id and hadm_id when combining data
+    - Filter by time ranges using charttime, intime, admittime for temporal analysis
+    - Use GROUP BY for aggregations and statistical analysis
+    - Consider using DISTINCT to avoid duplicate records
+
+    COMMON USE CASES:
+    - Patient-specific analysis: Filter by subject_id
+    - Temporal analysis: Use time-based columns with WHERE clauses
+    - Statistical summaries: Use COUNT(), AVG(), MIN(), MAX() with GROUP BY
+    - Data exploration: Start with simple SELECT * queries with LIMIT
+    - Cross-table analysis: JOIN tables on subject_id and hadm_id
+
+    SECURITY: Only SELECT queries are allowed. No INSERT, UPDATE, DELETE, or DDL operations.
+
     Args:
         sql_query: SQL query to execute (SELECT only)
 
