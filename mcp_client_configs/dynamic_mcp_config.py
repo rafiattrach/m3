@@ -294,6 +294,21 @@ Examples:
 
     args = parser.parse_args()
 
+    # Validate backend-specific arguments
+    if args.backend == "sqlite" and args.project_id:
+        print(
+            "❌ Error: --project-id can only be used with --backend bigquery",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    if args.backend == "bigquery" and args.db_path:
+        print(
+            "❌ Error: --db-path can only be used with --backend sqlite",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
     generator = MCPConfigGenerator()
 
     try:
