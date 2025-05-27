@@ -1,6 +1,6 @@
 # M3: MIMIC-IV + MCP + Models 🏥🤖
 
-> **Query MIMIC-IV medical data using natural language through Claude Desktop**
+> **Query MIMIC-IV medical data using natural language through MCP clients**
 
 Transform medical data analysis with AI! Ask questions about MIMIC-IV data in plain English and get instant insights. Choose between local demo data (free) or full cloud dataset (BigQuery).
 
@@ -37,18 +37,17 @@ source .venv/bin/activate  # Windows: .venv\Scripts\activate
    m3 init mimic-iv-demo
    ```
 
-3. **Setup Claude Desktop**:
+3. **Setup MCP Client**:
+   ```bash
+   m3 config
+   ```
+
+   *Alternative: For Claude Desktop specifically:*
    ```bash
    m3 config claude
    ```
 
-   *Alternative: You can also use the interactive config generator:*
-   ```bash
-   m3 config
-   ```
-   *Then select Claude Desktop when prompted.*
-
-4. **Restart Claude Desktop** and ask:
+4. **Restart your MCP client** and ask:
 
    - "What tools do you have for MIMIC-IV data?"
    - "Show me patient demographics from the ICU"
@@ -83,18 +82,17 @@ source .venv/bin/activate  # Windows: .venv\Scripts\activate
    pip install -e .
    ```
 
-4. **Setup Claude Desktop for BigQuery**:
+4. **Setup MCP Client for BigQuery**:
+   ```bash
+   m3 config
+   ```
+
+   *Alternative: For Claude Desktop specifically:*
    ```bash
    m3 config claude --backend bigquery --project-id YOUR_PROJECT_ID
    ```
 
-   *Alternative: Use the interactive config generator:*
-   ```bash
-   m3 config
-   ```
-   *Then select BigQuery backend and enter your project ID when prompted.*
-
-5. **Test BigQuery Access** - Restart Claude Desktop and ask:
+5. **Test BigQuery Access** - Restart your MCP client and ask:
    ```
    Use the get_race_distribution function to show me the top 5 races in MIMIC-IV admissions.
    ```
@@ -176,10 +174,10 @@ Try asking your MCP client these questions:
 m3 init mimic-iv-demo
 ```
 
-**Claude Desktop MCP server not starting:**
-1. Check Claude Desktop logs (Help → View Logs)
-2. Verify configuration: `cat ~/Library/Application\ Support/Claude/claude_desktop_config.json`
-3. Restart Claude Desktop completely
+**MCP client server not starting:**
+1. Check your MCP client logs (for Claude Desktop: Help → View Logs)
+2. Verify configuration file location and format
+3. Restart your MCP client completely
 
 ### BigQuery Issues
 
@@ -236,7 +234,6 @@ m3-mcp-server
 ## 🔮 Roadmap
 
 - 🏠 **Local Full Dataset**: Complete MIMIC-IV locally (no cloud costs)
-- 📱 **More MCP Clients**: Support for other AI assistants
 - 🔧 **Advanced Tools**: More specialized medical data functions
 - 📊 **Visualization**: Built-in plotting and charting tools
 
