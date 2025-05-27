@@ -1,5 +1,7 @@
 import logging
 import sqlite3
+import subprocess
+import sys
 from pathlib import Path
 from typing import Annotated, Optional
 
@@ -240,6 +242,220 @@ def dataset_init_cmd(
             fg=typer.colors.RED,
             err=True,
         )
+
+
+@app.command("config")
+def config_cmd(
+    client: Annotated[
+        Optional[str],
+        typer.Argument(
+            help="MCP client to configure. Use 'claude' for Claude Desktop auto-setup, or omit for universal config generator.",
+            metavar="CLIENT",
+        ),
+    ] = None,
+    backend: Annotated[
+        str,
+        typer.Option(
+            "--backend",
+            "-b",
+            help="Backend to use (sqlite or bigquery). Default: sqlite",
+        ),
+    ] = "sqlite",
+    db_path: Annotated[
+        Optional[str],
+        typer.Option(
+            "--db-path",
+            "-p",
+            help="Path to SQLite database (for sqlite backend)",
+        ),
+    ] = None,
+    project_id: Annotated[
+        Optional[str],
+        typer.Option(
+            "--project-id",
+            help="Google Cloud project ID (for bigquery backend)",
+        ),
+    ] = None,
+    python_path: Annotated[
+        Optional[str],
+        typer.Option(
+            "--python-path",
+            help="Path to Python executable",
+        ),
+    ] = None,
+    working_directory: Annotated[
+        Optional[str],
+        typer.Option(
+            "--working-directory",
+            help="Working directory for the server",
+        ),
+    ] = None,
+    server_name: Annotated[
+        str,
+        typer.Option(
+            "--server-name",
+            help="Name for the MCP server",
+        ),
+    ] = "m3",
+    output: Annotated[
+        Optional[str],
+        typer.Option(
+            "--output",
+            "-o",
+            help="Save configuration to file instead of printing",
+        ),
+    ] = None,
+    quick: Annotated[
+        bool,
+        typer.Option(
+            "--quick",
+            "-q",
+            help="Use quick mode with provided arguments (non-interactive)",
+        ),
+    ] = False,
+):
+    """
+    Configure M3 MCP server for various clients.
+
+    Examples:
+
+    • m3 config                    # Interactive universal config generator
+
+    • m3 config claude             # Auto-configure Claude Desktop
+
+    • m3 config --quick            # Quick universal config with defaults
+
+    • m3 config claude --backend bigquery --project-id my-project
+    """
+    # Get the project root directory (where the CLI script is located)
+    project_root = Path(__file__).parent.parent.parent
+
+    # Validate backend-specific arguments
+    if backend == "sqlite" and project_id:
+        typer.secho(
+            "❌ Error: --project-id can only be used with --backend bigquery",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        raise typer.Exit(code=1)
+
+    if backend == "bigquery" and db_path:
+        typer.secho(
+            "❌ Error: --db-path can only be used with --backend sqlite",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        raise typer.Exit(code=1)
+
+    if client == "claude":
+        # Run the Claude Desktop setup script
+        script_path = project_root / "mcp_client_configs" / "setup_claude_desktop.py"
+
+        if not script_path.exists():
+            typer.secho(
+                f"Error: Claude Desktop setup script not found at {script_path}",
+                fg=typer.colors.RED,
+                err=True,
+            )
+            raise typer.Exit(code=1)
+
+        # Build command arguments
+        cmd = [sys.executable, str(script_path)]
+
+        if backend != "sqlite":
+            cmd.extend(["--backend", backend])
+
+        if backend == "sqlite" and db_path:
+            cmd.extend(["--db-path", db_path])
+        elif backend == "bigquery" and project_id:
+            cmd.extend(["--project-id", project_id])
+
+        typer.echo("🚀 Setting up M3 MCP Server with Claude Desktop...")
+
+        try:
+            result = subprocess.run(cmd, check=True, capture_output=False)
+            if result.returncode == 0:
+                typer.secho(
+                    "✅ Claude Desktop configuration completed!", fg=typer.colors.GREEN
+                )
+        except subprocess.CalledProcessError as e:
+            typer.secho(
+                f"❌ Claude Desktop setup failed with exit code {e.returncode}",
+                fg=typer.colors.RED,
+                err=True,
+            )
+            raise typer.Exit(code=e.returncode)
+        except FileNotFoundError:
+            typer.secho(
+                "❌ Python interpreter not found. Please ensure Python is installed.",
+                fg=typer.colors.RED,
+                err=True,
+            )
+            raise typer.Exit(code=1)
+
+    else:
+        # Run the dynamic config generator
+        script_path = project_root / "mcp_client_configs" / "dynamic_mcp_config.py"
+
+        if not script_path.exists():
+            typer.secho(
+                f"Error: Dynamic config script not found at {script_path}",
+                fg=typer.colors.RED,
+                err=True,
+            )
+            raise typer.Exit(code=1)
+
+        # Build command arguments
+        cmd = [sys.executable, str(script_path)]
+
+        if quick:
+            cmd.append("--quick")
+
+        if backend != "sqlite":
+            cmd.extend(["--backend", backend])
+
+        if server_name != "m3":
+            cmd.extend(["--server-name", server_name])
+
+        if python_path:
+            cmd.extend(["--python-path", python_path])
+
+        if working_directory:
+            cmd.extend(["--working-directory", working_directory])
+
+        if backend == "sqlite" and db_path:
+            cmd.extend(["--db-path", db_path])
+        elif backend == "bigquery" and project_id:
+            cmd.extend(["--project-id", project_id])
+
+        if output:
+            cmd.extend(["--output", output])
+
+        if quick:
+            typer.echo("🔧 Generating M3 MCP configuration...")
+        else:
+            typer.echo("🔧 Starting interactive M3 MCP configuration...")
+
+        try:
+            result = subprocess.run(cmd, check=True, capture_output=False)
+            if result.returncode == 0 and quick:
+                typer.secho(
+                    "✅ Configuration generated successfully!", fg=typer.colors.GREEN
+                )
+        except subprocess.CalledProcessError as e:
+            typer.secho(
+                f"❌ Configuration generation failed with exit code {e.returncode}",
+                fg=typer.colors.RED,
+                err=True,
+            )
+            raise typer.Exit(code=e.returncode)
+        except FileNotFoundError:
+            typer.secho(
+                "❌ Python interpreter not found. Please ensure Python is installed.",
+                fg=typer.colors.RED,
+                err=True,
+            )
+            raise typer.Exit(code=1)
 
 
 if __name__ == "__main__":

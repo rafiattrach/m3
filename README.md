@@ -13,6 +13,8 @@ Transform medical data analysis with AI! Ask questions about MIMIC-IV data in pl
 
 ## 🚀 Quick Start
 
+> 💡 **Need more options?** Run `m3 --help` to see all available commands and options.
+
 ### Prerequisites
 
 ```bash
@@ -31,16 +33,20 @@ source .venv/bin/activate  # Windows: .venv\Scripts\activate
    ```
 
 2. **Download demo database**:
-
    ```bash
    m3 init mimic-iv-demo
    ```
 
 3. **Setup Claude Desktop**:
-
    ```bash
-   python mcp_client_configs/setup_claude_desktop.py
+   m3 config claude
    ```
+
+   *Alternative: You can also use the interactive config generator:*
+   ```bash
+   m3 config
+   ```
+   *Then select Claude Desktop when prompted.*
 
 4. **Restart Claude Desktop** and ask:
 
@@ -79,33 +85,51 @@ source .venv/bin/activate  # Windows: .venv\Scripts\activate
 
 4. **Setup Claude Desktop for BigQuery**:
    ```bash
-   python mcp_client_configs/setup_claude_desktop.py --backend bigquery --project-id YOUR_PROJECT_ID
+   m3 config claude --backend bigquery --project-id YOUR_PROJECT_ID
    ```
+
+   *Alternative: Use the interactive config generator:*
+   ```bash
+   m3 config
+   ```
+   *Then select BigQuery backend and enter your project ID when prompted.*
 
 5. **Test BigQuery Access** - Restart Claude Desktop and ask:
    ```
    Use the get_race_distribution function to show me the top 5 races in MIMIC-IV admissions.
    ```
 
-## 🔧 Configuration Options
+## 🔧 Advanced Configuration
 
-### SQLite Backend (Default)
+Need to configure other MCP clients or customize settings? Use these commands:
 
+### Interactive Configuration (Universal)
 ```bash
-python mcp_client_configs/setup_claude_desktop.py --backend sqlite
+m3 config
+```
+Generates configuration for any MCP client with step-by-step guidance.
+
+### Quick Configuration Examples
+```bash
+# Quick universal config with defaults
+m3 config --quick
+
+# Universal config with custom database
+m3 config --quick --backend sqlite --db-path /path/to/database.db
+
+# Save config to file for other MCP clients
+m3 config --output my_config.json
 ```
 
+### Backend Comparison
+
+**SQLite Backend (Default)**
 - ✅ **Free**: No cloud costs
 - ✅ **Fast**: Local queries
 - ✅ **Easy**: No authentication needed
 - ❌ **Limited**: Demo dataset only (~1k records)
 
-### BigQuery Backend
-
-```bash
-python mcp_client_configs/setup_claude_desktop.py --backend bigquery --project-id YOUR_PROJECT_ID
-```
-
+**BigQuery Backend**
 - ✅ **Complete**: Full MIMIC-IV dataset (~500k admissions)
 - ✅ **Scalable**: Google Cloud infrastructure
 - ✅ **Current**: Latest MIMIC-IV version (3.1)
@@ -113,7 +137,7 @@ python mcp_client_configs/setup_claude_desktop.py --backend bigquery --project-i
 
 ## 🛠️ Available MCP Tools
 
-When you ask Claude questions, it uses these tools automatically:
+When your MCP client processes questions, it uses these tools automatically:
 
 - **execute_mimic_query**: Run custom SQL queries (SELECT only)
 - **get_patient_demographics**: Patient info from ICU stays
@@ -123,7 +147,7 @@ When you ask Claude questions, it uses these tools automatically:
 
 ## 🧪 Example Queries
 
-Try asking Claude these questions:
+Try asking your MCP client these questions:
 
 **Demographics & Statistics:**
 
@@ -144,21 +168,31 @@ Try asking Claude these questions:
 
 ## 🔍 Troubleshooting
 
+### Common Issues
+
+**SQLite "Database not found" errors:**
+```bash
+# Re-download demo database
+m3 init mimic-iv-demo
+```
+
+**Claude Desktop MCP server not starting:**
+1. Check Claude Desktop logs (Help → View Logs)
+2. Verify configuration: `cat ~/Library/Application\ Support/Claude/claude_desktop_config.json`
+3. Restart Claude Desktop completely
+
 ### BigQuery Issues
 
 **"Access Denied" errors:**
-
 - Ensure you have MIMIC-IV access on PhysioNet
 - Verify your Google Cloud project has BigQuery API enabled
 - Check that you're authenticated: `gcloud auth list`
 
 **"Dataset not found" errors:**
-
 - Confirm your project ID is correct
 - Ensure you have access to `physionet-data` project
 
 **Authentication issues:**
-
 ```bash
 # Re-authenticate
 gcloud auth application-default login
@@ -166,23 +200,6 @@ gcloud auth application-default login
 # Check current authentication
 gcloud auth list
 ```
-
-### SQLite Issues
-
-**"Database not found" errors:**
-
-```bash
-# Re-download demo database
-m3 init mimic-iv-demo
-```
-
-### Claude Desktop Issues
-
-**MCP server not starting:**
-
-1. Check Claude Desktop logs (Help → View Logs)
-2. Verify configuration: `cat ~/Library/Application\ Support/Claude/claude_desktop_config.json`
-3. Restart Claude Desktop completely
 
 ## 👩‍💻 For Developers
 

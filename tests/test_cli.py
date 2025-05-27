@@ -1,6 +1,7 @@
+import subprocess
 import tempfile
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from typer.testing import CliRunner
@@ -80,3 +81,65 @@ def test_init_command_respects_custom_db_path(
 
         # Verify sqlite connection was attempted with the resolved custom path
         mock_sqlite_connect.assert_called_with(resolved_custom_db_path)
+
+
+def test_config_validation_sqlite_with_project_id():
+    """Test that sqlite backend rejects project-id parameter."""
+    result = runner.invoke(
+        app, ["config", "claude", "--backend", "sqlite", "--project-id", "test"]
+    )
+    assert result.exit_code == 1
+    # Check output - error messages from typer usually go to stdout
+    assert "project-id can only be used with --backend bigquery" in result.output
+
+
+def test_config_validation_bigquery_with_db_path():
+    """Test that bigquery backend rejects db-path parameter."""
+    result = runner.invoke(
+        app, ["config", "claude", "--backend", "bigquery", "--db-path", "/test/path"]
+    )
+    assert result.exit_code == 1
+    # Check output - error messages from typer usually go to stdout
+    assert "db-path can only be used with --backend sqlite" in result.output
+
+
+@patch("subprocess.run")
+def test_config_claude_success(mock_subprocess):
+    """Test successful Claude Desktop configuration."""
+    mock_subprocess.return_value = MagicMock(returncode=0)
+
+    result = runner.invoke(app, ["config", "claude"])
+    assert result.exit_code == 0
+    assert "Setting up M3 MCP Server with Claude Desktop" in result.stdout
+
+    # Verify subprocess was called with correct script
+    mock_subprocess.assert_called_once()
+    call_args = mock_subprocess.call_args[0][0]
+    assert "setup_claude_desktop.py" in call_args[1]  # Script path is second argument
+
+
+@patch("subprocess.run")
+def test_config_universal_quick_mode(mock_subprocess):
+    """Test universal config generator in quick mode."""
+    mock_subprocess.return_value = MagicMock(returncode=0)
+
+    result = runner.invoke(app, ["config", "--quick"])
+    assert result.exit_code == 0
+    assert "Generating M3 MCP configuration" in result.stdout
+
+    # Verify subprocess was called with dynamic config script
+    mock_subprocess.assert_called_once()
+    call_args = mock_subprocess.call_args[0][0]
+    assert "dynamic_mcp_config.py" in call_args[1]  # Script path is second argument
+    assert "--quick" in call_args
+
+
+@patch("subprocess.run")
+def test_config_script_failure(mock_subprocess):
+    """Test error handling when config script fails."""
+    mock_subprocess.side_effect = subprocess.CalledProcessError(1, "cmd")
+
+    result = runner.invoke(app, ["config", "claude"])
+    assert result.exit_code == 1
+    # Just verify that the command failed with the right exit code
+    # The specific error message may vary
