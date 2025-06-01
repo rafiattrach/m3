@@ -9,7 +9,8 @@ Transform medical data analysis with AI! Ask questions about MIMIC-IV data in pl
 - 🔍 **Natural Language Queries**: Ask questions about MIMIC-IV data in plain English
 - 🏠 **Local SQLite**: Fast queries on demo database (free, no setup)
 - ☁️ **BigQuery Support**: Access full MIMIC-IV dataset on Google Cloud
-- 🔒 **Secure**: Read-only queries with SQL injection protection
+- 🔒 **Enterprise Security**: OAuth2 authentication with JWT tokens and rate limiting
+- 🛡️ **SQL Injection Protection**: Read-only queries with comprehensive validation
 
 ## 🚀 Quick Start
 
@@ -119,6 +120,33 @@ m3 config --quick --backend sqlite --db-path /path/to/database.db
 m3 config --output my_config.json
 ```
 
+### 🔐 OAuth2 Authentication (Optional)
+
+For production deployments requiring secure access to medical data:
+
+```bash
+# Enable OAuth2 with Claude Desktop
+m3 config claude --enable-oauth2 \
+  --oauth2-issuer https://your-auth-provider.com \
+  --oauth2-audience m3-api \
+  --oauth2-scopes "read:mimic-data"
+
+# Or configure interactively
+m3 config  # Choose OAuth2 option during setup
+```
+
+**Supported OAuth2 Providers:**
+- Auth0, Google Identity Platform, Microsoft Azure AD, Keycloak
+- Any OAuth2/OpenID Connect compliant provider
+
+**Key Benefits:**
+- 🔒 **JWT Token Validation**: Industry-standard security
+- 🎯 **Scope-based Access**: Fine-grained permissions
+- 🛡️ **Rate Limiting**: Abuse protection
+- 📊 **Audit Logging**: Security monitoring
+
+> 📖 **Complete OAuth2 Setup Guide**: See [`OAUTH2_AUTHENTICATION.md`](OAUTH2_AUTHENTICATION.md) for detailed configuration, troubleshooting, and production deployment guidelines.
+
 ### Backend Comparison
 
 **SQLite Backend (Default)**
@@ -179,6 +207,25 @@ m3 init mimic-iv-demo
 2. Verify configuration file location and format
 3. Restart your MCP client completely
 
+### OAuth2 Authentication Issues
+
+**"Missing OAuth2 access token" errors:**
+```bash
+# Set your access token
+export M3_OAUTH2_TOKEN="Bearer your-access-token-here"
+```
+
+**"OAuth2 authentication failed" errors:**
+- Verify your token hasn't expired
+- Check that required scopes are included in your token
+- Ensure your OAuth2 provider configuration is correct
+
+**Rate limit exceeded:**
+- Wait for the rate limit window to reset
+- Contact your administrator to adjust limits if needed
+
+> 🔧 **OAuth2 Troubleshooting**: See [`OAUTH2_AUTHENTICATION.md`](OAUTH2_AUTHENTICATION.md) for detailed OAuth2 troubleshooting and configuration guides.
+
 ### BigQuery Issues
 
 **"Access Denied" errors:**
@@ -215,8 +262,9 @@ pre-commit install
 ### Testing
 
 ```bash
-pytest  # All tests (uses mocks for BigQuery)
-pytest tests/test_mcp_server.py -v  # Detailed test output
+pytest  # All tests (includes OAuth2 and BigQuery mocks)
+pytest tests/test_mcp_server.py -v  # MCP server tests
+pytest tests/test_oauth2_auth.py -v  # OAuth2 authentication tests
 ```
 
 ### Test BigQuery Locally
@@ -227,6 +275,12 @@ export M3_BACKEND=bigquery
 export M3_PROJECT_ID=your-project-id
 export GOOGLE_CLOUD_PROJECT=your-project-id
 
+# Optional: Test with OAuth2 authentication
+export M3_OAUTH2_ENABLED=true
+export M3_OAUTH2_ISSUER_URL=https://your-provider.com
+export M3_OAUTH2_AUDIENCE=m3-api
+export M3_OAUTH2_TOKEN="Bearer your-test-token"
+
 # Test MCP server
 m3-mcp-server
 ```
@@ -236,6 +290,8 @@ m3-mcp-server
 - 🏠 **Local Full Dataset**: Complete MIMIC-IV locally (no cloud costs)
 - 🔧 **Advanced Tools**: More specialized medical data functions
 - 📊 **Visualization**: Built-in plotting and charting tools
+- 🔐 **Enhanced Security**: Role-based access control, audit logging
+- 🌐 **Multi-tenant Support**: Organization-level data isolation
 
 ## 🤝 Contributing
 
