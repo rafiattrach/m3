@@ -10,7 +10,12 @@ from unittest.mock import Mock, patch
 import pytest
 from fastmcp import Client
 
-from m3.mcp_server import _init_backend, mcp
+# Mock the database path check during import to handle CI environments
+with patch("pathlib.Path.exists", return_value=True):
+    with patch(
+        "m3.mcp_server.get_default_database_path", return_value=Path("/fake/test.db")
+    ):
+        from m3.mcp_server import _init_backend, mcp
 
 
 def _bigquery_available():
