@@ -26,6 +26,10 @@ dependencies = [
     "google-cloud-bigquery>=3.0.0",  # BigQuery support
     "db-dtypes>=1.0.0",  # BigQuery data types
     "sqlparse>=0.4.0",  # SQL parsing for security validation
+    "pyjwt[crypto]>=2.8.0",  # JWT token handling with cryptography support
+    "cryptography>=41.0.0",  # Cryptographic operations for JWT
+    "python-jose[cryptography]>=3.3.0",  # Additional JWT support with crypto
+    "httpx>=0.24.0",  # Modern HTTP client for OAuth2 token validation
 ]
 
 [project.optional-dependencies]
