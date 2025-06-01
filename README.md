@@ -137,11 +137,12 @@ m3 config --output my_config.json
 
 When your MCP client processes questions, it uses these tools automatically:
 
-- **execute_mimic_query**: Run custom SQL queries (SELECT only)
-- **get_patient_demographics**: Patient info from ICU stays
+- **get_database_schema**: List all available tables
+- **get_table_info**: Get column info and sample data for a table
+- **execute_mimic_query**: Execute SQL SELECT queries
+- **get_icu_stays**: ICU stay information and length of stay data
 - **get_lab_results**: Laboratory test results
-- **get_race_distribution**: Race/ethnicity statistics
-- **get_database_schema**: Explore available tables
+- **get_race_distribution**: Patient race distribution
 
 ## 🧪 Example Queries
 

@@ -10,7 +10,12 @@ from unittest.mock import Mock, patch
 import pytest
 from fastmcp import Client
 
-from m3.mcp_server import _init_backend, mcp
+# Mock the database path check during import to handle CI environments
+with patch("pathlib.Path.exists", return_value=True):
+    with patch(
+        "m3.mcp_server.get_default_database_path", return_value=Path("/fake/test.db")
+    ):
+        from m3.mcp_server import _init_backend, mcp
 
 
 def _bigquery_available():
@@ -155,9 +160,9 @@ class TestMCPTools:
                 assert "count" in result_text
                 assert "2" in result_text
 
-                # Test get_patient_demographics tool
+                # Test get_icu_stays tool
                 result = await client.call_tool(
-                    "get_patient_demographics", {"patient_id": 10000032, "limit": 10}
+                    "get_icu_stays", {"patient_id": 10000032, "limit": 10}
                 )
                 result_text = str(result)
                 assert "10000032" in result_text
@@ -198,7 +203,10 @@ class TestMCPTools:
                         "execute_mimic_query", {"sql_query": query}
                     )
                     result_text = str(result)
-                    assert "Error: Only SELECT queries are allowed" in result_text
+                    assert (
+                        "Security Error:" in result_text
+                        and "Only SELECT" in result_text
+                    )
 
     @pytest.mark.asyncio
     async def test_invalid_sql(self, test_db):
@@ -213,8 +221,7 @@ class TestMCPTools:
                     "execute_mimic_query", {"sql_query": "INVALID SQL QUERY"}
                 )
                 result_text = str(result)
-                # With enhanced security, invalid SQL is caught by parser before reaching SQLite
-                assert "Error: Only SELECT queries are allowed" in result_text
+                assert "Query Failed:" in result_text and "syntax error" in result_text
 
     @pytest.mark.asyncio
     async def test_empty_results(self, test_db):
