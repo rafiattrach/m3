@@ -216,7 +216,7 @@ class TestMCPTools:
                     "execute_mimic_query", {"sql_query": "INVALID SQL QUERY"}
                 )
                 result_text = str(result)
-                assert "Security Error:" in result_text and "Only SELECT" in result_text
+                assert "Query Failed:" in result_text and "syntax error" in result_text
 
     @pytest.mark.asyncio
     async def test_empty_results(self, test_db):

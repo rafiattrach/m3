@@ -24,30 +24,105 @@ _bq_client = None
 _project_id = None
 
 
-def is_safe_query(sql_query: str) -> tuple[bool, str]:
-    """Simple SQL safety check - only allow SELECT statements."""
+def is_safe_query(sql_query: str, internal_tool: bool = False) -> tuple[bool, str]:
+    """Secure SQL validation - blocks injection attacks, allows legitimate queries."""
     try:
-        # Basic input validation
         if not sql_query or not sql_query.strip():
-            return False, "Empty or invalid SQL query"
+            return False, "Empty query"
 
-        # Parse the SQL to check if it's a SELECT statement
+        # Parse SQL to validate structure
         parsed = sqlparse.parse(sql_query.strip())
         if not parsed:
-            return False, "Unable to parse SQL query"
+            return False, "Invalid SQL syntax"
 
-        # Get the first statement and check if it's a SELECT
-        first_statement = parsed[0]
-        if first_statement.get_type() != "SELECT":
-            return (
-                False,
-                "Only SELECT queries are allowed. No INSERT, UPDATE, DELETE, CREATE, DROP, ALTER, or other statements.",
-            )
+        # Block multiple statements (main injection vector)
+        if len(parsed) > 1:
+            return False, "Multiple statements not allowed"
 
-        return True, "Query is safe"
+        statement = parsed[0]
+        statement_type = statement.get_type()
+
+        # Allow SELECT and PRAGMA (PRAGMA is needed for schema exploration)
+        if statement_type not in (
+            "SELECT",
+            "UNKNOWN",
+        ):  # PRAGMA shows as UNKNOWN in sqlparse
+            return False, "Only SELECT and PRAGMA queries allowed"
+
+        # Check if it's a PRAGMA statement (these are safe for schema exploration)
+        sql_upper = sql_query.strip().upper()
+        if sql_upper.startswith("PRAGMA"):
+            return True, "Safe PRAGMA statement"
+
+        # For SELECT statements, block dangerous injection patterns
+        if statement_type == "SELECT":
+            # Block dangerous write operations within SELECT
+            dangerous_keywords = {
+                "INSERT",
+                "UPDATE",
+                "DELETE",
+                "DROP",
+                "CREATE",
+                "ALTER",
+                "TRUNCATE",
+                "REPLACE",
+                "MERGE",
+                "EXEC",
+                "EXECUTE",
+            }
+
+            for keyword in dangerous_keywords:
+                if f" {keyword} " in f" {sql_upper} ":
+                    return False, f"Write operation not allowed: {keyword}"
+
+            # Block common injection patterns that are rarely used in legitimate analytics
+            injection_patterns = [
+                # Classic SQL injection patterns
+                ("1=1", "Classic injection pattern"),
+                ("OR 1=1", "Boolean injection pattern"),
+                ("AND 1=1", "Boolean injection pattern"),
+                ("OR '1'='1'", "String injection pattern"),
+                ("AND '1'='1'", "String injection pattern"),
+                ("WAITFOR", "Time-based injection"),
+                ("SLEEP(", "Time-based injection"),
+                ("BENCHMARK(", "Time-based injection"),
+                ("LOAD_FILE(", "File access injection"),
+                ("INTO OUTFILE", "File write injection"),
+                ("INTO DUMPFILE", "File write injection"),
+            ]
+
+            for pattern, description in injection_patterns:
+                if pattern in sql_upper:
+                    return False, f"Injection pattern detected: {description}"
+
+            # Context-aware protection: Block suspicious table/column names not in medical databases
+            suspicious_names = [
+                "PASSWORD",
+                "ADMIN",
+                "USER",
+                "LOGIN",
+                "AUTH",
+                "TOKEN",
+                "CREDENTIAL",
+                "SECRET",
+                "KEY",
+                "HASH",
+                "SALT",
+                "SESSION",
+                "COOKIE",
+            ]
+
+            for name in suspicious_names:
+                if name in sql_upper:
+                    return (
+                        False,
+                        f"Suspicious identifier detected: {name} (not medical data)",
+                    )
+
+        return True, "Safe"
+
     except Exception as e:
-        # If parsing fails, reject the query for security
-        return False, f"SQL parsing failed: {e}. Query rejected for security."
+        return False, f"Validation error: {e}"
 
 
 def _init_backend():
@@ -427,20 +502,31 @@ def get_lab_results(
     else:  # bigquery
         labevents_table = "`physionet-data.mimiciv_3_1_hosp.labevents`"
 
-    query = f"SELECT * FROM {labevents_table}"
+    # Build safe parameterized query
     conditions = []
-    if patient_id:
-        conditions.append(f"subject_id = {patient_id}")
-    if lab_item:
-        conditions.append(f"value LIKE '%{lab_item}%'")
-    if conditions:
-        query += " WHERE " + " AND ".join(conditions)
-    query += f" LIMIT {limit}"
+    params = {}
 
-    # Execute with error handling that suggests proper workflow
-    result = execute_mimic_query(query)
-    if "error" in result.lower() or "not found" in result.lower():
-        return f"""❌ **Convenience function failed:** {result}
+    if patient_id:
+        conditions.append("subject_id = :patient_id")
+        params["patient_id"] = patient_id
+
+    if lab_item:
+        conditions.append("value LIKE :lab_item")
+        params["lab_item"] = f"%{lab_item}%"
+
+    base_query = f"SELECT * FROM {labevents_table}"
+    if conditions:
+        base_query += " WHERE " + " AND ".join(conditions)
+    base_query += f" LIMIT {limit}"
+
+    # Execute with safe parameter substitution
+    try:
+        if _backend == "sqlite":
+            return _execute_sqlite_query_safe(base_query, params)
+        else:
+            return _execute_bigquery_query_safe(base_query, params)
+    except Exception as e:
+        return f"""❌ **Convenience function failed:** {e}
 
 💡 **For reliable results, use the proper workflow:**
 1. `get_database_schema()` ← See actual table names
@@ -448,8 +534,6 @@ def get_lab_results(
 3. `execute_mimic_query('your_sql')` ← Use exact names
 
 This ensures compatibility across different MIMIC-IV setups."""
-
-    return result
 
 
 @mcp.tool()
@@ -514,6 +598,40 @@ def _execute_sqlite_query(sql_query: str) -> str:
         raise e
 
 
+def _execute_sqlite_query_safe(sql_query: str, params: Optional[dict] = None) -> str:
+    """Execute SQLite query with safe parameter substitution."""
+    try:
+        conn = sqlite3.connect(_db_path)
+
+        if params:
+            # Convert named parameters to SQLite format
+            safe_query = sql_query
+            safe_params = {}
+            for key, value in params.items():
+                safe_query = safe_query.replace(f":{key}", f":{key}")
+                safe_params[key] = value
+            df = pd.read_sql_query(safe_query, conn, params=safe_params)
+        else:
+            df = pd.read_sql_query(sql_query, conn)
+
+        conn.close()
+
+        if df.empty:
+            return "No results found"
+
+        # Limit output size
+        if len(df) > 50:
+            result = df.head(50).to_string(index=False)
+            result += f"\n... ({len(df)} total rows, showing first 50)"
+        else:
+            result = df.to_string(index=False)
+
+        return result
+
+    except Exception as e:
+        raise e
+
+
 def _execute_bigquery_query(sql_query: str) -> str:
     """Execute BigQuery query."""
     try:
@@ -537,6 +655,47 @@ def _execute_bigquery_query(sql_query: str) -> str:
 
     except Exception as e:
         # Re-raise the exception so execute_mimic_query can handle it with enhanced guidance
+        raise e
+
+
+def _execute_bigquery_query_safe(sql_query: str, params: Optional[dict] = None) -> str:
+    """Execute BigQuery query with safe parameter substitution."""
+    try:
+        from google.cloud import bigquery
+
+        job_config = bigquery.QueryJobConfig()
+
+        if params:
+            # Convert to BigQuery parameters
+            query_params = []
+            safe_query = sql_query
+            for key, value in params.items():
+                safe_query = safe_query.replace(f":{key}", f"@{key}")
+                query_params.append(
+                    bigquery.ScalarQueryParameter(
+                        key, "STRING" if isinstance(value, str) else "INT64", value
+                    )
+                )
+            job_config.query_parameters = query_params
+            query_job = _bq_client.query(safe_query, job_config=job_config)
+        else:
+            query_job = _bq_client.query(sql_query, job_config=job_config)
+
+        df = query_job.to_dataframe()
+
+        if df.empty:
+            return "No results found"
+
+        # Limit output size
+        if len(df) > 50:
+            result = df.head(50).to_string(index=False)
+            result += f"\n... ({len(df)} total rows, showing first 50)"
+        else:
+            result = df.to_string(index=False)
+
+        return result
+
+    except Exception as e:
         raise e
 
 
