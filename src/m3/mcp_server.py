@@ -137,7 +137,7 @@ def _init_backend():
 
 @mcp.tool()
 @require_oauth2
-def execute_mimic_query(sql_query: str, **kwargs) -> str:
+def execute_mimic_query(sql_query: str) -> str:
     """Execute SQL query against MIMIC-IV data.
 
     This tool provides direct SQL access to MIMIC-IV database. Use this for complex queries
@@ -230,7 +230,7 @@ def execute_mimic_query(sql_query: str, **kwargs) -> str:
 
 @mcp.tool()
 @require_oauth2
-def get_patient_demographics(patient_id: Optional[int] = None, limit: int = 10, **kwargs) -> str:
+def get_patient_demographics(patient_id: Optional[int] = None, limit: int = 10) -> str:
     """Get patient demographic information from ICU stays.
 
     Args:
@@ -276,7 +276,7 @@ def get_patient_demographics(patient_id: Optional[int] = None, limit: int = 10, 
 @mcp.tool()
 @require_oauth2
 def get_lab_results(
-    patient_id: Optional[int] = None, lab_item: Optional[str] = None, limit: int = 20, **kwargs
+    patient_id: Optional[int] = None, lab_item: Optional[str] = None, limit: int = 20
 ) -> str:
     """Get laboratory test results.
 
@@ -341,7 +341,7 @@ def get_lab_results(
 
 @mcp.tool()
 @require_oauth2
-def get_database_schema(**kwargs) -> str:
+def get_database_schema() -> str:
     """Get database schema information.
 
     Returns:
@@ -363,7 +363,7 @@ def get_database_schema(**kwargs) -> str:
 
 @mcp.tool()
 @require_oauth2
-def get_race_distribution(limit: int = 10, **kwargs) -> str:
+def get_race_distribution(limit: int = 10) -> str:
     """Get race distribution from hospital admissions.
 
     Args:
