@@ -137,9 +137,13 @@ class TestMCPTools:
     @pytest.mark.asyncio
     async def test_tools_via_client(self, test_db):
         """Test MCP tools through the FastMCP client."""
-        # Set up environment for SQLite backend
+        # Set up environment for SQLite backend with OAuth2 disabled
         with patch.dict(
-            os.environ, {"M3_BACKEND": "sqlite", "M3_DB_PATH": test_db}, clear=True
+            os.environ, {
+                "M3_BACKEND": "sqlite", 
+                "M3_DB_PATH": test_db,
+                "M3_OAUTH2_ENABLED": "false"
+            }, clear=True
         ):
             # Initialize backend
             _init_backend()
@@ -178,7 +182,11 @@ class TestMCPTools:
     async def test_security_checks(self, test_db):
         """Test SQL injection protection."""
         with patch.dict(
-            os.environ, {"M3_BACKEND": "sqlite", "M3_DB_PATH": test_db}, clear=True
+            os.environ, {
+                "M3_BACKEND": "sqlite", 
+                "M3_DB_PATH": test_db,
+                "M3_OAUTH2_ENABLED": "false"
+            }, clear=True
         ):
             _init_backend()
 
@@ -204,7 +212,11 @@ class TestMCPTools:
     async def test_invalid_sql(self, test_db):
         """Test handling of invalid SQL."""
         with patch.dict(
-            os.environ, {"M3_BACKEND": "sqlite", "M3_DB_PATH": test_db}, clear=True
+            os.environ, {
+                "M3_BACKEND": "sqlite", 
+                "M3_DB_PATH": test_db,
+                "M3_OAUTH2_ENABLED": "false"
+            }, clear=True
         ):
             _init_backend()
 
@@ -220,7 +232,11 @@ class TestMCPTools:
     async def test_empty_results(self, test_db):
         """Test handling of queries with no results."""
         with patch.dict(
-            os.environ, {"M3_BACKEND": "sqlite", "M3_DB_PATH": test_db}, clear=True
+            os.environ, {
+                "M3_BACKEND": "sqlite", 
+                "M3_DB_PATH": test_db,
+                "M3_OAUTH2_ENABLED": "false"
+            }, clear=True
         ):
             _init_backend()
 
@@ -233,6 +249,30 @@ class TestMCPTools:
                 )
                 result_text = str(result)
                 assert "No results found" in result_text
+
+    @pytest.mark.asyncio
+    async def test_oauth2_authentication_required(self, test_db):
+        """Test that OAuth2 authentication is required when enabled."""
+        # Set up environment for SQLite backend with OAuth2 enabled
+        with patch.dict(
+            os.environ, {
+                "M3_BACKEND": "sqlite", 
+                "M3_DB_PATH": test_db,
+                "M3_OAUTH2_ENABLED": "true",
+                "M3_OAUTH2_ISSUER_URL": "https://auth.example.com",
+                "M3_OAUTH2_AUDIENCE": "m3-api"
+            }, clear=True
+        ):
+            _init_backend()
+
+            async with Client(mcp) as client:
+                # Test that tools require authentication
+                result = await client.call_tool(
+                    "execute_mimic_query",
+                    {"sql_query": "SELECT COUNT(*) FROM icu_icustays"}
+                )
+                result_text = str(result)
+                assert "Missing OAuth2 access token" in result_text
 
 
 class TestBigQueryIntegration:

@@ -4,6 +4,7 @@ Provides MCP tools for querying MIMIC-IV data via SQLite or BigQuery.
 """
 
 import os
+import re
 import sqlite3
 from pathlib import Path
 from typing import Optional
@@ -12,7 +13,8 @@ import pandas as pd
 import sqlparse
 from fastmcp import FastMCP
 
-from m3.config import get_default_database_path
+from m3.auth import init_oauth2, require_oauth2
+from m3.config import get_default_database_path, logger
 
 # Create FastMCP server instance
 mcp = FastMCP("m3")
@@ -24,17 +26,48 @@ _bq_client = None
 _project_id = None
 
 
+def validate_patient_id(patient_id: Optional[int]) -> bool:
+    """Validate patient_id parameter."""
+    if patient_id is None:
+        return True
+    return isinstance(patient_id, int) and 0 < patient_id < 999999999
+
+
+def validate_limit(limit: int) -> bool:
+    """Validate limit parameter."""
+    return isinstance(limit, int) and 0 < limit <= 1000
+
+
+def sanitize_lab_item(lab_item: Optional[str]) -> Optional[str]:
+    """Sanitize lab_item parameter to prevent injection."""
+    if lab_item is None:
+        return None
+    # Remove any dangerous characters, keep only alphanumeric, spaces, hyphens, underscores
+    sanitized = re.sub(r'[^\w\s\-_]', '', lab_item)
+    # Limit length to prevent abuse
+    return sanitized[:100] if sanitized else None
+
+
 def is_safe_query(sql_query: str) -> tuple[bool, str]:
-    """More robust SQL safety check."""
+    """Enhanced SQL safety check with comprehensive validation."""
     try:
         parsed = sqlparse.parse(sql_query)
         if not parsed or parsed[0].get_type() != "SELECT":
             return False, "Only SELECT queries are allowed"
 
-        # Block dangerous patterns: ';', '--', 'UNION', etc.
-        # Use word boundaries for patterns that could be part of table names
-        dangerous_patterns = [";", "--", "/*", "*/"]
-        dangerous_words = ["UNION", "EXEC"]  # These need word boundaries
+        # Comprehensive list of dangerous patterns
+        dangerous_patterns = [
+            ";", "--", "/*", "*/", "xp_", "sp_", "@@",
+            "INTO OUTFILE", "LOAD DATA", "INFORMATION_SCHEMA",
+            "SYSTEM_USER", "CURRENT_USER", "SESSION_USER"
+        ]
+        
+        # Dangerous words that need word boundaries
+        dangerous_words = [
+            "UNION", "EXEC", "EXECUTE", "INSERT", "UPDATE", 
+            "DELETE", "DROP", "CREATE", "ALTER", "TRUNCATE",
+            "GRANT", "REVOKE", "COMMIT", "ROLLBACK"
+        ]
 
         sql_upper = sql_query.upper()
 
@@ -44,22 +77,34 @@ def is_safe_query(sql_query: str) -> tuple[bool, str]:
                 return False, f"Dangerous pattern detected: {pattern}"
 
         # Check for dangerous words with word boundaries
-        import re
-
         for word in dangerous_words:
-            if re.search(r"\b" + word + r"\b", sql_upper):
-                return False, f"Dangerous pattern detected: {word}"
+            if re.search(r"\b" + re.escape(word) + r"\b", sql_upper):
+                return False, f"Dangerous SQL command detected: {word}"
+
+        # Additional checks for SQL injection patterns
+        injection_patterns = [
+            r"\b(OR|AND)\s+\d+\s*=\s*\d+",  # OR 1=1, AND 1=1 patterns
+            r"'\s*(OR|AND)\s*'.*'\s*=\s*'",   # ' OR '' = ' patterns
+            r"\bUNION\s+SELECT",               # UNION SELECT patterns
+        ]
+        
+        for pattern in injection_patterns:
+            if re.search(pattern, sql_upper):
+                return False, "SQL injection pattern detected"
 
         return True, "Safe"
     except Exception as e:
-        # If parsing fails, let it through to get proper SQL error from database
-        return True, f"SQL parsing warning: {e}"
+        # More conservative approach - reject queries that can't be parsed
+        return False, f"SQL parsing failed: {e}"
 
 
 def _init_backend():
     """Initialize the backend based on environment variables."""
     global _backend, _db_path, _bq_client, _project_id
 
+    # Initialize OAuth2 authentication
+    init_oauth2()
+    
     _backend = os.getenv("M3_BACKEND", "sqlite")
 
     if _backend == "sqlite":
@@ -91,7 +136,8 @@ def _init_backend():
 
 
 @mcp.tool()
-def execute_mimic_query(sql_query: str) -> str:
+@require_oauth2
+def execute_mimic_query(sql_query: str, **kwargs) -> str:
     """Execute SQL query against MIMIC-IV data.
 
     This tool provides direct SQL access to MIMIC-IV database. Use this for complex queries
@@ -183,7 +229,8 @@ def execute_mimic_query(sql_query: str) -> str:
 
 
 @mcp.tool()
-def get_patient_demographics(patient_id: Optional[int] = None, limit: int = 10) -> str:
+@require_oauth2
+def get_patient_demographics(patient_id: Optional[int] = None, limit: int = 10, **kwargs) -> str:
     """Get patient demographic information from ICU stays.
 
     Args:
@@ -193,24 +240,43 @@ def get_patient_demographics(patient_id: Optional[int] = None, limit: int = 10) 
     Returns:
         Patient demographics as formatted text
     """
+    # Input validation
+    if not validate_patient_id(patient_id):
+        return "Error: Invalid patient_id. Must be a positive integer less than 999999999."
+    
+    if not validate_limit(limit):
+        return "Error: Invalid limit. Must be a positive integer between 1 and 1000."
+    
     if _backend == "sqlite":
         if patient_id:
-            query = f"SELECT * FROM icu_icustays WHERE subject_id = {patient_id}"
+            # Use parameterized query for SQLite
+            return _execute_sqlite_query_with_params(
+                "SELECT * FROM icu_icustays WHERE subject_id = ?", 
+                [patient_id]
+            )
         else:
-            query = f"SELECT * FROM icu_icustays LIMIT {limit}"
+            return _execute_sqlite_query_with_params(
+                "SELECT * FROM icu_icustays LIMIT ?", 
+                [limit]
+            )
     else:  # bigquery
-        table = "`physionet-data.mimiciv_3_1_icu.icustays`"
         if patient_id:
-            query = f"SELECT * FROM {table} WHERE subject_id = {patient_id}"
+            # Use parameterized query for BigQuery
+            return _execute_bigquery_query_with_params(
+                "SELECT * FROM `physionet-data.mimiciv_3_1_icu.icustays` WHERE subject_id = @patient_id",
+                {"patient_id": patient_id}
+            )
         else:
-            query = f"SELECT * FROM {table} LIMIT {limit}"
-
-    return execute_mimic_query(query)
+            return _execute_bigquery_query_with_params(
+                "SELECT * FROM `physionet-data.mimiciv_3_1_icu.icustays` LIMIT @limit",
+                {"limit": limit}
+            )
 
 
 @mcp.tool()
+@require_oauth2
 def get_lab_results(
-    patient_id: Optional[int] = None, lab_item: Optional[str] = None, limit: int = 20
+    patient_id: Optional[int] = None, lab_item: Optional[str] = None, limit: int = 20, **kwargs
 ) -> str:
     """Get laboratory test results.
 
@@ -222,33 +288,60 @@ def get_lab_results(
     Returns:
         Lab results as formatted text
     """
+    # Input validation
+    if not validate_patient_id(patient_id):
+        return "Error: Invalid patient_id. Must be a positive integer less than 999999999."
+    
+    if not validate_limit(limit):
+        return "Error: Invalid limit. Must be a positive integer between 1 and 1000."
+    
+    # Sanitize lab_item to prevent injection
+    sanitized_lab_item = sanitize_lab_item(lab_item)
+    
     if _backend == "sqlite":
-        query = "SELECT * FROM hosp_labevents"
+        params = []
         conditions = []
+        base_query = "SELECT * FROM hosp_labevents"
+        
         if patient_id:
-            conditions.append(f"subject_id = {patient_id}")
-        if lab_item:
-            conditions.append(f"value LIKE '%{lab_item}%'")
+            conditions.append("subject_id = ?")
+            params.append(patient_id)
+            
+        if sanitized_lab_item:
+            conditions.append("value LIKE ?")
+            params.append(f"%{sanitized_lab_item}%")
+            
+        query = base_query
         if conditions:
             query += " WHERE " + " AND ".join(conditions)
-        query += f" LIMIT {limit}"
+        query += " LIMIT ?"
+        params.append(limit)
+        
+        return _execute_sqlite_query_with_params(query, params)
     else:  # bigquery
-        table = "`physionet-data.mimiciv_3_1_hosp.labevents`"
-        query = f"SELECT * FROM {table}"
+        params = {"limit": limit}
         conditions = []
+        base_query = "SELECT * FROM `physionet-data.mimiciv_3_1_hosp.labevents`"
+        
         if patient_id:
-            conditions.append(f"subject_id = {patient_id}")
-        if lab_item:
-            conditions.append(f"value LIKE '%{lab_item}%'")
+            conditions.append("subject_id = @patient_id")
+            params["patient_id"] = patient_id
+            
+        if sanitized_lab_item:
+            conditions.append("value LIKE @lab_item")
+            params["lab_item"] = f"%{sanitized_lab_item}%"
+            
+        query = base_query
         if conditions:
             query += " WHERE " + " AND ".join(conditions)
-        query += f" LIMIT {limit}"
-
-    return execute_mimic_query(query)
+        query += " LIMIT @limit"
+        
+        return _execute_bigquery_query_with_params(query, params)
 
 
 @mcp.tool()
-def get_database_schema() -> str:
+@require_oauth2
+def get_database_schema(**kwargs) -> str:
     """Get database schema information.
 
     Returns:
@@ -269,7 +362,8 @@ def get_database_schema() -> str:
 
 
 @mcp.tool()
-def get_race_distribution(limit: int = 10) -> str:
+@require_oauth2
+def get_race_distribution(limit: int = 10, **kwargs) -> str:
     """Get race distribution from hospital admissions.
 
     Args:
@@ -278,12 +372,20 @@ def get_race_distribution(limit: int = 10) -> str:
     Returns:
         Race distribution as formatted text
     """
+    # Input validation
+    if not validate_limit(limit):
+        return "Error: Invalid limit. Must be a positive integer between 1 and 1000."
+    
     if _backend == "sqlite":
-        query = f"SELECT race, COUNT(*) as count FROM hosp_admissions GROUP BY race ORDER BY count DESC LIMIT {limit}"
+        return _execute_sqlite_query_with_params(
+            "SELECT race, COUNT(*) as count FROM hosp_admissions GROUP BY race ORDER BY count DESC LIMIT ?",
+            [limit]
+        )
     else:  # bigquery
-        query = f"SELECT race, COUNT(*) as count FROM `physionet-data.mimiciv_3_1_hosp.admissions` GROUP BY race ORDER BY count DESC LIMIT {limit}"
-
-    return execute_mimic_query(query)
+        return _execute_bigquery_query_with_params(
+            "SELECT race, COUNT(*) as count FROM `physionet-data.mimiciv_3_1_hosp.admissions` GROUP BY race ORDER BY count DESC LIMIT @limit",
+            {"limit": limit}
+        )
 
 
 def _execute_sqlite_query(sql_query: str) -> str:
@@ -309,12 +411,74 @@ def _execute_sqlite_query(sql_query: str) -> str:
         return f"SQLite query error: {e!s}"
 
 
+def _execute_sqlite_query_with_params(sql_query: str, params: list) -> str:
+    """Execute SQLite query with parameterized inputs."""
+    try:
+        conn = sqlite3.connect(_db_path)
+        df = pd.read_sql_query(sql_query, conn, params=params)
+        conn.close()
+
+        if df.empty:
+            return "No results found"
+
+        # Limit output size
+        if len(df) > 50:
+            result = df.head(50).to_string(index=False)
+            result += f"\n... ({len(df)} total rows, showing first 50)"
+        else:
+            result = df.to_string(index=False)
+
+        return result
+
+    except Exception as e:
+        return f"SQLite query error: {e!s}"
+
+
 def _execute_bigquery_query(sql_query: str) -> str:
     """Execute BigQuery query."""
     try:
         from google.cloud import bigquery
 
         job_config = bigquery.QueryJobConfig()
+        query_job = _bq_client.query(sql_query, job_config=job_config)
+        df = query_job.to_dataframe()
+
+        if df.empty:
+            return "No results found"
+
+        # Limit output size
+        if len(df) > 50:
+            result = df.head(50).to_string(index=False)
+            result += f"\n... ({len(df)} total rows, showing first 50)"
+        else:
+            result = df.to_string(index=False)
+
+        return result
+
+    except Exception as e:
+        return f"BigQuery query error: {e!s}"
+
+
+def _execute_bigquery_query_with_params(sql_query: str, params: dict) -> str:
+    """Execute BigQuery query with parameterized inputs."""
+    try:
+        from google.cloud import bigquery
+
+        # Convert parameters to BigQuery format
+        query_parameters = []
+        for name, value in params.items():
+            if isinstance(value, int):
+                param_type = "INT64"
+            elif isinstance(value, str):
+                param_type = "STRING"
+            else:
+                param_type = "STRING"  # Default to string for safety
+            
+            query_parameters.append(
+                bigquery.ScalarQueryParameter(name, param_type, value)
+            )
+
+        job_config = bigquery.QueryJobConfig(query_parameters=query_parameters)
         query_job = _bq_client.query(sql_query, job_config=job_config)
         df = query_job.to_dataframe()
 
