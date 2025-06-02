@@ -7,7 +7,7 @@ import os
 import time
 from datetime import datetime, timedelta, timezone
 from functools import wraps
-from typing import Any, Optional
+from typing import Any
 from urllib.parse import urljoin
 
 import httpx
@@ -203,7 +203,7 @@ class OAuth2Validator:
         except Exception as e:
             raise TokenValidationError(f"Failed to fetch JWKS: {e}")
 
-    def _find_key(self, jwks: dict[str, Any], kid: str) -> Optional[dict[str, Any]]:
+    def _find_key(self, jwks: dict[str, Any], kid: str) -> dict[str, Any] | None:
         """Find a key in JWKS by key ID."""
         keys = jwks.get("keys", [])
         for key in keys:
@@ -341,7 +341,7 @@ def require_oauth2(func):
     return wrapper
 
 
-def get_oauth2_config() -> Optional[OAuth2Config]:
+def get_oauth2_config() -> OAuth2Config | None:
     """Get the current OAuth2 configuration."""
     return _oauth2_config
 
@@ -355,7 +355,7 @@ def generate_test_token(
     issuer: str = "https://test-issuer.example.com",
     audience: str = "m3-api",
     subject: str = "test-user",
-    scopes: Optional[list[str]] = None,
+    scopes: list[str] | None = None,
     expires_in: int = 3600,
 ) -> str:
     """
