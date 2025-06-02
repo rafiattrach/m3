@@ -12,6 +12,7 @@ import pandas as pd
 import sqlparse
 from fastmcp import FastMCP
 
+from m3.auth import init_oauth2, require_oauth2
 from m3.config import get_default_database_path
 
 # Create FastMCP server instance
@@ -22,6 +23,11 @@ _backend = None
 _db_path = None
 _bq_client = None
 _project_id = None
+
+
+def validate_limit(limit: int) -> bool:
+    """Validate limit parameter to prevent resource exhaustion."""
+    return isinstance(limit, int) and 0 < limit <= 1000
 
 
 def is_safe_query(sql_query: str, internal_tool: bool = False) -> tuple[bool, str]:
@@ -129,6 +135,9 @@ def _init_backend():
     """Initialize the backend based on environment variables."""
     global _backend, _db_path, _bq_client, _project_id
 
+    # Initialize OAuth2 authentication
+    init_oauth2()
+
     _backend = os.getenv("M3_BACKEND", "sqlite")
 
     if _backend == "sqlite":
@@ -174,6 +183,7 @@ def _get_backend_info() -> str:
 
 
 @mcp.tool()
+@require_oauth2
 def get_database_schema() -> str:
     """🔍 Discover what data is available in the MIMIC-IV database.
 
@@ -207,6 +217,7 @@ def get_database_schema() -> str:
 
 
 @mcp.tool()
+@require_oauth2
 def get_table_info(table_name: str, show_sample: bool = True) -> str:
     """📋 Explore a specific table's structure and see sample data.
 
@@ -323,6 +334,7 @@ def get_table_info(table_name: str, show_sample: bool = True) -> str:
 
 
 @mcp.tool()
+@require_oauth2
 def execute_mimic_query(sql_query: str) -> str:
     """🚀 Execute SQL queries to analyze MIMIC-IV data.
 
@@ -436,6 +448,7 @@ def execute_mimic_query(sql_query: str) -> str:
 
 
 @mcp.tool()
+@require_oauth2
 def get_icu_stays(patient_id: Optional[int] = None, limit: int = 10) -> str:
     """🏥 Get ICU stay information and length of stay data.
 
@@ -451,6 +464,10 @@ def get_icu_stays(patient_id: Optional[int] = None, limit: int = 10) -> str:
     Returns:
         ICU stay data as formatted text or guidance if table not found
     """
+    # Security validation
+    if not validate_limit(limit):
+        return "Error: Invalid limit. Must be a positive integer between 1 and 10000."
+
     # Try common ICU table names based on backend
     if _backend == "sqlite":
         icustays_table = "icu_icustays"
@@ -478,6 +495,7 @@ This ensures compatibility across different MIMIC-IV setups."""
 
 
 @mcp.tool()
+@require_oauth2
 def get_lab_results(
     patient_id: Optional[int] = None, lab_item: Optional[str] = None, limit: int = 20
 ) -> str:
@@ -496,37 +514,34 @@ def get_lab_results(
     Returns:
         Lab results as formatted text or guidance if table not found
     """
+    # Security validation
+    if not validate_limit(limit):
+        return "Error: Invalid limit. Must be a positive integer between 1 and 10000."
+
     # Try common lab table names based on backend
     if _backend == "sqlite":
         labevents_table = "hosp_labevents"
     else:  # bigquery
         labevents_table = "`physionet-data.mimiciv_3_1_hosp.labevents`"
 
-    # Build safe parameterized query
+    # Build query conditions
     conditions = []
-    params = {}
-
     if patient_id:
-        conditions.append("subject_id = :patient_id")
-        params["patient_id"] = patient_id
-
+        conditions.append(f"subject_id = {patient_id}")
     if lab_item:
-        conditions.append("value LIKE :lab_item")
-        params["lab_item"] = f"%{lab_item}%"
+        # Escape single quotes for safety in LIKE clause
+        escaped_lab_item = lab_item.replace("'", "''")
+        conditions.append(f"value LIKE '%{escaped_lab_item}%'")
 
     base_query = f"SELECT * FROM {labevents_table}"
     if conditions:
         base_query += " WHERE " + " AND ".join(conditions)
     base_query += f" LIMIT {limit}"
 
-    # Execute with safe parameter substitution
-    try:
-        if _backend == "sqlite":
-            return _execute_sqlite_query_safe(base_query, params)
-        else:
-            return _execute_bigquery_query_safe(base_query, params)
-    except Exception as e:
-        return f"""❌ **Convenience function failed:** {e}
+    # Execute with error handling that suggests proper workflow
+    result = execute_mimic_query(base_query)
+    if "error" in result.lower() or "not found" in result.lower():
+        return f"""❌ **Convenience function failed:** {result}
 
 💡 **For reliable results, use the proper workflow:**
 1. `get_database_schema()` ← See actual table names
@@ -535,8 +550,11 @@ def get_lab_results(
 
 This ensures compatibility across different MIMIC-IV setups."""
 
+    return result
+
 
 @mcp.tool()
+@require_oauth2
 def get_race_distribution(limit: int = 10) -> str:
     """📊 Get race distribution from hospital admissions.
 
@@ -551,6 +569,10 @@ def get_race_distribution(limit: int = 10) -> str:
     Returns:
         Race distribution as formatted text or guidance if table not found
     """
+    # Security validation
+    if not validate_limit(limit):
+        return "Error: Invalid limit. Must be a positive integer between 1 and 10000."
+
     # Try common admissions table names based on backend
     if _backend == "sqlite":
         admissions_table = "hosp_admissions"
@@ -598,40 +620,6 @@ def _execute_sqlite_query(sql_query: str) -> str:
         raise e
 
 
-def _execute_sqlite_query_safe(sql_query: str, params: Optional[dict] = None) -> str:
-    """Execute SQLite query with safe parameter substitution."""
-    try:
-        conn = sqlite3.connect(_db_path)
-
-        if params:
-            # Convert named parameters to SQLite format
-            safe_query = sql_query
-            safe_params = {}
-            for key, value in params.items():
-                safe_query = safe_query.replace(f":{key}", f":{key}")
-                safe_params[key] = value
-            df = pd.read_sql_query(safe_query, conn, params=safe_params)
-        else:
-            df = pd.read_sql_query(sql_query, conn)
-
-        conn.close()
-
-        if df.empty:
-            return "No results found"
-
-        # Limit output size
-        if len(df) > 50:
-            result = df.head(50).to_string(index=False)
-            result += f"\n... ({len(df)} total rows, showing first 50)"
-        else:
-            result = df.to_string(index=False)
-
-        return result
-
-    except Exception as e:
-        raise e
-
-
 def _execute_bigquery_query(sql_query: str) -> str:
     """Execute BigQuery query."""
     try:
@@ -655,47 +643,6 @@ def _execute_bigquery_query(sql_query: str) -> str:
 
     except Exception as e:
         # Re-raise the exception so execute_mimic_query can handle it with enhanced guidance
-        raise e
-
-
-def _execute_bigquery_query_safe(sql_query: str, params: Optional[dict] = None) -> str:
-    """Execute BigQuery query with safe parameter substitution."""
-    try:
-        from google.cloud import bigquery
-
-        job_config = bigquery.QueryJobConfig()
-
-        if params:
-            # Convert to BigQuery parameters
-            query_params = []
-            safe_query = sql_query
-            for key, value in params.items():
-                safe_query = safe_query.replace(f":{key}", f"@{key}")
-                query_params.append(
-                    bigquery.ScalarQueryParameter(
-                        key, "STRING" if isinstance(value, str) else "INT64", value
-                    )
-                )
-            job_config.query_parameters = query_params
-            query_job = _bq_client.query(safe_query, job_config=job_config)
-        else:
-            query_job = _bq_client.query(sql_query, job_config=job_config)
-
-        df = query_job.to_dataframe()
-
-        if df.empty:
-            return "No results found"
-
-        # Limit output size
-        if len(df) > 50:
-            result = df.head(50).to_string(index=False)
-            result += f"\n... ({len(df)} total rows, showing first 50)"
-        else:
-            result = df.to_string(index=False)
-
-        return result
-
-    except Exception as e:
         raise e
 
 
