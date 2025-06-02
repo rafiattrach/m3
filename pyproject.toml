@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "m3"
 version = "0.0.1"
 description = "MIMIC-IV + MCP + Models: Local MIMIC-IV querying with LLMs."
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 authors = [
     { name = "Rafi Al Attrach", email = "rafiaa@mit.edu" },
     { name = "Pedro Moreira", email = "pedrojfm@mit.edu" },
@@ -48,7 +48,7 @@ include = ["m3*"]
 
 [tool.ruff]
 line-length = 88
-target-version = "py39"
+target-version = "py310"
 src = ["src"]
 
 [tool.ruff.lint]
