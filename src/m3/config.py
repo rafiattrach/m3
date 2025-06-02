@@ -1,6 +1,5 @@
 import logging
 from pathlib import Path
-from typing import Optional
 
 APP_NAME = "m3"
 
@@ -42,12 +41,12 @@ SUPPORTED_DATASETS = {
 # --------------------------------------------------
 # Helper functions
 # --------------------------------------------------
-def get_dataset_config(dataset_name: str) -> Optional[dict]:
+def get_dataset_config(dataset_name: str) -> dict | None:
     """Retrieve the configuration for a given dataset (case-insensitive)."""
     return SUPPORTED_DATASETS.get(dataset_name.lower())
 
 
-def get_default_database_path(dataset_name: str) -> Optional[Path]:
+def get_default_database_path(dataset_name: str) -> Path | None:
     """
     Return the default SQLite DB path for a given dataset,
     under <project_root>/data/databases/.
@@ -61,7 +60,7 @@ def get_default_database_path(dataset_name: str) -> Optional[Path]:
     return None
 
 
-def get_dataset_raw_files_path(dataset_name: str) -> Optional[Path]:
+def get_dataset_raw_files_path(dataset_name: str) -> Path | None:
     """
     Return the raw-file storage path for a dataset,
     under <project_root>/data/raw_files/<dataset_name>/.

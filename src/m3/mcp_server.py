@@ -6,7 +6,6 @@ Provides MCP tools for querying MIMIC-IV data via SQLite or BigQuery.
 import os
 import sqlite3
 from pathlib import Path
-from typing import Optional
 
 import pandas as pd
 import sqlparse
@@ -449,7 +448,7 @@ def execute_mimic_query(sql_query: str) -> str:
 
 @mcp.tool()
 @require_oauth2
-def get_icu_stays(patient_id: Optional[int] = None, limit: int = 10) -> str:
+def get_icu_stays(patient_id: int | None = None, limit: int = 10) -> str:
     """🏥 Get ICU stay information and length of stay data.
 
     **⚠️ Note:** This is a convenience function that assumes standard MIMIC-IV table structure.
@@ -497,7 +496,7 @@ This ensures compatibility across different MIMIC-IV setups."""
 @mcp.tool()
 @require_oauth2
 def get_lab_results(
-    patient_id: Optional[int] = None, lab_item: Optional[str] = None, limit: int = 20
+    patient_id: int | None = None, lab_item: str | None = None, limit: int = 20
 ) -> str:
     """🧪 Get laboratory test results quickly.
 

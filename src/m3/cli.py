@@ -3,7 +3,7 @@ import sqlite3
 import subprocess
 import sys
 from pathlib import Path
-from typing import Annotated, Optional
+from typing import Annotated
 
 import typer
 
@@ -79,7 +79,7 @@ def dataset_init_cmd(
         ),
     ] = "mimic-iv-demo",
     db_path_str: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(
             "--db-path",
             "-p",
@@ -247,7 +247,7 @@ def dataset_init_cmd(
 @app.command("config")
 def config_cmd(
     client: Annotated[
-        Optional[str],
+        str | None,
         typer.Argument(
             help="MCP client to configure. Use 'claude' for Claude Desktop auto-setup, or omit for universal config generator.",
             metavar="CLIENT",
@@ -262,7 +262,7 @@ def config_cmd(
         ),
     ] = "sqlite",
     db_path: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(
             "--db-path",
             "-p",
@@ -270,21 +270,21 @@ def config_cmd(
         ),
     ] = None,
     project_id: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(
             "--project-id",
             help="Google Cloud project ID (for bigquery backend)",
         ),
     ] = None,
     python_path: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(
             "--python-path",
             help="Path to Python executable",
         ),
     ] = None,
     working_directory: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(
             "--working-directory",
             help="Working directory for the server",
@@ -298,7 +298,7 @@ def config_cmd(
         ),
     ] = "m3",
     output: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(
             "--output",
             "-o",
