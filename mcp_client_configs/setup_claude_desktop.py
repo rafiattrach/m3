@@ -56,7 +56,13 @@ def get_python_path():
     return shutil.which("python") or shutil.which("python3") or "python"
 
 
-def create_mcp_config(backend="sqlite", db_path=None, project_id=None, oauth2_enabled=False, oauth2_config=None):
+def create_mcp_config(
+    backend="sqlite",
+    db_path=None,
+    project_id=None,
+    oauth2_enabled=False,
+    oauth2_config=None,
+):
     """Create MCP server configuration."""
     current_dir = get_current_directory()
     python_path = get_python_path()
@@ -78,27 +84,41 @@ def create_mcp_config(backend="sqlite", db_path=None, project_id=None, oauth2_en
     elif backend == "bigquery" and project_id:
         config["mcpServers"]["m3"]["env"]["M3_PROJECT_ID"] = project_id
         config["mcpServers"]["m3"]["env"]["GOOGLE_CLOUD_PROJECT"] = project_id
-    
+
     # Add OAuth2 configuration if enabled
     if oauth2_enabled and oauth2_config:
-        config["mcpServers"]["m3"]["env"].update({
-            "M3_OAUTH2_ENABLED": "true",
-            "M3_OAUTH2_ISSUER_URL": oauth2_config.get("issuer_url", ""),
-            "M3_OAUTH2_AUDIENCE": oauth2_config.get("audience", ""),
-            "M3_OAUTH2_REQUIRED_SCOPES": oauth2_config.get("required_scopes", "read:mimic-data"),
-            "M3_OAUTH2_JWKS_URL": oauth2_config.get("jwks_url", ""),
-        })
-        
+        config["mcpServers"]["m3"]["env"].update(
+            {
+                "M3_OAUTH2_ENABLED": "true",
+                "M3_OAUTH2_ISSUER_URL": oauth2_config.get("issuer_url", ""),
+                "M3_OAUTH2_AUDIENCE": oauth2_config.get("audience", ""),
+                "M3_OAUTH2_REQUIRED_SCOPES": oauth2_config.get(
+                    "required_scopes", "read:mimic-data"
+                ),
+                "M3_OAUTH2_JWKS_URL": oauth2_config.get("jwks_url", ""),
+            }
+        )
+
         # Optional OAuth2 settings
         if oauth2_config.get("client_id"):
-            config["mcpServers"]["m3"]["env"]["M3_OAUTH2_CLIENT_ID"] = oauth2_config["client_id"]
+            config["mcpServers"]["m3"]["env"]["M3_OAUTH2_CLIENT_ID"] = oauth2_config[
+                "client_id"
+            ]
         if oauth2_config.get("rate_limit_requests"):
-            config["mcpServers"]["m3"]["env"]["M3_OAUTH2_RATE_LIMIT_REQUESTS"] = str(oauth2_config["rate_limit_requests"])
+            config["mcpServers"]["m3"]["env"]["M3_OAUTH2_RATE_LIMIT_REQUESTS"] = str(
+                oauth2_config["rate_limit_requests"]
+            )
 
     return config
 
 
-def setup_claude_desktop(backend="sqlite", db_path=None, project_id=None, oauth2_enabled=False, oauth2_config=None):
+def setup_claude_desktop(
+    backend="sqlite",
+    db_path=None,
+    project_id=None,
+    oauth2_enabled=False,
+    oauth2_config=None,
+):
     """Setup Claude Desktop with M3 MCP server."""
     try:
         claude_config_path = get_claude_config_path()
@@ -118,7 +138,9 @@ def setup_claude_desktop(backend="sqlite", db_path=None, project_id=None, oauth2
             print("Creating new Claude Desktop configuration")
 
         # Create MCP config
-        mcp_config = create_mcp_config(backend, db_path, project_id, oauth2_enabled, oauth2_config)
+        mcp_config = create_mcp_config(
+            backend, db_path, project_id, oauth2_enabled, oauth2_config
+        )
 
         # Merge configurations
         if "mcpServers" not in existing_config:
@@ -143,23 +165,27 @@ def setup_claude_desktop(backend="sqlite", db_path=None, project_id=None, oauth2
         elif backend == "bigquery":
             project_display = project_id or "physionet-data"
             print(f"☁️  Project: {project_display}")
-        
+
         if oauth2_enabled:
             print("🔐 OAuth2 Authentication: Enabled")
             if oauth2_config:
                 print(f"🔗 Issuer: {oauth2_config.get('issuer_url', 'Not configured')}")
                 print(f"👥 Audience: {oauth2_config.get('audience', 'Not configured')}")
-                print(f"🔑 Required Scopes: {oauth2_config.get('required_scopes', 'read:mimic-data')}")
+                print(
+                    f"🔑 Required Scopes: {oauth2_config.get('required_scopes', 'read:mimic-data')}"
+                )
         else:
             print("🔓 OAuth2 Authentication: Disabled")
 
         print("\n🔄 Please restart Claude Desktop to apply changes")
-        
+
         if oauth2_enabled:
             print("\n⚠️  Security Notice:")
             print("   - OAuth2 authentication is now required for all API calls")
             print("   - Ensure you have a valid access token with the required scopes")
-            print("   - Set M3_OAUTH2_TOKEN environment variable with your Bearer token")
+            print(
+                "   - Set M3_OAUTH2_TOKEN environment variable with your Bearer token"
+            )
 
         return True
 
@@ -193,11 +219,11 @@ def main():
     parser.add_argument(
         "--oauth2-issuer", help="OAuth2 issuer URL (e.g., https://auth.example.com)"
     )
+    parser.add_argument("--oauth2-audience", help="OAuth2 audience (e.g., m3-api)")
     parser.add_argument(
-        "--oauth2-audience", help="OAuth2 audience (e.g., m3-api)"
-    )
-    parser.add_argument(
-        "--oauth2-scopes", default="read:mimic-data", help="Required OAuth2 scopes (comma-separated)"
+        "--oauth2-scopes",
+        default="read:mimic-data",
+        help="Required OAuth2 scopes (comma-separated)",
     )
 
     args = parser.parse_args()
@@ -218,21 +244,23 @@ def main():
     oauth2_config = None
     if args.enable_oauth2:
         if not args.oauth2_issuer or not args.oauth2_audience:
-            print("❌ Error: --oauth2-issuer and --oauth2-audience are required when --enable-oauth2 is used")
+            print(
+                "❌ Error: --oauth2-issuer and --oauth2-audience are required when --enable-oauth2 is used"
+            )
             exit(1)
-        
+
         oauth2_config = {
             "issuer_url": args.oauth2_issuer,
             "audience": args.oauth2_audience,
             "required_scopes": args.oauth2_scopes,
         }
-    
+
     success = setup_claude_desktop(
-        backend=args.backend, 
-        db_path=args.db_path, 
+        backend=args.backend,
+        db_path=args.db_path,
         project_id=args.project_id,
         oauth2_enabled=args.enable_oauth2,
-        oauth2_config=oauth2_config
+        oauth2_config=oauth2_config,
     )
 
     if success:

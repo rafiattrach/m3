@@ -81,20 +81,26 @@ class MCPConfigGenerator:
 
         # Add OAuth2 configuration if enabled
         if oauth2_enabled and oauth2_config:
-            env.update({
-                "M3_OAUTH2_ENABLED": "true",
-                "M3_OAUTH2_ISSUER_URL": oauth2_config.get("issuer_url", ""),
-                "M3_OAUTH2_AUDIENCE": oauth2_config.get("audience", ""),
-                "M3_OAUTH2_REQUIRED_SCOPES": oauth2_config.get("required_scopes", "read:mimic-data"),
-                "M3_OAUTH2_JWKS_URL": oauth2_config.get("jwks_url", ""),
-            })
-            
+            env.update(
+                {
+                    "M3_OAUTH2_ENABLED": "true",
+                    "M3_OAUTH2_ISSUER_URL": oauth2_config.get("issuer_url", ""),
+                    "M3_OAUTH2_AUDIENCE": oauth2_config.get("audience", ""),
+                    "M3_OAUTH2_REQUIRED_SCOPES": oauth2_config.get(
+                        "required_scopes", "read:mimic-data"
+                    ),
+                    "M3_OAUTH2_JWKS_URL": oauth2_config.get("jwks_url", ""),
+                }
+            )
+
             # Optional OAuth2 settings
             if oauth2_config.get("client_id"):
                 env["M3_OAUTH2_CLIENT_ID"] = oauth2_config["client_id"]
             if oauth2_config.get("rate_limit_requests"):
-                env["M3_OAUTH2_RATE_LIMIT_REQUESTS"] = str(oauth2_config["rate_limit_requests"])
-        
+                env["M3_OAUTH2_RATE_LIMIT_REQUESTS"] = str(
+                    oauth2_config["rate_limit_requests"]
+                )
+
         # Add any additional environment variables
         if additional_env:
             env.update(additional_env)
@@ -187,30 +193,37 @@ class MCPConfigGenerator:
         # OAuth2 Configuration
         oauth2_enabled = False
         oauth2_config = None
-        
+
         print("\n🔐 OAuth2 Authentication (optional):")
         enable_oauth2 = input("Enable OAuth2 authentication? [y/N]: ").strip().lower()
-        
-        if enable_oauth2 in ['y', 'yes']:
+
+        if enable_oauth2 in ["y", "yes"]:
             oauth2_enabled = True
             oauth2_config = {}
-            
+
             print("\nOAuth2 Configuration:")
-            oauth2_config["issuer_url"] = input("OAuth2 Issuer URL (e.g., https://auth.example.com): ").strip()
-            oauth2_config["audience"] = input("OAuth2 Audience (e.g., m3-api): ").strip()
-            oauth2_config["required_scopes"] = input("Required Scopes [read:mimic-data]: ").strip() or "read:mimic-data"
-            
+            oauth2_config["issuer_url"] = input(
+                "OAuth2 Issuer URL (e.g., https://auth.example.com): "
+            ).strip()
+            oauth2_config["audience"] = input(
+                "OAuth2 Audience (e.g., m3-api): "
+            ).strip()
+            oauth2_config["required_scopes"] = (
+                input("Required Scopes [read:mimic-data]: ").strip()
+                or "read:mimic-data"
+            )
+
             # Optional settings
             jwks_url = input("JWKS URL (optional, auto-discovered if empty): ").strip()
             if jwks_url:
                 oauth2_config["jwks_url"] = jwks_url
-            
+
             rate_limit = input("Rate limit (requests per hour) [100]: ").strip()
             if rate_limit and rate_limit.isdigit():
                 oauth2_config["rate_limit_requests"] = rate_limit
-            
+
             print("✅ OAuth2 configuration added")
-        
+
         # Additional environment variables
         additional_env = {}
         print("\n🌍 Additional environment variables (optional):")

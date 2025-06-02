@@ -32,7 +32,7 @@ class TestOAuth2BasicConfig:
             "M3_OAUTH2_AUDIENCE": "m3-api",
             "M3_OAUTH2_REQUIRED_SCOPES": "read:mimic-data,write:mimic-data",
         }
-        
+
         with patch.dict(os.environ, env_vars, clear=True):
             config = OAuth2Config()
             assert config.enabled
@@ -53,7 +53,7 @@ class TestOAuth2BasicConfig:
             "M3_OAUTH2_ISSUER_URL": "https://auth.example.com",
             "M3_OAUTH2_AUDIENCE": "m3-api",
         }
-        
+
         with patch.dict(os.environ, env_vars, clear=True):
             config = OAuth2Config()
             assert config.jwks_url == "https://auth.example.com/.well-known/jwks.json"
@@ -61,11 +61,11 @@ class TestOAuth2BasicConfig:
     def test_scope_parsing(self):
         """Test scope parsing from environment variable."""
         config = OAuth2Config()
-        
+
         # Test comma-separated scopes
         scopes = config._parse_scopes("read:data, write:data, admin")
         assert scopes == {"read:data", "write:data", "admin"}
-        
+
         # Test empty scopes
         scopes = config._parse_scopes("")
         assert scopes == set()
@@ -87,7 +87,7 @@ class TestOAuth2BasicIntegration:
             "M3_OAUTH2_ISSUER_URL": "https://auth.example.com",
             "M3_OAUTH2_AUDIENCE": "m3-api",
         }
-        
+
         with patch.dict(os.environ, env_vars, clear=True):
             init_oauth2()
             assert is_oauth2_enabled()
@@ -100,103 +100,109 @@ class TestOAuth2BasicDecorator:
         """Set up test fixtures."""
         # Reset global state
         import m3.auth
+
         m3.auth._oauth2_config = None
         m3.auth._oauth2_validator = None
 
     def test_decorator_with_oauth2_disabled(self):
         """Test decorator behavior when OAuth2 is disabled."""
+
         @require_oauth2
         def test_function():
             return "success"
-        
+
         with patch.dict(os.environ, {}, clear=True):
             init_oauth2()
-            
+
             # Should allow access when OAuth2 is disabled
             result = test_function()
             assert result == "success"
 
     def test_decorator_with_missing_token(self):
         """Test decorator behavior with missing token."""
+
         @require_oauth2
         def test_function():
             return "success"
-        
+
         env_vars = {
             "M3_OAUTH2_ENABLED": "true",
             "M3_OAUTH2_ISSUER_URL": "https://auth.example.com",
             "M3_OAUTH2_AUDIENCE": "m3-api",
         }
-        
+
         with patch.dict(os.environ, env_vars, clear=True):
             init_oauth2()
-            
+
             # Should return error when token is missing
             result = test_function()
             assert "Missing OAuth2 access token" in result
 
     def test_decorator_with_invalid_token_format(self):
         """Test decorator behavior with invalid token format."""
+
         @require_oauth2
         def test_function():
             return "success"
-        
+
         env_vars = {
             "M3_OAUTH2_ENABLED": "true",
             "M3_OAUTH2_ISSUER_URL": "https://auth.example.com",
             "M3_OAUTH2_AUDIENCE": "m3-api",
             "M3_OAUTH2_TOKEN": "invalid-token",
         }
-        
+
         with patch.dict(os.environ, env_vars, clear=True):
             init_oauth2()
-            
+
             # Should return error with invalid token format
             result = test_function()
             assert "Invalid token format" in result
 
     def test_decorator_with_valid_jwt_format(self):
         """Test decorator behavior with valid JWT format."""
+
         @require_oauth2
         def test_function():
             return "success"
-        
+
         # Valid JWT format (header.payload.signature)
         valid_jwt = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWV9.signature"
-        
+
         env_vars = {
             "M3_OAUTH2_ENABLED": "true",
             "M3_OAUTH2_ISSUER_URL": "https://auth.example.com",
             "M3_OAUTH2_AUDIENCE": "m3-api",
             "M3_OAUTH2_TOKEN": f"Bearer {valid_jwt}",
         }
-        
+
         with patch.dict(os.environ, env_vars, clear=True):
             init_oauth2()
-            
+
             # Should work with valid JWT format
             result = test_function()
             assert result == "success"
 
     def test_decorator_with_bearer_prefix_removal(self):
         """Test that Bearer prefix is correctly removed."""
+
         @require_oauth2
         def test_function():
             return "success"
-        
+
         # Valid JWT format (header.payload.signature)
         valid_jwt = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWV9.signature"
-        
+
         env_vars = {
             "M3_OAUTH2_ENABLED": "true",
             "M3_OAUTH2_ISSUER_URL": "https://auth.example.com",
             "M3_OAUTH2_AUDIENCE": "m3-api",
             "M3_OAUTH2_TOKEN": f"Bearer {valid_jwt}",
         }
-        
+
         with patch.dict(os.environ, env_vars, clear=True):
             init_oauth2()
-            
+
             # Should work even with Bearer prefix
             result = test_function()
             assert result == "success"

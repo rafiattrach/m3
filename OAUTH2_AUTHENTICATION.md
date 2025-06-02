@@ -289,12 +289,12 @@ def my_tool(param: str, **kwargs) -> str:
     oauth2_user = kwargs.get('_oauth2_user', {})
     user_email = oauth2_user.get('email')
     user_scopes = oauth2_user.get('scopes', [])
-    
+
     # Use user context in your logic
     if 'admin:access' in user_scopes:
         # Admin-only functionality
         pass
-    
+
     return f"Hello {user_email}"
 ```
 

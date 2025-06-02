@@ -144,11 +144,13 @@ class TestMCPTools:
         """Test MCP tools through the FastMCP client."""
         # Set up environment for SQLite backend with OAuth2 disabled
         with patch.dict(
-            os.environ, {
-                "M3_BACKEND": "sqlite", 
+            os.environ,
+            {
+                "M3_BACKEND": "sqlite",
                 "M3_DB_PATH": test_db,
-                "M3_OAUTH2_ENABLED": "false"
-            }, clear=True
+                "M3_OAUTH2_ENABLED": "false",
+            },
+            clear=True,
         ):
             # Initialize backend
             _init_backend()
@@ -187,11 +189,13 @@ class TestMCPTools:
     async def test_security_checks(self, test_db):
         """Test SQL injection protection."""
         with patch.dict(
-            os.environ, {
-                "M3_BACKEND": "sqlite", 
+            os.environ,
+            {
+                "M3_BACKEND": "sqlite",
                 "M3_DB_PATH": test_db,
-                "M3_OAUTH2_ENABLED": "false"
-            }, clear=True
+                "M3_OAUTH2_ENABLED": "false",
+            },
+            clear=True,
         ):
             _init_backend()
 
@@ -220,11 +224,13 @@ class TestMCPTools:
     async def test_invalid_sql(self, test_db):
         """Test handling of invalid SQL."""
         with patch.dict(
-            os.environ, {
-                "M3_BACKEND": "sqlite", 
+            os.environ,
+            {
+                "M3_BACKEND": "sqlite",
                 "M3_DB_PATH": test_db,
-                "M3_OAUTH2_ENABLED": "false"
-            }, clear=True
+                "M3_OAUTH2_ENABLED": "false",
+            },
+            clear=True,
         ):
             _init_backend()
 
@@ -239,11 +245,13 @@ class TestMCPTools:
     async def test_empty_results(self, test_db):
         """Test handling of queries with no results."""
         with patch.dict(
-            os.environ, {
-                "M3_BACKEND": "sqlite", 
+            os.environ,
+            {
+                "M3_BACKEND": "sqlite",
                 "M3_DB_PATH": test_db,
-                "M3_OAUTH2_ENABLED": "false"
-            }, clear=True
+                "M3_OAUTH2_ENABLED": "false",
+            },
+            clear=True,
         ):
             _init_backend()
 
@@ -262,13 +270,15 @@ class TestMCPTools:
         """Test that OAuth2 authentication is required when enabled."""
         # Set up environment for SQLite backend with OAuth2 enabled
         with patch.dict(
-            os.environ, {
-                "M3_BACKEND": "sqlite", 
+            os.environ,
+            {
+                "M3_BACKEND": "sqlite",
                 "M3_DB_PATH": test_db,
                 "M3_OAUTH2_ENABLED": "true",
                 "M3_OAUTH2_ISSUER_URL": "https://auth.example.com",
-                "M3_OAUTH2_AUDIENCE": "m3-api"
-            }, clear=True
+                "M3_OAUTH2_AUDIENCE": "m3-api",
+            },
+            clear=True,
         ):
             _init_backend()
 
@@ -276,7 +286,7 @@ class TestMCPTools:
                 # Test that tools require authentication
                 result = await client.call_tool(
                     "execute_mimic_query",
-                    {"sql_query": "SELECT COUNT(*) FROM icu_icustays"}
+                    {"sql_query": "SELECT COUNT(*) FROM icu_icustays"},
                 )
                 result_text = str(result)
                 assert "Missing OAuth2 access token" in result_text
