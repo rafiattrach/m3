@@ -151,7 +151,7 @@ m3 config  # Choose OAuth2 option during setup
 - 🛡️ **Rate Limiting**: Abuse protection
 - 📊 **Audit Logging**: Security monitoring
 
-> 📖 **Complete OAuth2 Setup Guide**: See [`OAUTH2_AUTHENTICATION.md`](OAUTH2_AUTHENTICATION.md) for detailed configuration, troubleshooting, and production deployment guidelines.
+> 📖 **Complete OAuth2 Setup Guide**: See [`docs/OAUTH2_AUTHENTICATION.md`](docs/OAUTH2_AUTHENTICATION.md) for detailed configuration, troubleshooting, and production deployment guidelines.
 
 ### Backend Comparison
 
