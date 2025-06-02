@@ -9,7 +9,7 @@ import os
 import shutil
 import sys
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 
 class MCPConfigGenerator:
@@ -42,12 +42,12 @@ class MCPConfigGenerator:
     def generate_config(
         self,
         server_name: str = "m3",
-        python_path: Optional[str] = None,
-        working_directory: Optional[str] = None,
+        python_path: str | None = None,
+        working_directory: str | None = None,
         backend: str = "sqlite",
-        db_path: Optional[str] = None,
-        project_id: Optional[str] = None,
-        additional_env: Optional[dict[str, str]] = None,
+        db_path: str | None = None,
+        project_id: str | None = None,
+        additional_env: dict[str, str] | None = None,
         module_name: str = "m3.mcp_server",
     ) -> dict[str, Any]:
         """Generate MCP server configuration."""
