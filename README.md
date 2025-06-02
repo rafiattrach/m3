@@ -178,26 +178,31 @@ When your MCP client processes questions, it uses these tools automatically:
 - **get_lab_results**: Laboratory test results
 - **get_race_distribution**: Patient race distribution
 
-## 🧪 Example Queries
+## 🧪 Example Prompts
 
 Try asking your MCP client these questions:
 
 **Demographics & Statistics:**
 
-- "What is the race distribution in MIMIC-IV admissions?"
-- "Show me patient demographics for ICU stays"
-- "How many total admissions are in the database?"
+- `Prompt:` *What is the race distribution in MIMIC-IV admissions?*
+- `Prompt:` *Show me patient demographics for ICU stays*
+- `Prompt:` *How many total admissions are in the database?*
 
 **Clinical Data:**
 
-- "Find lab results for patient X"
-- "What lab tests are most commonly ordered?"
-- "Show me recent ICU admissions"
+- `Prompt:` *Find lab results for patient X*
+- `Prompt:` *What lab tests are most commonly ordered?*
+- `Prompt:` *Show me recent ICU admissions*
 
 **Data Exploration:**
 
-- "What tables are available in the database?"
-- "What tools do you have for MIMIC-IV data?"
+- `Prompt:` *What tables are available in the database?*
+- `Prompt:` *What tools do you have for MIMIC-IV data?*
+
+## 🎩 Pro Tips
+
+- Do you want to pre-approve the usage of all tools in Claude Desktop? Use the prompt below and then select **Always Allow**
+   - `Prompt:` *Can you please call all your tools in a logical sequence?*
 
 ## 🔍 Troubleshooting
 
