@@ -174,18 +174,16 @@ def setup_claude_desktop(
                 print(
                     f"🔑 Required Scopes: {oauth2_config.get('required_scopes', 'read:mimic-data')}"
                 )
-        else:
-            print("🔓 OAuth2 Authentication: Disabled")
-
-        print("\n🔄 Please restart Claude Desktop to apply changes")
-
-        if oauth2_enabled:
             print("\n⚠️  Security Notice:")
             print("   - OAuth2 authentication is now required for all API calls")
             print("   - Ensure you have a valid access token with the required scopes")
             print(
                 "   - Set M3_OAUTH2_TOKEN environment variable with your Bearer token"
             )
+        else:
+            print("🔓 OAuth2 Authentication: Disabled")
+
+        print("\n🔄 Please restart Claude Desktop to apply changes")
 
         return True
 
