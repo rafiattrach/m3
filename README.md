@@ -8,7 +8,7 @@
 <a href="https://github.com/rafiattrach/m3/actions/workflows/pre-commit.yaml"><img alt="Code Quality" src="https://github.com/rafiattrach/m3/actions/workflows/pre-commit.yaml/badge.svg"></a>
 <a href="https://github.com/rafiattrach/m3/pulls"><img alt="PRs Welcome" src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg"></a>
 
-Transform medical data analysis with AI! Ask questions about MIMIC-IV data in plain English and get instant insights. Choose between local demo data (free) or full cloud dataset (BigQuery).
+Transform medical data analysis with AI! Ask questions about [MIMIC-IV](https://physionet.org/content/mimiciv) data in plain English and get instant insights, leveraging the power of the Model Context Protocol ([MCP](https://modelcontextprotocol.io/)). Choose between local demo data (free) or full cloud dataset (BigQuery).
 
 ## ✨ Features
 
@@ -203,6 +203,14 @@ Try asking your MCP client these questions:
 
 - Do you want to pre-approve the usage of all tools in Claude Desktop? Use the prompt below and then select **Always Allow**
    - `Prompt:` *Can you please call all your tools in a logical sequence?*
+
+## ▶️ Demo with Claude Desktop
+
+- `Prompt:` *What's in the mimic dataset?*
+- `Prompt:` *What percentage of patients stayed more than a week in the hospital? Plot it.*
+
+![m3-demo-claude-desktop-sonnet](https://github.com/user-attachments/assets/0c5aae89-18a9-4f4a-a77d-f4043963399e)
+
 
 ## 🔍 Troubleshooting
 
