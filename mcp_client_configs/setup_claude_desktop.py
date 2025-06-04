@@ -235,6 +235,11 @@ def main():
         print("❌ Error: --db-path can only be used with --backend sqlite")
         exit(1)
 
+    # Require project_id for BigQuery backend
+    if args.backend == "bigquery" and not args.project_id:
+        print("❌ Error: --project-id is required when using --backend bigquery")
+        exit(1)
+
     print("🚀 Setting up M3 MCP Server with Claude Desktop...")
     print(f"📊 Backend: {args.backend}")
 
