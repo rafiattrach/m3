@@ -103,6 +103,14 @@ def test_config_validation_bigquery_with_db_path():
     assert "db-path can only be used with --backend sqlite" in result.output
 
 
+def test_config_validation_bigquery_requires_project_id():
+    """Test that bigquery backend requires project-id parameter."""
+    result = runner.invoke(app, ["config", "claude", "--backend", "bigquery"])
+    assert result.exit_code == 1
+    # Check output - error messages from typer usually go to stdout
+    assert "project-id is required when using --backend bigquery" in result.output
+
+
 @patch("subprocess.run")
 def test_config_claude_success(mock_subprocess):
     """Test successful Claude Desktop configuration."""
@@ -110,7 +118,7 @@ def test_config_claude_success(mock_subprocess):
 
     result = runner.invoke(app, ["config", "claude"])
     assert result.exit_code == 0
-    assert "Setting up M3 MCP Server with Claude Desktop" in result.stdout
+    assert "Claude Desktop configuration completed" in result.stdout
 
     # Verify subprocess was called with correct script
     mock_subprocess.assert_called_once()

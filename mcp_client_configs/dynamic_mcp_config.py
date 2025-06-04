@@ -179,16 +179,16 @@ class MCPConfigGenerator:
 
         elif backend == "bigquery":
             print("\n☁️  BigQuery Configuration:")
-            project_id = (
-                input(
-                    "Google Cloud project ID (optional, press Enter to use default): "
+            project_id = None
+            while not project_id:
+                project_id = input(
+                    "Google Cloud project ID (required for BigQuery): "
                 ).strip()
-                or None
-            )
-            if project_id:
-                print(f"✅ Will use project: {project_id}")
-            else:
-                print("✅ Will use default project (physionet-data)")
+                if not project_id:
+                    print(
+                        "❌ Project ID is required when using BigQuery backend. Please enter your GCP project ID."
+                    )
+            print(f"✅ Will use project: {project_id}")
 
         # OAuth2 Configuration
         oauth2_enabled = False
@@ -365,6 +365,14 @@ Examples:
     if args.backend == "bigquery" and args.db_path:
         print(
             "❌ Error: --db-path can only be used with --backend sqlite",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    # Require project_id for BigQuery backend
+    if args.backend == "bigquery" and not args.project_id:
+        print(
+            "❌ Error: --project-id is required when using --backend bigquery",
             file=sys.stderr,
         )
         sys.exit(1)

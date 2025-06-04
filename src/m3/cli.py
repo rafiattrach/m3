@@ -273,7 +273,7 @@ def config_cmd(
         str | None,
         typer.Option(
             "--project-id",
-            help="Google Cloud project ID (for bigquery backend)",
+            help="Google Cloud project ID (required for bigquery backend)",
         ),
     ] = None,
     python_path: Annotated[
@@ -347,6 +347,15 @@ def config_cmd(
         )
         raise typer.Exit(code=1)
 
+    # Require project_id for BigQuery backend
+    if backend == "bigquery" and not project_id:
+        typer.secho(
+            "❌ Error: --project-id is required when using --backend bigquery",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        raise typer.Exit(code=1)
+
     if client == "claude":
         # Run the Claude Desktop setup script
         script_path = project_root / "mcp_client_configs" / "setup_claude_desktop.py"
@@ -369,8 +378,6 @@ def config_cmd(
             cmd.extend(["--db-path", db_path])
         elif backend == "bigquery" and project_id:
             cmd.extend(["--project-id", project_id])
-
-        typer.echo("🚀 Setting up M3 MCP Server with Claude Desktop...")
 
         try:
             result = subprocess.run(cmd, check=True, capture_output=False)
