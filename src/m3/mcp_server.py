@@ -261,13 +261,27 @@ def get_table_info(table_name: str, show_sample: bool = True) -> str:
 
     else:  # bigquery
         # Handle both simple names (patients) and fully qualified names (`physionet-data.mimiciv_3_1_hosp.patients`)
-        if table_name.startswith("`") and table_name.endswith("`"):
-            # Fully qualified name - use it directly
-            full_table_name = table_name
-            # Extract simple table name for INFORMATION_SCHEMA query
-            parts = table_name.strip("`").split(".")
-            simple_table_name = parts[-1] if len(parts) >= 3 else table_name
-            dataset = ".".join(parts[:-1]) if len(parts) >= 3 else None
+        # Detect qualified names by content: dots + physionet pattern
+        if "." in table_name and "physionet-data" in table_name:
+            # Qualified name (format-agnostic: works with or without backticks)
+            clean_name = table_name.strip("`")
+            full_table_name = f"`{clean_name}`"
+            parts = clean_name.split(".")
+
+            # Validate BigQuery qualified name format: project.dataset.table
+            if len(parts) != 3:
+                error_msg = (
+                    f"{_get_backend_info()}❌ **Invalid qualified table name:** `{table_name}`\n\n"
+                    "**Expected format:** `project.dataset.table`\n"
+                    "**Example:** `physionet-data.mimiciv_3_1_hosp.diagnoses_icd`\n\n"
+                    "**Available MIMIC-IV datasets:**\n"
+                    "- `physionet-data.mimiciv_3_1_hosp.*` (hospital module)\n"
+                    "- `physionet-data.mimiciv_3_1_icu.*` (ICU module)"
+                )
+                return error_msg
+
+            simple_table_name = parts[2]  # table name
+            dataset = f"{parts[0]}.{parts[1]}"  # project.dataset
         else:
             # Simple name - try both datasets to find the table
             simple_table_name = table_name
