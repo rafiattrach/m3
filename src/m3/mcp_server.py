@@ -24,12 +24,12 @@ _bq_client = None
 _project_id = None
 
 
-def _validate_limit(limit: int) -> bool:
+def validate_limit(limit: int) -> bool:
     """Validate limit parameter to prevent resource exhaustion."""
     return isinstance(limit, int) and 0 < limit <= 1000
 
 
-def _is_safe_query(sql_query: str, internal_tool: bool = False) -> tuple[bool, str]:
+def is_safe_query(sql_query: str, internal_tool: bool = False) -> tuple[bool, str]:
     """Secure SQL validation - blocks injection attacks, allows legitimate queries."""
     try:
         if not sql_query or not sql_query.strip():
@@ -181,165 +181,6 @@ def _get_backend_info() -> str:
         return f"🔧 **Current Backend:** BigQuery (cloud database)\n☁️ **Project ID:** {_project_id}\n"
 
 
-# ==========================================
-# INTERNAL QUERY EXECUTION FUNCTIONS
-# ==========================================
-# These functions perform the actual database operations
-# and are called by the MCP tools. This prevents MCP tools
-# from calling other MCP tools, which violates the MCP protocol.
-
-
-def _execute_sqlite_query(sql_query: str) -> str:
-    """Execute SQLite query - internal function."""
-    try:
-        conn = sqlite3.connect(_db_path)
-        try:
-            df = pd.read_sql_query(sql_query, conn)
-
-            if df.empty:
-                return "No results found"
-
-            # Limit output size
-            if len(df) > 50:
-                result = df.head(50).to_string(index=False)
-                result += f"\n... ({len(df)} total rows, showing first 50)"
-            else:
-                result = df.to_string(index=False)
-
-            return result
-        finally:
-            conn.close()
-    except Exception as e:
-        # Re-raise the exception so the calling function can handle it with enhanced guidance
-        raise e
-
-
-def _execute_bigquery_query(sql_query: str) -> str:
-    """Execute BigQuery query - internal function."""
-    try:
-        from google.cloud import bigquery
-
-        job_config = bigquery.QueryJobConfig()
-        query_job = _bq_client.query(sql_query, job_config=job_config)
-        df = query_job.to_dataframe()
-
-        if df.empty:
-            return "No results found"
-
-        # Limit output size
-        if len(df) > 50:
-            result = df.head(50).to_string(index=False)
-            result += f"\n... ({len(df)} total rows, showing first 50)"
-        else:
-            result = df.to_string(index=False)
-
-        return result
-
-    except Exception as e:
-        # Re-raise the exception so the calling function can handle it with enhanced guidance
-        raise e
-
-
-def _execute_query_internal(sql_query: str) -> str:
-    """Internal query execution function that handles backend routing."""
-    # Security check
-    is_safe, message = _is_safe_query(sql_query)
-    if not is_safe:
-        if "describe" in sql_query.lower() or "show" in sql_query.lower():
-            return f"""❌ **Security Error:** {message}
-
-        🔍 **For table structure:** Use `get_table_info('table_name')` instead of DESCRIBE
-        📋 **Why this is better:** Shows columns, types, AND sample data to understand the actual data
-
-        💡 **Recommended workflow:**
-        1. `get_database_schema()` ← See available tables
-        2. `get_table_info('table_name')` ← Explore structure
-        3. `execute_mimic_query('SELECT ...')` ← Run your analysis"""
-
-        return f"❌ **Security Error:** {message}\n\n💡 **Tip:** Only SELECT statements are allowed for data analysis."
-
-    try:
-        if _backend == "sqlite":
-            return _execute_sqlite_query(sql_query)
-        else:  # bigquery
-            return _execute_bigquery_query(sql_query)
-    except Exception as e:
-        error_msg = str(e).lower()
-
-        # Provide specific, actionable error guidance
-        suggestions = []
-
-        if "no such table" in error_msg or "table not found" in error_msg:
-            suggestions.append(
-                "🔍 **Table name issue:** Use `get_database_schema()` to see exact table names"
-            )
-            suggestions.append(
-                f"📋 **Backend-specific naming:** {_backend} has specific table naming conventions"
-            )
-            suggestions.append(
-                "💡 **Quick fix:** Check if the table name matches exactly (case-sensitive)"
-            )
-
-        if "no such column" in error_msg or "column not found" in error_msg:
-            suggestions.append(
-                "🔍 **Column name issue:** Use `get_table_info('table_name')` to see available columns"
-            )
-            suggestions.append(
-                "📝 **Common issue:** Column might be named differently (e.g., 'anchor_age' not 'age')"
-            )
-            suggestions.append(
-                "👀 **Check sample data:** `get_table_info()` shows actual column names and sample values"
-            )
-
-        if "syntax error" in error_msg:
-            suggestions.append(
-                "📝 **SQL syntax issue:** Check quotes, commas, and parentheses"
-            )
-            suggestions.append(
-                f"🎯 **Backend syntax:** Verify your SQL works with {_backend}"
-            )
-            suggestions.append(
-                "💭 **Try simpler:** Start with `SELECT * FROM table_name LIMIT 5`"
-            )
-
-        if "describe" in error_msg.lower() or "show" in error_msg.lower():
-            suggestions.append(
-                "🔍 **Schema exploration:** Use `get_table_info('table_name')` instead of DESCRIBE"
-            )
-            suggestions.append(
-                "📋 **Better approach:** `get_table_info()` shows columns AND sample data"
-            )
-
-        if not suggestions:
-            suggestions.append(
-                "🔍 **Start exploration:** Use `get_database_schema()` to see available tables"
-            )
-            suggestions.append(
-                "📋 **Check structure:** Use `get_table_info('table_name')` to understand the data"
-            )
-
-        suggestion_text = "\n".join(f"   {s}" for s in suggestions)
-
-        return f"""❌ **Query Failed:** {e}
-
-🛠️ **How to fix this:**
-{suggestion_text}
-
-🎯 **Quick Recovery Steps:**
-1. `get_database_schema()` ← See what tables exist
-2. `get_table_info('your_table')` ← Check exact column names
-3. Retry your query with correct names
-
-📚 **Current Backend:** {_backend} - table names and syntax are backend-specific"""
-
-
-# ==========================================
-# MCP TOOLS - PUBLIC API
-# ==========================================
-# These are the tools exposed via MCP protocol.
-# They should NEVER call other MCP tools - only internal functions.
-
-
 @mcp.tool()
 @require_oauth2
 def get_database_schema() -> str:
@@ -358,7 +199,7 @@ def get_database_schema() -> str:
     """
     if _backend == "sqlite":
         query = "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
-        result = _execute_query_internal(query)
+        result = _execute_mimic_query_internal(query)
         return f"{_get_backend_info()}\n📋 **Available Tables:**\n{result}"
     else:  # bigquery
         # Show fully qualified table names that are ready to copy-paste into queries
@@ -370,7 +211,7 @@ def get_database_schema() -> str:
         FROM `physionet-data.mimiciv_3_1_icu.INFORMATION_SCHEMA.TABLES`
         ORDER BY query_ready_table_name
         """
-        result = _execute_query_internal(query)
+        result = _execute_mimic_query_internal(query)
         return f"{_get_backend_info()}\n📋 **Available Tables (query-ready names):**\n{result}\n\n💡 **Copy-paste ready:** These table names can be used directly in your SQL queries!"
 
 
@@ -505,6 +346,99 @@ def get_table_info(table_name: str, show_sample: bool = True) -> str:
         return f"{backend_info}❌ Table '{table_name}' not found in any dataset. Use get_database_schema() to see available tables."
 
 
+def _execute_mimic_query_internal(sql_query: str) -> str:
+    """Internal version of execute_mimic_query for use by other functions."""
+    # Enhanced security check
+    is_safe, message = is_safe_query(sql_query)
+    if not is_safe:
+        if "describe" in sql_query.lower() or "show" in sql_query.lower():
+            return f"""❌ **Security Error:** {message}
+
+🔍 **For table structure:** Use `get_table_info('table_name')` instead of DESCRIBE
+📋 **Why this is better:** Shows columns, types, AND sample data to understand the actual data
+
+💡 **Recommended workflow:**
+1. `get_database_schema()` ← See available tables
+2. `get_table_info('table_name')` ← Explore structure
+3. `execute_mimic_query('SELECT ...')` ← Run your analysis"""
+
+        return f"❌ **Security Error:** {message}\n\n💡 **Tip:** Only SELECT statements are allowed for data analysis."
+
+    try:
+        if _backend == "sqlite":
+            return _execute_sqlite_query(sql_query)
+        else:  # bigquery
+            return _execute_bigquery_query(sql_query)
+    except Exception as e:
+        error_msg = str(e).lower()
+
+        # Provide specific, actionable error guidance
+        suggestions = []
+
+        if "no such table" in error_msg or "table not found" in error_msg:
+            suggestions.append(
+                "🔍 **Table name issue:** Use `get_database_schema()` to see exact table names"
+            )
+            suggestions.append(
+                f"📋 **Backend-specific naming:** {_backend} has specific table naming conventions"
+            )
+            suggestions.append(
+                "💡 **Quick fix:** Check if the table name matches exactly (case-sensitive)"
+            )
+
+        if "no such column" in error_msg or "column not found" in error_msg:
+            suggestions.append(
+                "🔍 **Column name issue:** Use `get_table_info('table_name')` to see available columns"
+            )
+            suggestions.append(
+                "📝 **Common issue:** Column might be named differently (e.g., 'anchor_age' not 'age')"
+            )
+            suggestions.append(
+                "👀 **Check sample data:** `get_table_info()` shows actual column names and sample values"
+            )
+
+        if "syntax error" in error_msg:
+            suggestions.append(
+                "📝 **SQL syntax issue:** Check quotes, commas, and parentheses"
+            )
+            suggestions.append(
+                f"🎯 **Backend syntax:** Verify your SQL works with {_backend}"
+            )
+            suggestions.append(
+                "💭 **Try simpler:** Start with `SELECT * FROM table_name LIMIT 5`"
+            )
+
+        if "describe" in error_msg.lower() or "show" in error_msg.lower():
+            suggestions.append(
+                "🔍 **Schema exploration:** Use `get_table_info('table_name')` instead of DESCRIBE"
+            )
+            suggestions.append(
+                "📋 **Better approach:** `get_table_info()` shows columns AND sample data"
+            )
+
+        if not suggestions:
+            suggestions.append(
+                "🔍 **Start exploration:** Use `get_database_schema()` to see available tables"
+            )
+            suggestions.append(
+                "📋 **Check structure:** Use `get_table_info('table_name')` to understand the data"
+            )
+
+        suggestion_text = "\n".join(f"   {s}" for s in suggestions)
+
+        return f"""❌ **Query Failed:** {e}
+
+🛠️ **How to fix this:**
+{suggestion_text}
+
+🎯 **Quick Recovery Steps:**
+1. `get_database_schema()` ← See what tables exist
+2. `get_table_info('your_table')` ← Check exact column names
+3. Retry your query with correct names
+
+📚 **Current Backend:** {_backend} - table names and syntax are backend-specific"""
+
+
 @mcp.tool()
 @require_oauth2
 def execute_mimic_query(sql_query: str) -> str:
@@ -528,7 +462,7 @@ def execute_mimic_query(sql_query: str) -> str:
     Returns:
         Query results or helpful error messages with next steps
     """
-    return _execute_query_internal(sql_query)
+    return _execute_mimic_query_internal(sql_query)
 
 
 @mcp.tool()
@@ -549,7 +483,7 @@ def get_icu_stays(patient_id: int | None = None, limit: int = 10) -> str:
         ICU stay data as formatted text or guidance if table not found
     """
     # Security validation
-    if not _validate_limit(limit):
+    if not validate_limit(limit):
         return "Error: Invalid limit. Must be a positive integer between 1 and 10000."
 
     # Try common ICU table names based on backend
@@ -564,7 +498,7 @@ def get_icu_stays(patient_id: int | None = None, limit: int = 10) -> str:
         query = f"SELECT * FROM {icustays_table} LIMIT {limit}"
 
     # Execute with error handling that suggests proper workflow
-    result = _execute_query_internal(query)
+    result = _execute_mimic_query_internal(query)
     if "error" in result.lower() or "not found" in result.lower():
         return f"""❌ **Convenience function failed:** {result}
 
@@ -599,7 +533,7 @@ def get_lab_results(
         Lab results as formatted text or guidance if table not found
     """
     # Security validation
-    if not _validate_limit(limit):
+    if not validate_limit(limit):
         return "Error: Invalid limit. Must be a positive integer between 1 and 10000."
 
     # Try common lab table names based on backend
@@ -623,7 +557,7 @@ def get_lab_results(
     base_query += f" LIMIT {limit}"
 
     # Execute with error handling that suggests proper workflow
-    result = _execute_query_internal(base_query)
+    result = _execute_mimic_query_internal(base_query)
     if "error" in result.lower() or "not found" in result.lower():
         return f"""❌ **Convenience function failed:** {result}
 
@@ -654,7 +588,7 @@ def get_race_distribution(limit: int = 10) -> str:
         Race distribution as formatted text or guidance if table not found
     """
     # Security validation
-    if not _validate_limit(limit):
+    if not validate_limit(limit):
         return "Error: Invalid limit. Must be a positive integer between 1 and 10000."
 
     # Try common admissions table names based on backend
@@ -666,7 +600,7 @@ def get_race_distribution(limit: int = 10) -> str:
     query = f"SELECT race, COUNT(*) as count FROM {admissions_table} GROUP BY race ORDER BY count DESC LIMIT {limit}"
 
     # Execute with error handling that suggests proper workflow
-    result = _execute_query_internal(query)
+    result = _execute_mimic_query_internal(query)
     if "error" in result.lower() or "not found" in result.lower():
         return f"""❌ **Convenience function failed:** {result}
 
@@ -678,6 +612,56 @@ def get_race_distribution(limit: int = 10) -> str:
 This ensures compatibility across different MIMIC-IV setups."""
 
     return result
+
+
+def _execute_sqlite_query(sql_query: str) -> str:
+    """Execute SQLite query."""
+    try:
+        conn = sqlite3.connect(_db_path)
+        df = pd.read_sql_query(sql_query, conn)
+        conn.close()
+
+        if df.empty:
+            return "No results found"
+
+        # Limit output size
+        if len(df) > 50:
+            result = df.head(50).to_string(index=False)
+            result += f"\n... ({len(df)} total rows, showing first 50)"
+        else:
+            result = df.to_string(index=False)
+
+        return result
+
+    except Exception as e:
+        # Re-raise the exception so execute_mimic_query can handle it with enhanced guidance
+        raise e
+
+
+def _execute_bigquery_query(sql_query: str) -> str:
+    """Execute BigQuery query."""
+    try:
+        from google.cloud import bigquery
+
+        job_config = bigquery.QueryJobConfig()
+        query_job = _bq_client.query(sql_query, job_config=job_config)
+        df = query_job.to_dataframe()
+
+        if df.empty:
+            return "No results found"
+
+        # Limit output size
+        if len(df) > 50:
+            result = df.head(50).to_string(index=False)
+            result += f"\n... ({len(df)} total rows, showing first 50)"
+        else:
+            result = df.to_string(index=False)
+
+        return result
+
+    except Exception as e:
+        # Re-raise the exception so execute_mimic_query can handle it with enhanced guidance
+        raise e
 
 
 def main():
