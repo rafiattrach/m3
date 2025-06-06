@@ -193,21 +193,22 @@ def _execute_sqlite_query(sql_query: str) -> str:
     """Execute SQLite query - internal function."""
     try:
         conn = sqlite3.connect(_db_path)
-        df = pd.read_sql_query(sql_query, conn)
-        conn.close()
+        try:
+            df = pd.read_sql_query(sql_query, conn)
 
-        if df.empty:
-            return "No results found"
+            if df.empty:
+                return "No results found"
 
-        # Limit output size
-        if len(df) > 50:
-            result = df.head(50).to_string(index=False)
-            result += f"\n... ({len(df)} total rows, showing first 50)"
-        else:
-            result = df.to_string(index=False)
+            # Limit output size
+            if len(df) > 50:
+                result = df.head(50).to_string(index=False)
+                result += f"\n... ({len(df)} total rows, showing first 50)"
+            else:
+                result = df.to_string(index=False)
 
-        return result
-
+            return result
+        finally:
+            conn.close()
     except Exception as e:
         # Re-raise the exception so the calling function can handle it with enhanced guidance
         raise e
