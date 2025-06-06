@@ -111,6 +111,13 @@ nav {
     font-weight: 500;
 }
 
+.star-count {
+    padding: 6px 12px !important;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    margin-right: 8px;
+}
+
 .btn-paper {
     background: #0052ff;
     color: white;
@@ -345,7 +352,7 @@ nav {
     flex: 1;
     padding: 32px;
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
     gap: 24px;
     background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
 }
@@ -747,6 +754,112 @@ nav {
 .code-snippet .string {
     color: #f6ad55;
 }
+
+/* Citation Section */
+.citation-section {
+    padding: 120px 0;
+    background: #f8fafc;
+}
+
+.citation-grid {
+    display: flex;
+    justify-content: center;
+    margin-top: 60px;
+    margin-bottom: 40px;
+}
+
+.citation-card {
+    background: white;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    transition: all 0.3s ease;
+    max-width: 600px;
+    width: 100%;
+}
+
+.citation-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+}
+
+.bibtex-card {
+    max-width: 600px;
+}
+
+.citation-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.citation-header h3 {
+    font-size: 18px;
+    font-weight: 600;
+    color: #1a1a1a;
+    margin: 0;
+}
+
+.copy-btn {
+    background: #0052ff;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.copy-btn:hover {
+    background: #0040cc;
+    transform: translateY(-1px);
+}
+
+.copy-btn.copied {
+    background: #10b981;
+}
+
+.citation-text {
+    font-size: 14px;
+    line-height: 1.6;
+    color: #4a5568;
+    font-style: italic;
+}
+
+.bibtex-text {
+    font-style: normal;
+}
+
+.bibtex-text pre {
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.citation-note {
+    background: #e8f5e8;
+    border: 1px solid #c6f6d5;
+    border-radius: 8px;
+    padding: 16px;
+    text-align: center;
+}
+
+.citation-note p {
+    margin: 0;
+    font-size: 14px;
+    color: #2d5016;
+    line-height: 1.5;
+}
+
 .cta-section {
     padding: 120px 0;
     background: #0052ff;
@@ -916,6 +1029,16 @@ footer {
     .dashboard-content {
         grid-template-columns: 1fr;
         padding: 20px;
+    }
+
+    .citation-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+    }
+
+    .copy-btn {
+        align-self: flex-end;
     }
 }
 

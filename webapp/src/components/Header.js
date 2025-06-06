@@ -34,7 +34,7 @@ const Header = () => {
         </ul>
         <div>
           <a href="https://github.com/MIT-LCP/m3" target="_blank" rel="noopener noreferrer" className="btn-github">
-            <span>{stars.toLocaleString()} ⭐</span> Star on GitHub
+            <span className="star-count">{stars.toLocaleString()} ⭐</span> Star on GitHub
           </a>
         </div>
       </nav>
