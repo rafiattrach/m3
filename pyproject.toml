@@ -3,15 +3,35 @@ requires = ["setuptools>=64", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "m3"
-version = "0.0.1"
-description = "MIMIC-IV + MCP + Models: Local MIMIC-IV querying with LLMs."
+name = "m3-mcp"
+version = "0.1.0"
+description = "MIMIC-IV + MCP + Models: Local MIMIC-IV querying with LLMs via Model Context Protocol"
 requires-python = ">=3.10"
 authors = [
     { name = "Rafi Al Attrach", email = "rafiaa@mit.edu" },
     { name = "Pedro Moreira", email = "pedrojfm@mit.edu" },
+    { name = "Rajna Fani", email = "rajnaf@mit.edu" },
+]
+maintainers = [
+    { name = "Rafi Al Attrach", email = "rafiaa@mit.edu" },
+    { name = "Pedro Moreira", email = "pedrojfm@mit.edu" },
+    { name = "Rajna Fani", email = "rajnaf@mit.edu" },
 ]
 readme = "README.md"
+license = "MIT"
+keywords = ["mimic-iv", "clinical-data", "mcp", "llm", "medical", "healthcare", "sqlite", "bigquery"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Healthcare Industry",
+    "Topic :: Scientific/Engineering :: Medical Science Apps.",
+    "Topic :: Database :: Database Engines/Servers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: OS Independent",
+]
 
 dependencies = [
     "typer>=0.9.0",  # Typer as a core dependency for the CLI
@@ -46,9 +66,19 @@ dev = [
 m3 = "m3.cli:app"
 m3-mcp-server = "m3.mcp_server:main"
 
+[project.urls]
+Homepage = "https://github.com/rafiattrach/m3"
+Repository = "https://github.com/rafiattrach/m3"
+Documentation = "https://github.com/rafiattrach/m3#readme"
+Issues = "https://github.com/rafiattrach/m3/issues"
+Changelog = "https://github.com/rafiattrach/m3/releases"
+
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["m3*"]
+
+[tool.setuptools.package-data]
+"*" = ["*.json", "*.yaml", "*.yml", "*.toml"]
 
 [tool.ruff]
 line-length = 88

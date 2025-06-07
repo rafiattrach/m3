@@ -1,0 +1,11 @@
+include README.md
+include LICENSE
+include pyproject.toml
+recursive-include src/m3 *.py
+global-exclude *.pyc
+global-exclude __pycache__
+global-exclude .DS_Store
+prune tests
+prune webapp
+prune build
+prune dist
