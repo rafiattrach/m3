@@ -33,12 +33,12 @@ const Citation = () => {
           <h2>Cite This Work</h2>
           <p>If you use m3 in your research, please cite our paper :)</p>
         </div>
-        
+
         <div className="citation-grid">
           <div className="citation-card bibtex-card">
             <div className="citation-header">
               <h3>BibTeX Format</h3>
-              <button 
+              <button
                 onClick={() => handleCopy('bibtex')}
                 className={`copy-btn ${copiedFormat === 'bibtex' ? 'copied' : ''}`}
               >
@@ -55,4 +55,4 @@ const Citation = () => {
   );
 };
 
-export default Citation; 
+export default Citation;
