@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Dynamic MCP Configuration Generator for M3 Server.
 Generates MCP server configurations that can be copied and pasted into any MCP client.

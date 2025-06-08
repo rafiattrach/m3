@@ -11,10 +11,27 @@ logging.basicConfig(
 )
 logger = logging.getLogger(APP_NAME)
 
+
 # -------------------------------------------------------------------
 # Data directory rooted at project root (two levels up from this file)
 # -------------------------------------------------------------------
-_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+def _get_project_root() -> Path:
+    """
+    Determine project root:
+    - If cloned repo: use repository root (two levels up from this file)
+    - If pip installed: use current working directory
+    """
+    package_root = Path(__file__).resolve().parents[2]
+
+    # Check if we're in a cloned repository (has pyproject.toml at root)
+    if (package_root / "pyproject.toml").exists():
+        return package_root
+
+    # Pip installed: use current working directory
+    return Path.cwd()
+
+
+_PROJECT_ROOT = _get_project_root()
 _PROJECT_DATA_DIR = _PROJECT_ROOT / "data"
 
 DEFAULT_DATABASES_DIR = _PROJECT_DATA_DIR / "databases"

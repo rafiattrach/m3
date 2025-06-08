@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "m3-mcp"
-version = "0.1.2"
+dynamic = ["version"]
 description = "MIMIC-IV + MCP + Models: Local MIMIC-IV querying with LLMs via Model Context Protocol"
 requires-python = ">=3.10"
 authors = [
@@ -79,6 +79,9 @@ include = ["m3*"]
 
 [tool.setuptools.package-data]
 "*" = ["*.json", "*.yaml", "*.yml", "*.toml"]
+
+[tool.setuptools.dynamic]
+version = {attr = "m3.__version__"}
 
 [tool.ruff]
 line-length = 88

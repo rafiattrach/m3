@@ -6,10 +6,9 @@ from unittest.mock import patch
 
 import pytest
 
-# Add the mcp_client_configs directory to the path for testing
-sys.path.insert(0, str(Path(__file__).parent.parent / "mcp_client_configs"))
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from dynamic_mcp_config import MCPConfigGenerator
+from m3.mcp_client_configs.dynamic_mcp_config import MCPConfigGenerator
 
 
 class TestMCPConfigGenerator:
