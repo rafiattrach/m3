@@ -79,3 +79,15 @@ Desktop.ini
 
 # Datasets and other large files
 data/
+
+# Benchmark data and results
+benchmarks/*/dataset/ehrsql_data/
+benchmarks/*/results/
+benchmarks/*/results/*.json
+benchmarks/*/results/*.txt
+benchmarks/*/results/*.log
+benchmarks/ehrsql/results/
+results/
+**/results/
+evaluation_results/
+benchmark_results/
