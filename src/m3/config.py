@@ -19,7 +19,7 @@ def _get_project_root() -> Path:
     """
     Determine project root:
     - If cloned repo: use repository root (two levels up from this file)
-    - If pip installed: use current working directory
+    - If pip installed: ALWAYS use home directory
     """
     package_root = Path(__file__).resolve().parents[2]
 
@@ -27,8 +27,8 @@ def _get_project_root() -> Path:
     if (package_root / "pyproject.toml").exists():
         return package_root
 
-    # Pip installed: use current working directory
-    return Path.cwd()
+    # Pip installed: ALWAYS use home directory (simple and consistent)
+    return Path.home()
 
 
 _PROJECT_ROOT = _get_project_root()
@@ -37,9 +37,6 @@ _PROJECT_DATA_DIR = _PROJECT_ROOT / "data"
 DEFAULT_DATABASES_DIR = _PROJECT_DATA_DIR / "databases"
 DEFAULT_RAW_FILES_DIR = _PROJECT_DATA_DIR / "raw_files"
 
-# Ensure base directories exist upon module load.
-DEFAULT_DATABASES_DIR.mkdir(parents=True, exist_ok=True)
-DEFAULT_RAW_FILES_DIR.mkdir(parents=True, exist_ok=True)
 
 # --------------------------------------------------
 # Dataset configurations (add more entries as needed)
@@ -90,8 +87,3 @@ def get_dataset_raw_files_path(dataset_name: str) -> Path | None:
 
     logger.warning(f"Unknown dataset, cannot determine raw path: {dataset_name}")
     return None
-
-
-logger.info(
-    f"M3 Config Initialized. Data directories under project root: '{_PROJECT_DATA_DIR}'"
-)
