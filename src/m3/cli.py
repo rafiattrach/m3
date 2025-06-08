@@ -327,8 +327,17 @@ def config_cmd(
 
     • m3 config claude --backend bigquery --project-id my-project
     """
-    # Get the project root directory (where the CLI script is located)
-    project_root = Path(__file__).parent.parent.parent
+    try:
+        from m3 import mcp_client_configs
+
+        script_dir = Path(mcp_client_configs.__file__).parent
+    except ImportError:
+        typer.secho(
+            "❌ Error: Could not find m3.mcp_client_configs package",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        raise typer.Exit(code=1)
 
     # Validate backend-specific arguments
     if backend == "sqlite" and project_id:
@@ -358,7 +367,7 @@ def config_cmd(
 
     if client == "claude":
         # Run the Claude Desktop setup script
-        script_path = project_root / "mcp_client_configs" / "setup_claude_desktop.py"
+        script_path = script_dir / "setup_claude_desktop.py"
 
         if not script_path.exists():
             typer.secho(
@@ -402,7 +411,7 @@ def config_cmd(
 
     else:
         # Run the dynamic config generator
-        script_path = project_root / "mcp_client_configs" / "dynamic_mcp_config.py"
+        script_path = script_dir / "dynamic_mcp_config.py"
 
         if not script_path.exists():
             typer.secho(
