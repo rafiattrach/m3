@@ -2,10 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 
 const Header = () => {
-  const [stars, setStars] = useState(4);
+  const [stars, setStars] = useState(3);
 
   useEffect(() => {
-    fetch('https://api.github.com/repos/MIT-LCP/m3')
+    fetch('https://api.github.com/repos/rafiattrach/m3')
       .then(response => {
         if (!response.ok) {
           return;
@@ -33,7 +33,7 @@ const Header = () => {
           <li><Link to="/documentation">Documentation</Link></li>
         </ul>
         <div>
-          <a href="https://github.com/MIT-LCP/m3" target="_blank" rel="noopener noreferrer" className="btn-github">
+          <a href="https://github.com/rafiattrach/m3" target="_blank" rel="noopener noreferrer" className="btn-github">
             <span className="star-count">{stars.toLocaleString()} ⭐</span> Star on GitHub
           </a>
         </div>

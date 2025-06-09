@@ -3,14 +3,14 @@ import React, { useState } from 'react';
 const Hero = () => {
   const [isCopied, setIsCopied] = useState(false);
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText('pip install m3')
+  const copyToClipboard = () => {
+    navigator.clipboard.writeText('pip install m3-mcp')
       .then(() => {
         setIsCopied(true);
         setTimeout(() => setIsCopied(false), 2000);
       })
       .catch(err => {
-        console.error('Could not copy text: ', err);
+        console.error('Failed to copy: ', err);
       });
   };
 
@@ -33,11 +33,11 @@ const Hero = () => {
               <button onClick={() => handleScroll('paper')} className="cta-button">
                 <span>📄</span> Read Paper
               </button>
-              <button onClick={handleCopy} className="cta-button-secondary">
+              <button onClick={copyToClipboard} className="cta-button-secondary">
                 <span role="img" aria-label={isCopied ? 'check mark' : 'laptop'}>
                   {isCopied ? '✅' : '💻'}
                 </span>
-                {isCopied ? 'Copied!' : 'pip install m3'}
+                {isCopied ? 'Copied!' : 'pip install m3-mcp'}
               </button>
             </div>
           </div>
