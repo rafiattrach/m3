@@ -22,29 +22,61 @@ Transform medical data analysis with AI! Ask questions about MIMIC-IV data in pl
 
 > 💡 **Need more options?** Run `m3 --help` to see all available commands and options.
 
-### Prerequisites
+### 📦 Installation
 
+Choose your preferred installation method:
+
+#### Option A: Install from PyPI (Recommended)
+
+**Step 1: Create Virtual Environment**
 ```bash
 # Create virtual environment (recommended)
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
 ```
 
-### Option 1: Local Demo (Recommended for Beginners)
+**Step 2: Install M3**
+```bash
+# Install M3
+pip install m3-mcp
+```
+
+#### Option B: Install from Source
+
+**Step 1: Clone and Navigate**
+```bash
+# Clone the repository
+git clone https://github.com/rafiattrach/m3.git
+cd m3
+```
+
+**Step 2: Create Virtual Environment**
+```bash
+# Create virtual environment
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
+```
+
+**Step 3: Install M3**
+```bash
+# Install M3
+pip install .
+```
+
+### 🗄️ Database Configuration
+
+After installation, choose your data source:
+
+#### Option A: Local Demo Database (Recommended for Beginners)
 
 **Perfect for learning and development - completely free!**
 
-1. **Install M3**:
-   ```bash
-   pip install -e .
-   ```
-
-2. **Download demo database**:
+1. **Download demo database**:
    ```bash
    m3 init mimic-iv-demo
    ```
 
-3. **Setup MCP Client**:
+2. **Setup MCP Client**:
    ```bash
    m3 config
    ```
@@ -54,28 +86,32 @@ source .venv/bin/activate  # Windows: .venv\Scripts\activate
    m3 config claude
    ```
 
-4. **Restart your MCP client** and ask:
+3. **Restart your MCP client** and ask:
 
    - "What tools do you have for MIMIC-IV data?"
    - "Show me patient demographics from the ICU"
 
-### Option 2: BigQuery (Full Dataset)
+#### Option B: BigQuery (Full Dataset)
 
 **For researchers needing complete MIMIC-IV data**
 
-#### Prerequisites
+##### Prerequisites
 - Google Cloud account and project with billing enabled
 - Access to MIMIC-IV on BigQuery (requires PhysioNet credentialing)
 
-#### Setup Steps
+##### Setup Steps
 
 1. **Install Google Cloud CLI**:
-   ```bash
-   # macOS (with Homebrew)
-   brew install google-cloud-sdk
 
-   # Windows: Download from https://cloud.google.com/sdk/docs/install
-   # Linux
+   **macOS (with Homebrew):**
+   ```bash
+   brew install google-cloud-sdk
+   ```
+
+   **Windows:** Download from https://cloud.google.com/sdk/docs/install
+
+   **Linux:**
+   ```bash
    curl https://sdk.cloud.google.com | bash
    ```
 
@@ -83,13 +119,9 @@ source .venv/bin/activate  # Windows: .venv\Scripts\activate
    ```bash
    gcloud auth application-default login
    ```
+   *This will open your browser - choose the Google account that has access to your BigQuery project with MIMIC-IV data.*
 
-3. **Install M3**:
-   ```bash
-   pip install -e .
-   ```
-
-4. **Setup MCP Client for BigQuery**:
+3. **Setup MCP Client for BigQuery**:
    ```bash
    m3 config
    ```
@@ -99,7 +131,7 @@ source .venv/bin/activate  # Windows: .venv\Scripts\activate
    m3 config claude --backend bigquery --project-id YOUR_PROJECT_ID
    ```
 
-5. **Test BigQuery Access** - Restart your MCP client and ask:
+4. **Test BigQuery Access** - Restart your MCP client and ask:
    ```
    Use the get_race_distribution function to show me the top 5 races in MIMIC-IV admissions.
    ```
@@ -262,12 +294,25 @@ gcloud auth list
 
 ### Development Setup
 
+**Step 1: Clone and Navigate**
 ```bash
-git clone https://github.com/rafiattrach/m3 # HTTPS as an example
+# Clone the repository
+git clone https://github.com/rafiattrach/m3.git
 cd m3
+```
+
+**Step 2: Create and Activate Virtual Environment**
+```bash
+# Create virtual environment
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
+```
+
+**Step 3: Install Development Dependencies**
+```bash
+# Install in development mode with dev dependencies
 pip install -e ".[dev]"
+# Install pre-commit hooks
 pre-commit install
 ```
 
