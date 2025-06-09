@@ -54,7 +54,7 @@ const Installation = () => {
             <p>The easiest way to install m3 is directly from the Python Package Index (PyPI).</p>
             <div className="code-snippet">
               <span className="comment"># Run the following command in your terminal</span><br/>
-              pip install m3-mimic
+              pip install m3-mcp
             </div>
           </div>
 
@@ -63,7 +63,7 @@ const Installation = () => {
             <p>For the latest development features, you can install m3 directly from the GitHub repository.</p>
             <div className="code-snippet">
               <span className="comment"># 1. Clone the repository</span><br/>
-              git clone https://github.com/username/m3.git<br/><br/>
+              git clone https://github.com/rafiattrach/m3.git<br/><br/>
               <span className="comment"># 2. Navigate to the project directory</span><br/>
               cd m3<br/><br/>
               <span className="comment"># 3. Install in editable mode</span><br/>
