@@ -1,13 +1,13 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useMemo } from 'react';
 
 const Demos = () => {
   const videoContainersRef = useRef([]);
-  const videos = [
+  const videos = useMemo(() => [
     { url: 'm3_website_1.mp4', duration: '2:33 min' },
     { url: 'm3_website_2.mp4', duration: '1:18 min' },
     { url: 'm3_website_3.mp4', duration: '1:25 min' },
     { url: 'm3_website_4.mp4', duration: '5:49 min' },
-  ];
+  ], []);
 
   useEffect(() => {
     const loadVideo = (container, videoInfo) => {
@@ -45,7 +45,7 @@ const Demos = () => {
     videoContainersRef.current.forEach((container, index) => {
       loadVideo(container, videos[index]);
     });
-  }, []);
+  }, [videos]);
 
   return (
     <section className="demo-section" id="demos">
