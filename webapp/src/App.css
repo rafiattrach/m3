@@ -56,15 +56,19 @@ nav {
     gap: 40px;
 }
 
-.nav-links a {
+.nav-links a, .nav-links button {
     text-decoration: none;
     color: #1a1a1a;
     font-weight: 500;
     font-size: 16px;
     transition: color 0.3s ease;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
 }
 
-.nav-links a:hover {
+.nav-links a:hover, .nav-links button:hover {
     color: #0052ff;
 }
 
@@ -281,7 +285,7 @@ nav {
 .laptop-frame {
     background: linear-gradient(145deg, #f0f0f0, #e0e0e0);
     border-radius: 20px 20px 8px 8px;
-    padding: 20px 20px 60px 20px;
+    padding: 20px 20px 20px 20px;
     box-shadow:
         0 25px 60px rgba(0, 0, 0, 0.15),
         0 5px 20px rgba(0, 0, 0, 0.08);
@@ -304,7 +308,7 @@ nav {
     background: #000;
     border-radius: 12px;
     overflow: hidden;
-    aspect-ratio: 16/10;
+    aspect-ratio: 14.5 / 10;
     position: relative;
 }
 
@@ -355,6 +359,23 @@ nav {
     grid-template-columns: 1fr;
     gap: 24px;
     background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+}
+
+.dashboard-image-container {
+    flex: 1;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+    overflow: hidden;
+}
+
+.dashboard-banner {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    border-radius: 0;
 }
 
 .dashboard-card {
@@ -1026,9 +1047,8 @@ footer {
         gap: 40px;
     }
 
-    .dashboard-content {
-        grid-template-columns: 1fr;
-        padding: 20px;
+    .dashboard-image-container {
+        padding: 10px;
     }
 
     .citation-header {

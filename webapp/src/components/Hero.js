@@ -54,25 +54,12 @@ const Hero = () => {
                       </div>
                       <div className="app-title">m3 MIMIC Dashboard</div>
                     </div>
-                    <div className="dashboard-content">
-                      <div className="dashboard-card">
-                        <div className="card-header">Patients Queried</div>
-                        <div className="card-value">38,542</div>
-                        <div className="card-change">+1.2k this month</div>
-                      </div>
-                      <div className="dashboard-card">
-                        <div className="card-header">Query Performance</div>
-                        <div className="chart-placeholder"></div>
-                      </div>
-                      <div className="dashboard-card">
-                        <div className="card-header">Active Researchers</div>
-                        <div className="card-value">1,245</div>
-                        <div className="card-change">+6.1% this month</div>
-                      </div>
-                      <div className="dashboard-card">
-                        <div className="card-header">Data Throughput</div>
-                        <div className="chart-placeholder"></div>
-                      </div>
+                    <div className="dashboard-image-container">
+                      <img 
+                        src="m3/banner1.png" 
+                        alt="m3 MIMIC Dashboard" 
+                        className="dashboard-banner"
+                      />
                     </div>
                   </div>
                 </div>

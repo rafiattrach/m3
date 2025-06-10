@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { HashRouter as Router, Route, Routes } from 'react-router-dom';
+import { HashRouter as Router, Route, Routes, useLocation } from 'react-router-dom';
 import './App.css';
 import Header from './components/Header';
 import Hero from './components/Hero';
@@ -13,32 +13,19 @@ import Footer from './components/Footer';
 import Documentation from './components/Documentation';
 import Installation from './components/Installation';
 
+// Component to handle scroll to top on route change
+function ScrollToTop() {
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+
+  return null;
+}
+
 function App() {
   useEffect(() => {
-    // Smooth scrolling for anchor links
-    const smoothScroll = (targetId) => {
-      const target = document.querySelector(targetId);
-      if (target) {
-        target.scrollIntoView({
-          behavior: 'smooth',
-          block: 'start'
-        });
-      }
-    };
-
-    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-      anchor.addEventListener('click', function (e) {
-        e.preventDefault();
-        const targetId = this.getAttribute('href');
-        // If on a different page, navigate first then scroll
-        if (window.location.pathname !== '/') {
-          window.location.href = `/${targetId}`;
-        } else {
-          smoothScroll(targetId);
-        }
-      });
-    });
-
     // Header scroll effect
     const handleScroll = () => {
       const header = document.querySelector('header');
@@ -133,6 +120,7 @@ function App() {
   return (
     <Router>
       <div className="App">
+        <ScrollToTop />
         <Header />
         <Routes>
           <Route path="/" element={<MainPage />} />

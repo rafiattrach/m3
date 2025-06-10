@@ -1,38 +1,51 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 
 const Demos = () => {
-  const playVideo = (container, videoUrl) => {
-    // Try to load the actual video file, fallback to placeholder
-    const videoPath = `/m3/videos/${videoUrl}`;
+  const videoContainersRef = useRef([]);
+  const videos = [
+    { url: 'm3_website_1.mp4', duration: '2:33 min' },
+    { url: 'm3_website_2.mp4', duration: '1:18 min' },
+    { url: 'm3_website_3.mp4', duration: '1:25 min' },
+    { url: 'm3_website_4.mp4', duration: '5:49 min' },
+  ];
 
-    // Create video element
-    const video = document.createElement('video');
-    video.controls = true;
-    video.style.width = '100%';
-    video.style.height = '100%';
-    video.style.objectFit = 'cover';
+  useEffect(() => {
+    const loadVideo = (container, videoInfo) => {
+      if (!container) return;
 
-    // Check if video exists
-    video.src = videoPath;
-    video.onloadeddata = () => {
-      // Video loaded successfully
-      container.innerHTML = '';
-      container.appendChild(video);
-      video.play();
+      const videoUrl = videoInfo.url;
+      const videoPath = `/m3/videos/${videoUrl}`;
+      const video = document.createElement('video');
+      video.controls = false;
+      video.autoplay = true;
+      video.muted = true;
+      video.loop = true;
+      video.style.width = '100%';
+      video.style.height = '100%';
+      video.style.objectFit = 'cover';
+      video.src = videoPath;
+
+      video.onloadeddata = () => {
+        container.innerHTML = '';
+        container.appendChild(video);
+        video.play().catch(error => console.error("Autoplay was prevented: ", error));
+      };
+
+      video.onerror = () => {
+        container.innerHTML = `
+          <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: #000; display: flex; align-items: center; justify-content: center; color: white; font-size: 18px; flex-direction: column; gap: 16px;">
+              <div style="font-size: 48px;">🎥</div>
+              <div>Video not found: ${videoUrl}</div>
+              <div style="font-size: 14px; opacity: 0.7;">Place videos in <code>public/videos</code></div>
+          </div>
+        `;
+      };
     };
 
-    video.onerror = () => {
-      // Video not found, show placeholder
-      container.innerHTML = `
-        <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: #000; display: flex; align-items: center; justify-content: center; color: white; font-size: 18px; flex-direction: column; gap: 16px;">
-            <div style="font-size: 48px;">🎥</div>
-            <div>Video: ${videoUrl}</div>
-            <div style="font-size: 14px; opacity: 0.7;">Add your .mp4 file to webapp/public/videos/</div>
-            <div style="font-size: 12px; opacity: 0.5;">Expected path: ${videoPath}</div>
-        </div>
-      `;
-    };
-  };
+    videoContainersRef.current.forEach((container, index) => {
+      loadVideo(container, videos[index]);
+    });
+  }, []);
 
   return (
     <section className="demo-section" id="demos">
@@ -44,7 +57,7 @@ const Demos = () => {
 
         <div className="demo-grid">
           <div className="demo-card fade-in">
-            <div className="video-container" onClick={(e) => playVideo(e.currentTarget, 'm3_website_1.mp4')}>
+            <div className="video-container" ref={el => videoContainersRef.current[0] = el}>
               <div className="video-overlay">2:33 min</div>
               <div className="play-button"></div>
             </div>
@@ -55,7 +68,7 @@ const Demos = () => {
           </div>
 
           <div className="demo-card fade-in">
-            <div className="video-container" onClick={(e) => playVideo(e.currentTarget, 'm3_website_2.mp4')}>
+            <div className="video-container" ref={el => videoContainersRef.current[1] = el}>
               <div className="video-overlay">1:18 min</div>
               <div className="play-button"></div>
             </div>
@@ -66,7 +79,7 @@ const Demos = () => {
           </div>
 
           <div className="demo-card fade-in">
-            <div className="video-container" onClick={(e) => playVideo(e.currentTarget, 'm3_website_3.mp4')}>
+            <div className="video-container" ref={el => videoContainersRef.current[2] = el}>
               <div className="video-overlay">1:25 min</div>
               <div className="play-button"></div>
             </div>
@@ -77,7 +90,7 @@ const Demos = () => {
           </div>
 
           <div className="demo-card fade-in">
-            <div className="video-container" onClick={(e) => playVideo(e.currentTarget, 'm3_website_4.mp4')}>
+            <div className="video-container" ref={el => videoContainersRef.current[3] = el}>
               <div className="video-overlay">5:49 min</div>
               <div className="play-button"></div>
             </div>
@@ -92,4 +105,4 @@ const Demos = () => {
   );
 };
 
-export default Demos;
+export default Demos; 

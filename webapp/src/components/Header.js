@@ -22,13 +22,33 @@ const Header = () => {
       });
   }, []);
 
+  const scrollToSection = (sectionId) => {
+    // If we're not on the main page, navigate to it first
+    if (window.location.hash !== '#/') {
+      window.location.hash = '#/';
+      // Wait a moment for navigation to complete, then scroll
+      setTimeout(() => {
+        const element = document.getElementById(sectionId);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }, 100);
+    } else {
+      // We're already on the main page, just scroll
+      const element = document.getElementById(sectionId);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
+  };
+
   return (
     <header>
       <nav className="container">
         <div className="logo"><Link to="/">m3</Link></div>
         <ul className="nav-links">
-          <li><a href="/#demos">Demos</a></li>
-          <li><a href="/#paper">Paper</a></li>
+          <li><button onClick={() => scrollToSection('demos')}>Demos</button></li>
+          <li><button onClick={() => scrollToSection('paper')}>Paper</button></li>
           <li><Link to="/installation">Installation</Link></li>
           <li><Link to="/documentation">Documentation</Link></li>
         </ul>
