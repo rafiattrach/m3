@@ -10,6 +10,12 @@ import sys
 from pathlib import Path
 from typing import Any
 
+# Error messages
+_DATABASE_PATH_ERROR_MSG = (
+    "Could not determine default database path for mimic-iv-demo.\n"
+    "Please run 'm3 init mimic-iv-demo' first."
+)
+
 
 class MCPConfigGenerator:
     """Generator for MCP server configurations."""
@@ -165,16 +171,19 @@ class MCPConfigGenerator:
 
         if backend == "sqlite":
             print("\n📁 SQLite Configuration:")
+            from m3.config import get_default_database_path
+
+            default_db_path = get_default_database_path("mimic-iv-demo")
+            if default_db_path is None:
+                raise ValueError(_DATABASE_PATH_ERROR_MSG)
+            print(f"Default database path: {default_db_path}")
+
             db_path = (
                 input(
                     "SQLite database path (optional, press Enter to use default): "
                 ).strip()
                 or None
             )
-            if db_path:
-                print(f"✅ Will use database: {db_path}")
-            else:
-                print("✅ Will use default database path")
 
         elif backend == "bigquery":
             print("\n☁️  BigQuery Configuration:")
@@ -269,6 +278,15 @@ def print_config_info(config: dict[str, Any]):
 
     if "M3_DB_PATH" in server_config["env"]:
         print(f"💾 Database path: {server_config['env']['M3_DB_PATH']}")
+    elif server_config["env"].get("M3_BACKEND") == "sqlite":
+        # Show the default path when using SQLite backend
+        from m3.config import get_default_database_path
+
+        default_path = get_default_database_path("mimic-iv-demo")
+        if default_path is None:
+            raise ValueError(_DATABASE_PATH_ERROR_MSG)
+        print(f"💾 Database path: {default_path}")
+
     if "M3_PROJECT_ID" in server_config["env"]:
         print(f"☁️  Project ID: {server_config['env']['M3_PROJECT_ID']}")
 

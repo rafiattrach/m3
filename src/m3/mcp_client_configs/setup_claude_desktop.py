@@ -160,7 +160,7 @@ def setup_claude_desktop(
         print(f"🔧 Backend: {backend}")
 
         if backend == "sqlite":
-            db_path_display = db_path or "default (data/databases/mimic_iv_demo.db)"
+            db_path_display = db_path or "default (m3_data/databases/mimic_iv_demo.db)"
             print(f"💾 Database: {db_path_display}")
         elif backend == "bigquery":
             project_display = project_id or "physionet-data"

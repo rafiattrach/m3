@@ -90,9 +90,9 @@ def dataset_init_cmd(
     """
     Download a supported dataset (e.g., 'mimic-iv-demo') and load it into a local SQLite
 
-    Raw downloaded files are stored in a `data/raw_files/<dataset_name>/` subdirectory
+    Raw downloaded files are stored in a `m3_data/raw_files/<dataset_name>/` subdirectory
     and are **not** deleted after processing.
-    The SQLite database is stored in `data/databases/` or path specified by `--db-path`.
+    The SQLite database is stored in `m3_data/databases/` or path specified by `--db-path`.
     """
     logger.info(f"CLI 'init' called for dataset: '{dataset_name}'")
 
