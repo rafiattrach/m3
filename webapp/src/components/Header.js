@@ -55,10 +55,9 @@ const Header = () => {
           </button>
         </div>
         <ul className="nav-links">
-          <li><button onClick={() => scrollToSection('demos')}>Demos</button></li>
           <li><button onClick={() => scrollToSection('paper')}>Paper</button></li>
+          <li><button onClick={() => scrollToSection('demos')}>Demos</button></li>
           <li><button onClick={() => scrollToSection('installation')}>Installation</button></li>
-          <li><button onClick={() => scrollToSection('documentation')}>Documentation</button></li>
         </ul>
         <div>
           <a href="https://github.com/rafiattrach/m3" target="_blank" rel="noopener noreferrer" className="btn-github">

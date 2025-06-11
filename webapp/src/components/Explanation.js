@@ -1,4 +1,5 @@
 import React from 'react';
+import ArchitectureDiagram from './ArchitectureDiagram';
 
 const Explanation = () => {
   return (
@@ -96,6 +97,9 @@ const Explanation = () => {
           </div>
         </div>
       </div>
+      
+      {/* Architecture Diagram */}
+      <ArchitectureDiagram />
     </section>
   );
 };

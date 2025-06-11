@@ -65,7 +65,7 @@ const Installation = () => {
           <h3>Prerequisites</h3>
           <p>Before you begin, ensure you have the following installed on your system:</p>
           <ul className="explanation-features" style={{ marginTop: '20px' }}>
-            <li>Python 3.8 or higher</li>
+            <li>Python 3.10 or higher</li>
             <li>pip (Python package installer)</li>
             <li>Access to the MIMIC-IV database.</li>
           </ul>

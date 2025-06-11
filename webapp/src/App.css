@@ -1073,3 +1073,196 @@ footer {
     opacity: 1;
     transform: translateY(0);
 }
+
+/* Architecture Section */
+.architecture-section {
+    padding: 80px 0;
+    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    position: relative;
+    overflow: hidden;
+}
+
+.architecture-section::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grain" width="100" height="100" patternUnits="userSpaceOnUse"><circle cx="25" cy="25" r="1" fill="%23667eea" opacity="0.1"/><circle cx="75" cy="75" r="1" fill="%23764ba2" opacity="0.1"/><circle cx="50" cy="10" r="1" fill="%234ecdc4" opacity="0.1"/><circle cx="10" cy="90" r="1" fill="%23a8e6cf" opacity="0.1"/></pattern></defs><rect width="100" height="100" fill="url(%23grain)"/></svg>') repeat;
+    pointer-events: none;
+}
+
+.architecture-diagram {
+    margin: 60px 0;
+    padding: 40px;
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 20px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
+    backdrop-filter: blur(10px);
+    position: relative;
+    z-index: 1;
+}
+
+.architecture-svg {
+    display: block;
+    margin: 0 auto;
+    max-width: 100%;
+    height: auto;
+}
+
+/* Animation keyframes */
+@keyframes slideInUp {
+    from {
+        opacity: 0;
+        transform: translateY(50px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes drawLine {
+    from {
+        stroke-dasharray: 0 1000;
+    }
+    to {
+        stroke-dasharray: 1000 0;
+    }
+}
+
+/* Diagram animations */
+.diagram-element {
+    opacity: 0;
+    animation: slideInUp 0.8s ease-out forwards;
+    animation-delay: var(--delay, 0s);
+}
+
+.diagram-element.animate-in {
+    opacity: 1;
+}
+
+.connection-line {
+    stroke-dasharray: 0 1000;
+    animation: drawLine 1s ease-out forwards;
+    animation-delay: var(--delay, 0s);
+}
+
+.connection-line.draw {
+    stroke-dasharray: 1000 0;
+}
+
+/* Architecture explanation cards */
+.architecture-explanation {
+    margin-top: 60px;
+}
+
+.explanation-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 30px;
+    margin-top: 40px;
+}
+
+.explanation-card {
+    background: white;
+    padding: 30px;
+    border-radius: 15px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+    text-align: center;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.explanation-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.6), transparent);
+    transition: left 0.6s;
+}
+
+.explanation-card:hover::before {
+    left: 100%;
+}
+
+.explanation-card:hover {
+    transform: translateY(-10px);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+}
+
+.card-icon {
+    font-size: 48px;
+    margin-bottom: 20px;
+    display: block;
+}
+
+.explanation-card h3 {
+    color: #2c3e50;
+    margin-bottom: 15px;
+    font-size: 1.3rem;
+    font-weight: 600;
+}
+
+.explanation-card p {
+    color: #5a6c7d;
+    line-height: 1.6;
+    margin: 0;
+}
+
+.explanation-card code {
+    background: #f8f9fa;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-family: 'Courier New', monospace;
+    color: #4ecdc4;
+    font-weight: 600;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .architecture-section {
+        padding: 60px 0;
+    }
+    
+    .architecture-diagram {
+        padding: 20px;
+        margin: 40px 0;
+    }
+    
+    .architecture-svg {
+        height: 400px;
+    }
+    
+    .explanation-grid {
+        grid-template-columns: 1fr;
+        gap: 20px;
+    }
+    
+    .explanation-card {
+        padding: 20px;
+    }
+    
+    .card-icon {
+        font-size: 36px;
+    }
+}
+
+@media (max-width: 480px) {
+    .architecture-svg {
+        height: 300px;
+    }
+    
+    .section-header h2 {
+        font-size: 1.8rem;
+    }
+    
+    .section-header p {
+        font-size: 0.95rem;
+    }
+}
