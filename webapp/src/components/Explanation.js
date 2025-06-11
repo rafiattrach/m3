@@ -97,7 +97,7 @@ const Explanation = () => {
           </div>
         </div>
       </div>
-      
+
       {/* Architecture Diagram */}
       <ArchitectureDiagram />
     </section>

@@ -1229,25 +1229,25 @@ footer {
     .architecture-section {
         padding: 60px 0;
     }
-    
+
     .architecture-diagram {
         padding: 20px;
         margin: 40px 0;
     }
-    
+
     .architecture-svg {
         height: 400px;
     }
-    
+
     .explanation-grid {
         grid-template-columns: 1fr;
         gap: 20px;
     }
-    
+
     .explanation-card {
         padding: 20px;
     }
-    
+
     .card-icon {
         font-size: 36px;
     }
@@ -1257,11 +1257,11 @@ footer {
     .architecture-svg {
         height: 300px;
     }
-    
+
     .section-header h2 {
         font-size: 1.8rem;
     }
-    
+
     .section-header p {
         font-size: 0.95rem;
     }

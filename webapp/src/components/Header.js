@@ -36,7 +36,7 @@ const Header = () => {
     <header>
       <nav className="container">
         <div className="logo">
-          <button 
+          <button
             onClick={scrollToTop}
             style={{
               background: 'none',
