@@ -22,7 +22,7 @@ const Explanation = () => {
             </ul>
           </div>
           <div className="screenshot-container">
-            <img src="banner2.png" alt="Dashboard Overview" />
+            <img src="m3/banner2.png" alt="Dashboard Overview" />
           </div>
         </div>
 
@@ -92,7 +92,7 @@ const Explanation = () => {
             </ul>
           </div>
           <div className="screenshot-container">
-            <img src="banner3.png" alt="Advanced Data Visualization" />
+            <img src="m3/banner3.png" alt="Advanced Data Visualization" />
           </div>
         </div>
       </div>

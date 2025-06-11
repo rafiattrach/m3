@@ -16,7 +16,7 @@ const Demos = () => {
       const videoUrl = videoInfo.url;
       const videoPath = `/m3/videos/${videoUrl}`;
       const video = document.createElement('video');
-      video.controls = false;
+      video.controls = true;
       video.autoplay = true;
       video.muted = true;
       video.loop = true;

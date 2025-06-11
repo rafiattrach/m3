@@ -1,5 +1,4 @@
 import React, { useEffect } from 'react';
-import { HashRouter as Router, Route, Routes, useLocation } from 'react-router-dom';
 import './App.css';
 import Header from './components/Header';
 import Hero from './components/Hero';
@@ -10,19 +9,7 @@ import Features from './components/Features';
 import Citation from './components/Citation';
 import CTA from './components/CTA';
 import Footer from './components/Footer';
-import Documentation from './components/Documentation';
 import Installation from './components/Installation';
-
-// Component to handle scroll to top on route change
-function ScrollToTop() {
-  const { pathname } = useLocation();
-
-  useEffect(() => {
-    window.scrollTo(0, 0);
-  }, [pathname]);
-
-  return null;
-}
 
 function App() {
   useEffect(() => {
@@ -105,31 +92,19 @@ function App() {
     };
   }, []);
 
-  const MainPage = () => (
-    <>
+  return (
+    <div className="App">
+      <Header />
       <Hero />
       <Paper />
       <Demos />
       <Explanation />
       <Features />
+      <Installation />
       <Citation />
       <CTA />
-    </>
-  );
-
-  return (
-    <Router>
-      <div className="App">
-        <ScrollToTop />
-        <Header />
-        <Routes>
-          <Route path="/" element={<MainPage />} />
-          <Route path="/documentation" element={<Documentation />} />
-          <Route path="/installation" element={<Installation />} />
-        </Routes>
-        <Footer />
-      </div>
-    </Router>
+      <Footer />
+    </div>
   );
 }
 

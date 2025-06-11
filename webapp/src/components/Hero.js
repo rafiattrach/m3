@@ -56,7 +56,7 @@ const Hero = () => {
                     </div>
                     <div className="dashboard-image-container">
                       <img 
-                        src="banner1.png" 
+                        src="m3/banner1.png" 
                         alt="m3 MIMIC Dashboard" 
                         className="dashboard-banner"
                       />

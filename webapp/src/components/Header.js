@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
 
 const Header = () => {
   const [stars, setStars] = useState(3);
@@ -23,34 +22,43 @@ const Header = () => {
   }, []);
 
   const scrollToSection = (sectionId) => {
-    // If we're not on the main page, navigate to it first
-    if (window.location.hash !== '#/') {
-      window.location.hash = '#/';
-      // Wait a moment for navigation to complete, then scroll
-      setTimeout(() => {
-        const element = document.getElementById(sectionId);
-        if (element) {
-          element.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
-      }, 100);
-    } else {
-      // We're already on the main page, just scroll
-      const element = document.getElementById(sectionId);
-      if (element) {
-        element.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }
+    const element = document.getElementById(sectionId);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
+  };
+
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   return (
     <header>
       <nav className="container">
-        <div className="logo"><Link to="/">m3</Link></div>
+        <div className="logo">
+          <button 
+            onClick={scrollToTop}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#0052ff',
+              fontSize: '28px',
+              fontWeight: '600',
+              letterSpacing: '-0.5px',
+              fontFamily: "'Courier New', monospace",
+              cursor: 'pointer',
+              textDecoration: 'none',
+              padding: 0
+            }}
+          >
+            m3
+          </button>
+        </div>
         <ul className="nav-links">
           <li><button onClick={() => scrollToSection('demos')}>Demos</button></li>
           <li><button onClick={() => scrollToSection('paper')}>Paper</button></li>
-          <li><Link to="/installation">Installation</Link></li>
-          <li><Link to="/documentation">Documentation</Link></li>
+          <li><button onClick={() => scrollToSection('installation')}>Installation</button></li>
+          <li><button onClick={() => scrollToSection('documentation')}>Documentation</button></li>
         </ul>
         <div>
           <a href="https://github.com/rafiattrach/m3" target="_blank" rel="noopener noreferrer" className="btn-github">
