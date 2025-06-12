@@ -1,4 +1,5 @@
 import React from 'react';
+import ArchitectureDiagram from './ArchitectureDiagram';
 
 const Explanation = () => {
   return (
@@ -22,32 +23,7 @@ const Explanation = () => {
             </ul>
           </div>
           <div className="screenshot-container">
-            <svg width="100%" height="300" viewBox="0 0 600 300" style={{background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)'}}>
-              <rect width="100%" height="100%" fill="url(#dashboardGradient)"/>
-              <defs>
-                <linearGradient id="dashboardGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" style={{stopColor:'#f8fafc'}}/>
-                  <stop offset="100%" style={{stopColor:'#e2e8f0'}}/>
-                </linearGradient>
-              </defs>
-              <rect x="20" y="20" width="560" height="40" rx="8" fill="white" stroke="#e2e8f0"/>
-              <text x="40" y="45" fontFamily="Arial" fontSize="16" fontWeight="600" fill="#1a1a1a">m3 MIMIC Dashboard</text>
-              <rect x="30" y="80" width="130" height="80" rx="8" fill="white" stroke="#e2e8f0"/>
-              <text x="40" y="100" fontFamily="Arial" fontSize="12" fill="#64748b">MIMIC-IV Records</text>
-              <text x="40" y="125" fontFamily="Arial" fontSize="24" fontWeight="700" fill="#1a1a1a">382,278</text>
-              <text x="40" y="145" fontFamily="Arial" fontSize="12" fill="#10b981">Hospital admissions</text>
-
-              <rect x="180" y="80" width="130" height="80" rx="8" fill="white" stroke="#e2e8f0"/>
-              <rect x="190" y="120" width="110" height="30" rx="4" fill="#0052ff" opacity="0.8"/>
-
-              <rect x="330" y="80" width="130" height="80" rx="8" fill="white" stroke="#e2e8f0"/>
-              <text x="340" y="100" fontFamily="Arial" fontSize="12" fill="#64748b">Active Connections</text>
-              <text x="340" y="125" fontFamily="Arial" fontSize="24" fontWeight="700" fill="#1a1a1a">1,247</text>
-              <text x="340" y="145" fontFamily="Arial" fontSize="12" fill="#10b981">Researchers online</text>
-
-              <rect x="480" y="80" width="100" height="80" rx="8" fill="white" stroke="#e2e8f0"/>
-              <rect x="490" y="120" width="80" height="30" rx="4" fill="#00d4ff" opacity="0.8"/>
-            </svg>
+            <img src="m3/banner2.png" alt="Dashboard Overview" />
           </div>
         </div>
 
@@ -94,7 +70,7 @@ const Explanation = () => {
 
               <text x="20" y="145" fontFamily="Courier New" fontSize="14" fill="#68d391"># Query patient data</text>
               <text x="20" y="170" fontFamily="Courier New" fontSize="14" fill="white">results = db.query(</text>
-              <text x="20" y="195" fontFamily="Courier New" fontSize="14" fill="#f6ad55">    "SELECT * FROM patients WHERE age > 65"</text>
+              <text x="20" y="195" fontFamily="Courier New" fontSize="14" fill="#f6ad55">    "SELECT * FROM patients WHERE age &gt; 65"</text>
               <text x="20" y="220" fontFamily="Courier New" fontSize="14" fill="white">)</text>
 
               <rect x="20" y="240" width="2" height="18" fill="#0052ff">
@@ -117,32 +93,13 @@ const Explanation = () => {
             </ul>
           </div>
           <div className="screenshot-container">
-            <svg width="100%" height="300" viewBox="0 0 600 300" style={{background: 'white'}}>
-              <rect width="100%" height="100%" fill="white" stroke="#e2e8f0"/>
-
-              <text x="300" y="30" fontFamily="Arial" fontSize="16" fontWeight="600" fill="#1a1a1a" textAnchor="middle">ICU Length of Stay Distribution</text>
-
-              <rect x="100" y="60" width="400" height="200" fill="none" stroke="#e2e8f0"/>
-
-              <rect x="120" y="180" width="40" height="60" fill="#0052ff" opacity="0.8"/>
-              <rect x="180" y="140" width="40" height="100" fill="#0052ff" opacity="0.8"/>
-              <rect x="240" y="100" width="40" height="140" fill="#0052ff" opacity="0.8"/>
-              <rect x="300" y="120" width="40" height="120" fill="#0052ff" opacity="0.8"/>
-              <rect x="360" y="160" width="40" height="80" fill="#0052ff" opacity="0.8"/>
-              <rect x="420" y="200" width="40" height="40" fill="#0052ff" opacity="0.8"/>
-
-              <text x="140" y="275" fontFamily="Arial" fontSize="12" fill="#64748b" textAnchor="middle">1-2</text>
-              <text x="200" y="275" fontFamily="Arial" fontSize="12" fill="#64748b" textAnchor="middle">3-5</text>
-              <text x="260" y="275" fontFamily="Arial" fontSize="12" fill="#64748b" textAnchor="middle">6-10</text>
-              <text x="320" y="275" fontFamily="Arial" fontSize="12" fill="#64748b" textAnchor="middle">11-15</text>
-              <text x="380" y="275" fontFamily="Arial" fontSize="12" fill="#64748b" textAnchor="middle">16-20</text>
-              <text x="440" y="275" fontFamily="Arial" fontSize="12" fill="#64748b" textAnchor="middle">20+</text>
-
-              <text x="300" y="295" fontFamily="Arial" fontSize="14" fill="#1a1a1a" textAnchor="middle">Days in ICU</text>
-            </svg>
+            <img src="m3/banner3.png" alt="Advanced Data Visualization" />
           </div>
         </div>
       </div>
+
+      {/* Architecture Diagram */}
+      <ArchitectureDiagram />
     </section>
   );
 };

@@ -1,5 +1,4 @@
 import React, { useEffect } from 'react';
-import { HashRouter as Router, Route, Routes } from 'react-router-dom';
 import './App.css';
 import Header from './components/Header';
 import Hero from './components/Hero';
@@ -10,35 +9,10 @@ import Features from './components/Features';
 import Citation from './components/Citation';
 import CTA from './components/CTA';
 import Footer from './components/Footer';
-import Documentation from './components/Documentation';
 import Installation from './components/Installation';
 
 function App() {
   useEffect(() => {
-    // Smooth scrolling for anchor links
-    const smoothScroll = (targetId) => {
-      const target = document.querySelector(targetId);
-      if (target) {
-        target.scrollIntoView({
-          behavior: 'smooth',
-          block: 'start'
-        });
-      }
-    };
-
-    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-      anchor.addEventListener('click', function (e) {
-        e.preventDefault();
-        const targetId = this.getAttribute('href');
-        // If on a different page, navigate first then scroll
-        if (window.location.pathname !== '/') {
-          window.location.href = `/${targetId}`;
-        } else {
-          smoothScroll(targetId);
-        }
-      });
-    });
-
     // Header scroll effect
     const handleScroll = () => {
       const header = document.querySelector('header');
@@ -118,30 +92,19 @@ function App() {
     };
   }, []);
 
-  const MainPage = () => (
-    <>
+  return (
+    <div className="App">
+      <Header />
       <Hero />
       <Paper />
       <Demos />
       <Explanation />
       <Features />
+      <Installation />
       <Citation />
       <CTA />
-    </>
-  );
-
-  return (
-    <Router>
-      <div className="App">
-        <Header />
-        <Routes>
-          <Route path="/" element={<MainPage />} />
-          <Route path="/documentation" element={<Documentation />} />
-          <Route path="/installation" element={<Installation />} />
-        </Routes>
-        <Footer />
-      </div>
-    </Router>
+      <Footer />
+    </div>
   );
 }
 
