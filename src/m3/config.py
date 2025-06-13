@@ -32,7 +32,7 @@ def _get_project_root() -> Path:
 
 
 _PROJECT_ROOT = _get_project_root()
-_PROJECT_DATA_DIR = _PROJECT_ROOT / "data"
+_PROJECT_DATA_DIR = _PROJECT_ROOT / "m3_data"
 
 DEFAULT_DATABASES_DIR = _PROJECT_DATA_DIR / "databases"
 DEFAULT_RAW_FILES_DIR = _PROJECT_DATA_DIR / "raw_files"
@@ -63,7 +63,7 @@ def get_dataset_config(dataset_name: str) -> dict | None:
 def get_default_database_path(dataset_name: str) -> Path | None:
     """
     Return the default SQLite DB path for a given dataset,
-    under <project_root>/data/databases/.
+    under <project_root>/m3_data/databases/.
     """
     cfg = get_dataset_config(dataset_name)
     if cfg and "default_db_filename" in cfg:
@@ -77,7 +77,7 @@ def get_default_database_path(dataset_name: str) -> Path | None:
 def get_dataset_raw_files_path(dataset_name: str) -> Path | None:
     """
     Return the raw-file storage path for a dataset,
-    under <project_root>/data/raw_files/<dataset_name>/.
+    under <project_root>/m3_data/raw_files/<dataset_name>/.
     """
     cfg = get_dataset_config(dataset_name)
     if cfg:
