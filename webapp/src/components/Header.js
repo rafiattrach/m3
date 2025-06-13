@@ -59,10 +59,27 @@ const Header = () => {
           <li><button onClick={() => scrollToSection('demos')}>Demos</button></li>
           <li><button onClick={() => scrollToSection('installation')}>Installation</button></li>
         </ul>
-        <div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <a
+            href="https://pypi.org/project/m3-mcp/"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              padding: '10px',
+              textDecoration: 'none',
+              color: 'inherit',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '5px',
+              fontWeight: 'bold'
+            }}
+          >
+            <span className="star-count">📦 PyPI</span>
+          </a>
           <a href="https://github.com/rafiattrach/m3" target="_blank" rel="noopener noreferrer" className="btn-github">
             <span className="star-count">{stars.toLocaleString()} ⭐</span> Star on GitHub
           </a>
+
         </div>
       </nav>
     </header>
