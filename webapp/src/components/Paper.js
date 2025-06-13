@@ -14,23 +14,23 @@ const Paper = () => {
             <div className="arxiv-badge">arXiv</div>
             <div className="paper-id">2401.12345</div>
           </div>
-          <h3 className="paper-title">m3: A Novel Model Context Protocol for Efficient Interaction with Large-Scale Electronic Health Record Databases</h3>
-          <div className="paper-authors">John Doe, Jane Smith, Robert Johnson, Maria Garcia</div>
+          <h3 className="paper-title">M3-Mind the Gap: Democratizing EHR Access via MCP-Powered AI Agents</h3>
+          <div className="paper-authors">Rafi Al Attrach, Pedro Moreira, Rajna Fani, Renato Umeton, Leo Anthony Celi</div>
           <div className="paper-abstract">
-            We present m3, a novel Model Context Protocol designed to facilitate seamless interaction with the Medical Information Mart for Intensive Care (MIMIC) database. Our approach leverages advanced natural language processing techniques combined with structured query optimization to enable researchers to access and analyze healthcare data more efficiently. The protocol introduces a standardized interface that abstracts the complexity of the underlying database schema while maintaining the flexibility required for diverse research applications. Through comprehensive evaluation on real-world healthcare datasets, we demonstrate that m3 achieves significant improvements in query performance and user accessibility compared to existing methods...
+            The increasing availability of large-scale clinical databases offers unprecedented opportunities for medical research. However, the inherent complexity of these datasets, particularly the need for sophisticated querying skills, often presents a significant barrier to their effective utilization. The Medical Information Mart for Intensive Care (MIMIC-IV) is a vital resource in critical care research, yet its intricate structure traditionally demands proficiency in Structured Query Language (SQL). This paper introduces M3, a system designed to democratize access to MIMIC-IV by enabling researchers to query the database using natural language. M3 employs an AI-assisted approach, leveraging a Model Context Protocol (MCP) framework, and supports both SQLite and Google BigQuery for querying the full-scale MIMIC-IV dataset. Demonstrations have shown M3's capability to rapidly get deep, intricate insights into one of the biggest EHR databases. By simplifying data interaction, M3 has the potential to lower the technical threshold for medical data analysis, thereby facilitating broader research engagement and accelerating the generation of clinical insights.
           </div>
           <div className="paper-stats">
             <div className="paper-stat">
-              <span>📅</span>
-              <span>Submitted: Jan 2024</span>
+              <span>🏢</span>
+              <span>MIT, TUM, UPF, St. Jude, BIDMC</span>
             </div>
             <div className="paper-stat">
-              <span>📊</span>
-              <span>15 pages, 8 figures</span>
+              <span>🔗</span>
+              <span>github.com/rafiattrach/m3</span>
             </div>
             <div className="paper-stat">
-              <span>🏷️</span>
-              <span>cs.DB, cs.AI</span>
+              <span>📦</span>
+              <span>pypi.org/project/m3-mcp</span>
             </div>
           </div>
         </div>
