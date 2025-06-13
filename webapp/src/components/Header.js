@@ -74,7 +74,14 @@ const Header = () => {
               fontWeight: 'bold'
             }}
           >
-            <span className="star-count">📦 PyPI</span>
+            <span className="star-count">
+              <img
+                src="/m3/pypi_logo.svg"
+                alt="PyPI"
+                style={{ height: '20px', verticalAlign: 'middle', marginRight: '8px' }}
+              />
+              PyPI
+            </span>
           </a>
           <a href="https://github.com/rafiattrach/m3" target="_blank" rel="noopener noreferrer" className="btn-github">
             <span className="star-count">{stars.toLocaleString()} ⭐</span> Star on GitHub
