@@ -7,5 +7,6 @@ global-exclude __pycache__
 global-exclude .DS_Store
 prune tests
 prune webapp
+prune benchmarks
 prune build
 prune dist
