@@ -9,15 +9,15 @@ const Paper = () => {
           <p>Read our comprehensive study on the m3 Model Context Protocol and its applications in healthcare data analysis</p>
         </div>
 
-        <div className="paper-preview fade-in" onClick={() => window.open('https://arxiv.org/abs/2401.12345', '_blank')}>
+        <div className="paper-preview fade-in" onClick={() => window.open('https://arxiv.org/abs/2507.01053', '_blank')}>
           <div className="paper-header">
             <div className="arxiv-badge">arXiv</div>
-            <div className="paper-id">2401.12345</div>
+            <div className="paper-id">2507.01053</div>
           </div>
-          <h3 className="paper-title">M3-Mind the Gap: Democratizing EHR Access via MCP-Powered AI Agents</h3>
+          <h3 className="paper-title">Conversational LLMs Simplify Secure Clinical Data Access, Understanding, and Analysis</h3>
           <div className="paper-authors">Rafi Al Attrach, Pedro Moreira, Rajna Fani, Renato Umeton, Leo Anthony Celi</div>
           <div className="paper-abstract">
-            The increasing availability of large-scale clinical databases offers unprecedented opportunities for medical research. However, the inherent complexity of these datasets, particularly the need for sophisticated querying skills, often presents a significant barrier to their effective utilization. The Medical Information Mart for Intensive Care (MIMIC-IV) is a vital resource in critical care research, yet its intricate structure traditionally demands proficiency in Structured Query Language (SQL). This paper introduces M3, a system designed to democratize access to MIMIC-IV by enabling researchers to query the database using natural language. M3 employs an AI-assisted approach, leveraging a Model Context Protocol (MCP) framework, and supports both SQLite and Google BigQuery for querying the full-scale MIMIC-IV dataset. Demonstrations have shown M3's capability to rapidly get deep, intricate insights into one of the biggest EHR databases. By simplifying data interaction, M3 has the potential to lower the technical threshold for medical data analysis, thereby facilitating broader research engagement and accelerating the generation of clinical insights.
+            As ever-larger clinical datasets become available, they have the potential to unlock unprecedented opportunities for medical research. Foremost among them is Medical Information Mart for Intensive Care (MIMIC-IV), the world's largest open-source EHR database. However, the inherent complexity of these datasets, particularly the need for sophisticated querying skills and the need to understand the underlying clinical settings, often presents a significant barrier to their effective use. M3 lowers the technical barrier to understanding and querying MIMIC-IV data. With a single command it retrieves MIMIC-IV from PhysioNet, launches a local SQLite instance (or hooks into the hosted BigQuery), and-via the Model Context Protocol (MCP)-lets researchers converse with the database in plain English. Ask a clinical question in natural language; M3 uses a language model to translate it into SQL, executes the query against the MIMIC-IV dataset, and returns structured results alongside the underlying query for verifiability and reproducibility. Demonstrations show that minutes of dialogue with M3 yield the kind of nuanced cohort analyses that once demanded hours of handcrafted SQL and relied on understanding the complexities of clinical workflows. By simplifying access, M3 invites the broader research community to mine clinical critical-care data and accelerates the translation of raw records into actionable insight.
           </div>
           <div className="paper-stats">
             <div className="paper-stat">
