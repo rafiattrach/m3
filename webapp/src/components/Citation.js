@@ -4,14 +4,17 @@ const Citation = () => {
   const [copiedFormat, setCopiedFormat] = useState(null);
 
   const citations = {
-    apa: `Smith, J., Johnson, A., & Williams, M. (2024). m3: A Model Context Protocol for MIMIC Database Interaction. arXiv preprint arXiv:2401.12345.`,
-    mla: `Smith, John, et al. "m3: A Model Context Protocol for MIMIC Database Interaction." arXiv preprint arXiv:2401.12345 (2024).`,
-    chicago: `Smith, John, Alice Johnson, and Michael Williams. "m3: A Model Context Protocol for MIMIC Database Interaction." arXiv preprint arXiv:2401.12345 (2024).`,
-    bibtex: `@article{smith2024m3,
-  title={m3: A Model Context Protocol for MIMIC Database Interaction},
-  author={Smith, John and Johnson, Alice and Williams, Michael},
-  journal={arXiv preprint arXiv:2401.12345},
-  year={2024}
+    apa: `Al Attrach, R., Moreira, P., Fani, R., Umeton, R., & Celi, L. A. (2025). Conversational LLMs Simplify Secure Clinical Data Access, Understanding, and Analysis. arXiv preprint arXiv:2507.01053.`,
+    mla: `Al Attrach, Rafi, et al. "Conversational LLMs Simplify Secure Clinical Data Access, Understanding, and Analysis." arXiv preprint arXiv:2507.01053 (2025).`,
+    chicago: `Al Attrach, Rafi, Pedro Moreira, Rajna Fani, Renato Umeton, and Leo Anthony Celi. "Conversational LLMs Simplify Secure Clinical Data Access, Understanding, and Analysis." arXiv preprint arXiv:2507.01053 (2025).`,
+    bibtex: `@misc{attrach2025conversationalllmssimplifysecure,
+      title={Conversational LLMs Simplify Secure Clinical Data Access, Understanding, and Analysis},
+      author={Rafi Al Attrach and Pedro Moreira and Rajna Fani and Renato Umeton and Leo Anthony Celi},
+      year={2025},
+      eprint={2507.01053},
+      archivePrefix={arXiv},
+      primaryClass={cs.IR},
+      url={https://arxiv.org/abs/2507.01053},
 }`
   };
 
