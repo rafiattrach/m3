@@ -1,0 +1,36 @@
+cff-version: 1.2.0
+message: "Citation for this repository"
+authors:
+  - family-names: Al Attrach
+    given-names: Rafi
+  - family-names: Moreira
+    given-names: Pedro
+  - family-names: Fani
+    given-names: Rajna
+  - family-names: Umeton
+    given-names: Renato
+  - family-names: Celi
+    given-names: Leo Anthony
+title: "Conversational LLMs Simplify Secure Clinical Data Access, Understanding, and Analysis"
+date-released: 2025-06-27
+doi: 10.48550/arXiv.2507.01053
+url: https://arxiv.org/abs/2507.01053
+preferred-citation:
+  type: article
+  authors:
+    - family-names: Al Attrach
+      given-names: Rafi
+    - family-names: Moreira
+      given-names: Pedro
+    - family-names: Fani
+      given-names: Rajna
+    - family-names: Umeton
+      given-names: Renato
+    - family-names: Celi
+      given-names: Leo Anthony
+  title: "Conversational LLMs Simplify Secure Clinical Data Access, Understanding, and Analysis"
+  doi: 10.48550/arXiv.2507.01053
+  year: 2025
+  month: 6
+  url: https://arxiv.org/abs/2507.01053
+  publisher: arXiv
