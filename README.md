@@ -268,7 +268,7 @@ export M3_OAUTH2_TOKEN="Bearer your-access-token-here"
 - Wait for the rate limit window to reset
 - Contact your administrator to adjust limits if needed
 
-> 🔧 **OAuth2 Troubleshooting**: See [`OAUTH2_AUTHENTICATION.md`](OAUTH2_AUTHENTICATION.md) for detailed OAuth2 troubleshooting and configuration guides.
+> 🔧 **OAuth2 Troubleshooting**: See [`OAUTH2_AUTHENTICATION.md`](docs/OAUTH2_AUTHENTICATION.md) for detailed OAuth2 troubleshooting and configuration guides.
 
 ### BigQuery Issues
 
