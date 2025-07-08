@@ -1,0 +1,140 @@
+name: "🐛 Bug Report"
+description: Create a new ticket for a bug in M3.
+title: "🐛 [BUG] - <title>"
+labels:
+  - "bug"
+body:
+  - type: markdown
+    attributes:
+      value: |
+        <p align="center">
+          <img src="https://miro.medium.com/v2/resize:fit:400/1*QEps725rQjfgqNnlbRYb1g.png" alt="Harvard MIT HST Logo">
+          <br>
+          <em><a href="https://doi.org/10.48550/arXiv.2507.01053">M3's Paper</a>—<a href="https://rafiattrach.github.io/m3/">M3's Website</a>.</em>
+        </p>
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: "Before Submitting"
+      description: Please confirm the following to help us process your issue in timely-manner.
+      options:
+        - label: I have checked the documentation and existing issues.
+          required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: "Description"
+      description: Please provide a clear and concise description of the bug.
+      placeholder: "Hint: ‘brevity is the soul of wit’, Hamlet — by William Shakespeare"
+    validations:
+      required: true
+  - type: input
+    id: reprod-url
+    attributes:
+      label: "Reproduction URL"
+      description: "If you’ve forked M3, provide a GitHub URL or repository link to reproduce the issue."
+      placeholder: "Hint: Optional, but it helps us resolve the issue faster. Leave empty if not applicable."
+    validations:
+      required: false
+  - type: textarea
+    id: reprod
+    attributes:
+      label: "Reproduction Steps"
+      description: "List the steps to reproduce the bug. The more detailed, the better!"
+      value: |
+        1. Go to '...'
+        2. Run '....'
+        3. Observe '....'
+      render: bash
+    validations:
+      required: true
+  - type: markdown
+    attributes:
+      value: "### Environment Information"
+  - type: dropdown
+    id: os
+    attributes:
+      label: "Operating System"
+      description: What operating system were you using when the bug occurred?
+      options:
+        - "Windows"
+        - "Linux"
+        - "Mac"
+        - "Other"
+  - type: input
+    id: other-os
+    attributes:
+      label: "Other Operating System"
+      description: "Only fill this if you selected 'Other' in the Operating System dropdown."
+      placeholder: "e.g., Ubuntu 20.04"
+    validations:
+      required: false
+  - type: dropdown
+    id: backend
+    attributes:
+      label: "Backend"
+      description: Which backend were you using when the bug occurred?
+      options:
+        - "SQLite"
+        - "BigQuery"
+        - "Other"
+  - type: input
+    id: other-backend
+    attributes:
+      label: "Other Backend"
+      description: "Only fill this if you selected 'Other' in the Backend dropdown."
+      placeholder: "e.g., Custom Database"
+    validations:
+      required: false
+  - type: dropdown
+    id: mcp-client
+    attributes:
+      label: "MCP Client"
+      description: Which MCP client were you using?
+      options:
+        - "Claude Desktop"
+        - "Other"
+  - type: input
+    id: other-mcp-client
+    attributes:
+      label: "Other MCP Client"
+      description: "Only fill this if you selected 'Other' in the MCP Client dropdown."
+      placeholder: "e.g., Custom Client"
+    validations:
+      required: false
+  - type: dropdown
+    id: authentication
+    attributes:
+      label: "Authentication"
+      description: Were you using OAuth2 authentication when the bug occurred?
+      options:
+        - "Yes"
+        - "No"
+  - type: input
+    id: python-version
+    attributes:
+      label: "Python Version"
+      description: What version of Python are you using?
+      placeholder: "e.g., 3.10.0"
+    validations:
+      required: true
+  - type: input
+    id: m3-version
+    attributes:
+      label: "M3 Version"
+      description: What version of M3 are you using? Run 'm3 --version' to check.
+      placeholder: "e.g., 0.1.0"
+    validations:
+      required: true
+  - type: textarea
+    id: additional-info
+    attributes:
+      label: "Additional Information"
+      description: "In case none of the above options fit your case, please provide additional information."
+      placeholder: "... write here ..."
+    validations:
+      required: false
+  - type: markdown
+    attributes:
+      value: |
+        **Security Note:** Please do not share sensitive information such as authentication tokens, personal data, or confidential project details in this report.
