@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import './App.css';
 import Header from './components/Header';
 import Hero from './components/Hero';
+import Contact from './components/Contact';
 import Paper from './components/Paper';
 import Demos from './components/Demos';
 import Explanation from './components/Explanation';
@@ -96,6 +97,7 @@ function App() {
     <div className="App">
       <Header />
       <Hero />
+      <Contact />
       <Paper />
       <Demos />
       <Explanation />
