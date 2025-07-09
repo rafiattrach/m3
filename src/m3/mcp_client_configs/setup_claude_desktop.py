@@ -8,6 +8,8 @@ import os
 import shutil
 from pathlib import Path
 
+from beartype import beartype
+
 
 def get_claude_config_path():
     """Get the Claude Desktop configuration file path."""
@@ -56,12 +58,13 @@ def get_python_path():
     return shutil.which("python") or shutil.which("python3") or "python"
 
 
+@beartype
 def create_mcp_config(
-    backend="sqlite",
-    db_path=None,
-    project_id=None,
-    oauth2_enabled=False,
-    oauth2_config=None,
+    backend: str = "sqlite",
+    db_path: str | None = None,
+    project_id: str | None = None,
+    oauth2_enabled: bool = False,
+    oauth2_config: str | None = None,
 ):
     """Create MCP server configuration."""
     current_dir = get_current_directory()
@@ -112,12 +115,13 @@ def create_mcp_config(
     return config
 
 
+@beartype
 def setup_claude_desktop(
-    backend="sqlite",
-    db_path=None,
-    project_id=None,
-    oauth2_enabled=False,
-    oauth2_config=None,
+    backend: str = "sqlite",
+    db_path: str | None = None,
+    project_id: str | None = None,
+    oauth2_enabled: bool = False,
+    oauth2_config: str | None = None,
 ):
     """Setup Claude Desktop with M3 MCP server."""
     try:

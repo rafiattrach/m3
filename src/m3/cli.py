@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
+from beartype import beartype
 
 from m3 import __version__
 from m3.config import (
@@ -67,6 +68,7 @@ def main_callback(
 
 
 @app.command("init")
+@beartype
 def dataset_init_cmd(
     dataset_name: Annotated[
         str,

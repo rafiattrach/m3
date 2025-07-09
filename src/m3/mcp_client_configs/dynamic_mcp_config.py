@@ -10,6 +10,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from beartype import beartype
+
 # Error messages
 _DATABASE_PATH_ERROR_MSG = (
     "Could not determine default database path for mimic-iv-demo.\n"
@@ -17,6 +19,7 @@ _DATABASE_PATH_ERROR_MSG = (
 )
 
 
+@beartype
 class MCPConfigGenerator:
     """Generator for MCP server configurations."""
 
@@ -263,6 +266,7 @@ class MCPConfigGenerator:
         )
 
 
+@beartype
 def print_config_info(config: dict[str, Any]):
     """Print configuration information."""
     # Get the first (and likely only) server configuration

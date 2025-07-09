@@ -12,6 +12,7 @@ from urllib.parse import urljoin
 
 import httpx
 import jwt
+from beartype import beartype
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
@@ -30,6 +31,7 @@ class TokenValidationError(Exception):
     pass
 
 
+@beartype
 class OAuth2Config:
     """OAuth2 configuration management."""
 
@@ -104,6 +106,7 @@ class OAuth2Config:
         logger.info(f"OAuth2 authentication enabled with issuer: {self.issuer_url}")
 
 
+@beartype
 class OAuth2Validator:
     """OAuth2 token validator."""
 
@@ -351,6 +354,7 @@ def is_oauth2_enabled() -> bool:
     return _oauth2_config is not None and _oauth2_config.enabled
 
 
+@beartype
 def generate_test_token(
     issuer: str = "https://test-issuer.example.com",
     audience: str = "m3-api",

@@ -1,6 +1,8 @@
 import logging
 from pathlib import Path
 
+from beartype import beartype
+
 APP_NAME = "m3"
 
 # Setup basic logging
@@ -55,11 +57,13 @@ SUPPORTED_DATASETS = {
 # --------------------------------------------------
 # Helper functions
 # --------------------------------------------------
+@beartype
 def get_dataset_config(dataset_name: str) -> dict | None:
     """Retrieve the configuration for a given dataset (case-insensitive)."""
     return SUPPORTED_DATASETS.get(dataset_name.lower())
 
 
+@beartype
 def get_default_database_path(dataset_name: str) -> Path | None:
     """
     Return the default SQLite DB path for a given dataset,
@@ -74,6 +78,7 @@ def get_default_database_path(dataset_name: str) -> Path | None:
     return None
 
 
+@beartype
 def get_dataset_raw_files_path(dataset_name: str) -> Path | None:
     """
     Return the raw-file storage path for a dataset,

@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pandas as pd
 import sqlparse
+from beartype import beartype
 from fastmcp import FastMCP
 
 from m3.auth import init_oauth2, require_oauth2
@@ -24,11 +25,13 @@ _bq_client = None
 _project_id = None
 
 
+@beartype
 def _validate_limit(limit: int) -> bool:
     """Validate limit parameter to prevent resource exhaustion."""
     return isinstance(limit, int) and 0 < limit <= 1000
 
 
+@beartype
 def _is_safe_query(sql_query: str, internal_tool: bool = False) -> tuple[bool, str]:
     """Secure SQL validation - blocks injection attacks, allows legitimate queries."""
     try:
@@ -189,6 +192,7 @@ def _get_backend_info() -> str:
 # from calling other MCP tools, which violates the MCP protocol.
 
 
+@beartype
 def _execute_sqlite_query(sql_query: str) -> str:
     """Execute SQLite query - internal function."""
     try:
@@ -214,6 +218,7 @@ def _execute_sqlite_query(sql_query: str) -> str:
         raise e
 
 
+@beartype
 def _execute_bigquery_query(sql_query: str) -> str:
     """Execute BigQuery query - internal function."""
     try:
@@ -240,6 +245,7 @@ def _execute_bigquery_query(sql_query: str) -> str:
         raise e
 
 
+@beartype
 def _execute_query_internal(sql_query: str) -> str:
     """Internal query execution function that handles backend routing."""
     # Security check
@@ -341,6 +347,7 @@ def _execute_query_internal(sql_query: str) -> str:
 
 
 @mcp.tool()
+@beartype
 @require_oauth2
 def get_database_schema() -> str:
     """🔍 Discover what data is available in the MIMIC-IV database.
@@ -375,6 +382,7 @@ def get_database_schema() -> str:
 
 
 @mcp.tool()
+@beartype
 @require_oauth2
 def get_table_info(table_name: str, show_sample: bool = True) -> str:
     """📋 Explore a specific table's structure and see sample data.
@@ -506,6 +514,7 @@ def get_table_info(table_name: str, show_sample: bool = True) -> str:
 
 
 @mcp.tool()
+@beartype
 @require_oauth2
 def execute_mimic_query(sql_query: str) -> str:
     """🚀 Execute SQL queries to analyze MIMIC-IV data.
@@ -532,6 +541,7 @@ def execute_mimic_query(sql_query: str) -> str:
 
 
 @mcp.tool()
+@beartype
 @require_oauth2
 def get_icu_stays(patient_id: int | None = None, limit: int = 10) -> str:
     """🏥 Get ICU stay information and length of stay data.
@@ -579,6 +589,7 @@ This ensures compatibility across different MIMIC-IV setups."""
 
 
 @mcp.tool()
+@beartype
 @require_oauth2
 def get_lab_results(
     patient_id: int | None = None, lab_item: str | None = None, limit: int = 20
@@ -638,6 +649,7 @@ This ensures compatibility across different MIMIC-IV setups."""
 
 
 @mcp.tool()
+@beartype
 @require_oauth2
 def get_race_distribution(limit: int = 10) -> str:
     """📊 Get race distribution from hospital admissions.
