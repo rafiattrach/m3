@@ -1,19 +1,39 @@
 import React, { useState } from 'react';
 
 const Contact = () => {
-  // Development warning for missing configuration
+  // Configuration for multiple emails and form IDs
+  const getContactConfig = () => {
+    // Parse comma-separated lists from environment variables
+    const emailList = process.env.REACT_APP_CONTACT_EMAILS
+      ? process.env.REACT_APP_CONTACT_EMAILS.split(',').map(email => email.trim())
+      : (process.env.REACT_APP_CONTACT_EMAIL ? [process.env.REACT_APP_CONTACT_EMAIL] : ['contact@example.com']);
+
+    const formIdList = process.env.REACT_APP_FORMSPREE_FORM_IDS
+      ? process.env.REACT_APP_FORMSPREE_FORM_IDS.split(',').map(id => id.trim())
+      : (process.env.REACT_APP_FORMSPREE_FORM_ID ? [process.env.REACT_APP_FORMSPREE_FORM_ID] : ['YOUR_FORM_ID']);
+
+    return {
+      emails: emailList,
+      formIds: formIdList
+    };
+  };
+
+  // Development warnings for missing configuration
   if (process.env.NODE_ENV === 'development') {
-    const formId = process.env.REACT_APP_FORMSPREE_FORM_ID;
-    const contactEmail = process.env.REACT_APP_CONTACT_EMAIL;
-    
-    if (!formId || formId === 'YOUR_FORM_ID') {
-      console.warn('⚠️  Contact form not configured: Please set REACT_APP_FORMSPREE_FORM_ID in webapp/.env');
+    const config = getContactConfig();
+
+    if (config.formIds.length === 0 || config.formIds.some(id => !id || id === 'YOUR_FORM_ID')) {
+      console.warn('⚠️  Contact forms not configured: Please set REACT_APP_FORMSPREE_FORM_IDS (comma-separated) in webapp/.env');
     }
-    
-    if (!contactEmail || contactEmail === 'YOUR_EMAIL@example.com') {
-      console.warn('⚠️  Contact email not configured: Please set REACT_APP_CONTACT_EMAIL in webapp/.env');
+
+    if (config.emails.length === 0 || config.emails.some(email => !email || email.includes('@example.com'))) {
+      console.warn('⚠️  Contact emails not configured: Please set REACT_APP_CONTACT_EMAILS (comma-separated) in webapp/.env');
     }
+
+    console.log(`📧 Configured emails: ${config.emails.join(', ')}`);
+    console.log(`📝 Configured form IDs: ${config.formIds.join(', ')}`);
   }
+
   const [contactForm, setContactForm] = useState({
     email: '',
     inquiryType: 'hospital',
@@ -36,32 +56,53 @@ const Contact = () => {
     setSubmitStatus('');
 
     try {
-      // Using Formspree for form handling - configured via environment variables
-      const formId = process.env.REACT_APP_FORMSPREE_FORM_ID;
-      
-      if (!formId || formId === 'YOUR_FORM_ID') {
-        throw new Error('Form service not configured. Please set REACT_APP_FORMSPREE_FORM_ID in .env file.');
-      }
-      
-      const response = await fetch(`https://formspree.io/f/${formId}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: contactForm.email,
-          inquiryType: contactForm.inquiryType,
-          message: contactForm.message,
-          subject: `M3 Contact: ${contactForm.inquiryType === 'hospital' ? 'Hospital/EHR MCP Request' : 
-                    contactForm.inquiryType === 'suggestions' ? 'Suggestions' : 'General Contact'}`
-        }),
-      });
+      // Get configuration for multiple emails and form IDs
+      const config = getContactConfig();
 
-      if (response.ok) {
+      if (config.formIds.length === 0 || config.formIds.some(id => !id || id === 'YOUR_FORM_ID')) {
+        throw new Error('Form service not configured. Please set REACT_APP_FORMSPREE_FORM_IDS in .env file.');
+      }
+
+      // Submit to all configured form IDs simultaneously
+      const submissionPromises = config.formIds.map(formId =>
+        fetch(`https://formspree.io/f/${formId}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email: contactForm.email,
+            inquiryType: contactForm.inquiryType,
+            message: contactForm.message,
+            destinationEmails: config.emails.join(', '), // Include all destination emails for tracking
+            subject: `M3 Contact: ${contactForm.inquiryType === 'hospital' ? 'Hospital/EHR MCP Request' :
+                      contactForm.inquiryType === 'suggestions' ? 'Suggestions' : 'General Contact'}`
+          }),
+        })
+      );
+
+      // Wait for all submissions to complete
+      const responses = await Promise.allSettled(submissionPromises);
+
+      // Check if at least one submission was successful
+      const hasSuccessfulSubmission = responses.some(result =>
+        result.status === 'fulfilled' && result.value.ok
+      );
+
+      if (hasSuccessfulSubmission) {
         setSubmitStatus('success');
         setContactForm({ email: '', inquiryType: 'hospital', message: '' });
+
+        // Log any failed submissions for debugging
+        const failedSubmissions = responses.filter(result =>
+          result.status === 'rejected' || (result.status === 'fulfilled' && !result.value.ok)
+        );
+
+        if (failedSubmissions.length > 0) {
+          console.warn(`${failedSubmissions.length} of ${config.formIds.length} form submissions failed`);
+        }
       } else {
-        throw new Error('Form submission failed');
+        throw new Error('All form submissions failed');
       }
     } catch (error) {
       console.error('Error submitting form:', error);
@@ -72,11 +113,14 @@ const Contact = () => {
   };
 
   const handleMailtoFallback = () => {
-    const contactEmail = process.env.REACT_APP_CONTACT_EMAIL || 'contact@example.com';
-    const subject = `M3 Contact: ${contactForm.inquiryType === 'hospital' ? 'Hospital/EHR MCP Request' : 
+    // Use all configured emails
+    const config = getContactConfig();
+    const emailList = config.emails.join(',');
+
+    const subject = `M3 Contact: ${contactForm.inquiryType === 'hospital' ? 'Hospital/EHR MCP Request' :
                     contactForm.inquiryType === 'suggestions' ? 'Suggestions' : 'General Contact'}`;
     const body = `Email: ${contactForm.email}%0D%0A%0D%0AMessage: ${contactForm.message}`;
-    window.open(`mailto:${contactEmail}?subject=${encodeURIComponent(subject)}&body=${body}`);
+    window.open(`mailto:${emailList}?subject=${encodeURIComponent(subject)}&body=${body}`);
   };
 
   return (
@@ -223,15 +267,15 @@ const Contact = () => {
             .contact-section {
               padding: 40px 0;
             }
-            
+
             .contact-header h2 {
               font-size: 28px;
             }
-            
+
             .contact-form {
               padding: 24px;
             }
-            
+
             .form-row {
               grid-template-columns: 1fr;
               gap: 16px;
@@ -248,7 +292,7 @@ const Contact = () => {
               ⚡ Our team responds within 24 hours
             </p>
           </div>
-          
+
           <form className="contact-form fade-in" onSubmit={handleSubmit}>
             <div className="form-row">
               <div className="form-group">
@@ -294,8 +338,8 @@ const Contact = () => {
             </div>
 
             <div className="form-actions">
-              <button 
-                type="submit" 
+              <button
+                type="submit"
                 className="btn-contact"
                 disabled={isSubmitting || !contactForm.email}
               >
@@ -320,8 +364,8 @@ const Contact = () => {
             {submitStatus === 'error' && (
               <div className="status-message status-error">
                 ❌ Failed to send message. Please try again or{' '}
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   onClick={handleMailtoFallback}
                   style={{ background: 'none', border: 'none', color: 'inherit', textDecoration: 'underline', cursor: 'pointer' }}
                 >
@@ -336,4 +380,4 @@ const Contact = () => {
   );
 };
 
-export default Contact; 
+export default Contact;
