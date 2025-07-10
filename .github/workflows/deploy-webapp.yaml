@@ -21,16 +21,29 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: "18"
           cache: "npm"
           cache-dependency-path: webapp/package-lock.json
+
       - uses: actions/configure-pages@v4
+
+      # 🔐 Inject secret into .env
+      - name: Create .env file
+        run: |
+          cat <<EOF > webapp/.env
+          SECRET_API=${{ secrets.SECRET_API }}
+          OTHER_SECRET=${{ secrets.OTHER_SECRET }}
+          EOF
+
       - run: npm ci
         working-directory: ./webapp
+
       - run: npm run build
         working-directory: ./webapp
+
       - uses: actions/upload-pages-artifact@v3
         with:
           path: ./webapp/build
