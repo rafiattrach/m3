@@ -43,6 +43,7 @@ pip install m3-mcp
 
 #### Option B: Install from Source
 
+#### Using standard `pip`
 **Step 1: Clone and Navigate**
 ```bash
 # Clone the repository
@@ -61,6 +62,28 @@ source .venv/bin/activate  # Windows: .venv\Scripts\activate
 ```bash
 # Install M3
 pip install .
+```
+
+#### Using `UV` (Recommended)
+Assuming you have [UV](https://docs.astral.sh/uv/getting-started/installation/) installed.
+
+**Step 1: Clone and Navigate**
+```bash
+# Clone the repository
+git clone https://github.com/rafiattrach/m3.git
+cd m3
+```
+
+**Step 2: Create `UV` Virtual Environment**
+```bash
+# Create virtual environment
+uv venv
+```
+
+**Step 3: Install M3**
+```bash
+uv sync
+# Do not forget to use `uv run` to any subsequent commands to ensure you're using the `uv` virtual environment
 ```
 
 ### 🗄️ Database Configuration
@@ -294,6 +317,7 @@ gcloud auth list
 
 ### Development Setup
 
+#### Option A: Standard `pip` Development Setup
 **Step 1: Clone and Navigate**
 ```bash
 # Clone the repository
@@ -314,6 +338,31 @@ source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
 # Install pre-commit hooks
 pre-commit install
+```
+
+#### Option B: Development Setup with `UV` (Recommended)
+**Step 1: Clone and Navigate**
+```bash
+# Clone the repository
+git clone https://github.com/rafiattrach/m3.git
+cd m3
+```
+
+**Step 2: Create and Activate `UV` Virtual Environment**
+```bash
+# Create virtual environment
+uv venv
+```
+
+**Step 3: Install Development Dependencies**
+```bash
+# Install in development mode with dev dependencies (by default, UV runs in editable mode)
+uv sync
+
+# Install pre-commit hooks
+uv run pre-commit install
+
+# Do not forget to use `uv run` to any subsequent commands to ensure you're using the `uv` virtual environment
 ```
 
 ### Testing
