@@ -34,8 +34,8 @@ jobs:
       - name: Create .env file
         run: |
           cat <<EOF > webapp/.env
-          SECRET_API=${{ secrets.SECRET_API }}
-          OTHER_SECRET=${{ secrets.OTHER_SECRET }}
+          REACT_APP_FORMSPREE_FORM_ID=${{ secrets.REACT_APP_FORMSPREE_FORM_ID }}
+          REACT_APP_CONTACT_EMAIL=${{ secrets.REACT_APP_CONTACT_EMAIL }}
           EOF
 
       - run: npm ci
