@@ -1,0 +1,77 @@
+name: "💡 Feature Request"
+description: Suggest a new feature or enhancement for M3.
+title: "💡 [FEAT] - <title>"
+labels:
+  - "feature"
+body:
+  - type: markdown
+    attributes:
+      value: |
+        <p align="center">
+          <img src="https://miro.medium.com/v2/resize:fit:400/1*QEps725rQjfgqNnlbRYb1g.png" alt="Harvard MIT HST Logo">
+          <br>
+          <em><a href="https://doi.org/10.48550/arXiv.2507.01053">M3's Paper</a>—<a href="https://rafiattrach.github.io/m3/">M3's Website</a>.</em>
+        </p>
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: "Before Submitting"
+      description: Please confirm the following to help us process your request efficiently.
+      options:
+        - label: I have checked if this feature already exists or has been requested.
+          required: true
+  - type: textarea
+    id: feature-description
+    attributes:
+      label: "Feature Description"
+      description: Please provide a clear and concise description of the feature you are requesting.
+      placeholder: "Hint: ‘brevity is the soul of wit’, Hamlet — by William Shakespeare"
+    validations:
+      required: true
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: "Proposed Solution"
+      description: Describe how you envision this feature working.
+      placeholder: "Explain how the feature should function."
+    validations:
+      required: true
+  - type: textarea
+    id: examples
+    attributes:
+      label: "Examples or References"
+      description: Provide any examples, links, or references that might help illustrate your request.
+      placeholder: "Hint: Optional, e.g., screenshots, links to similar features in other projects, etc."
+    validations:
+      required: false
+  - type: dropdown
+    id: contribution
+    attributes:
+      label: "Willing to Contribute?"
+      description: Would you be willing to help implement this feature?
+      options:
+        - "Yes"
+        - "No"
+  - type: dropdown
+    id: roadmap-alignment
+    attributes:
+      label: "Roadmap Alignment"
+      description: Which part of the M3 roadmap does this feature align with?
+      options:
+        - "Broader Dataset Coverage"
+        - "Richer MCP Tooling"
+        - "Technical Enhancements"
+        - "Ecosystem and Community Contributions"
+        - "Other"
+  - type: input
+    id: other-roadmap
+    attributes:
+      label: "Other Roadmap Alignment"
+      description: "Only fill this if you selected 'Other' in the Roadmap Alignment dropdown."
+      placeholder: "Describe how this feature aligns with M3's goals."
+    validations:
+      required: false
+  - type: markdown
+    attributes:
+      value: |
+        **Security Note:** Please do not share sensitive information such as authentication tokens, personal data, or confidential project details in this request.

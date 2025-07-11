@@ -1,0 +1,50 @@
+name: "❓ Ask a Question"
+description: Ask a question about M3.
+title: "❓ [QUESTION] - <title>"
+labels:
+  - "question"
+body:
+  - type: markdown
+    attributes:
+      value: |
+        <p align="center">
+          <img src="https://miro.medium.com/v2/resize:fit:400/1*QEps725rQjfgqNnlbRYb1g.png" alt="Harvard MIT HST Logo">
+          <br>
+          <em><a href="https://doi.org/10.48550/arXiv.2507.01053">M3's Paper</a>—<a href="https://rafiattrach.github.io/m3/">M3's Website</a>.</em>
+        </p>
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: "Before Submitting"
+      description: Please confirm the following to help us answer your question efficiently.
+      options:
+        - label: I have checked the documentation and existing issues.
+          required: true
+  - type: textarea
+    id: question
+    attributes:
+      label: "Question"
+      description: Please provide a clear and concise question.
+      placeholder: "Hint: ‘brevity is the soul of wit’, Hamlet — by William Shakespeare"
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: "Additional Context"
+      description: Provide any additional context or details that might help answer your question.
+      placeholder: "Hint: Optional, e.g., code snippets, error messages, etc."
+    validations:
+      required: false
+  - type: input
+    id: project-area
+    attributes:
+      label: "Project Area"
+      description: Specify the area of M3 your question relates to.
+      placeholder: "Hint: Optional, e.g., CLI, MCP Server, OAuth2, etc."
+    validations:
+      required: false
+  - type: markdown
+    attributes:
+      value: |
+        **Security Note:** Please do not share sensitive information such as authentication tokens, personal data, or confidential project details in this question.
