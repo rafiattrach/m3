@@ -4,6 +4,7 @@ from urllib.parse import urljoin, urlparse
 import polars as pl
 import requests
 import typer
+from beartype import beartype
 from bs4 import BeautifulSoup
 
 from m3.config import get_dataset_config, get_dataset_raw_files_path, logger
@@ -14,6 +15,7 @@ COMMON_USER_AGENT = (
 )
 
 
+@beartype
 def _download_single_file(
     url: str, target_filepath: Path, session: requests.Session
 ) -> bool:
@@ -60,6 +62,7 @@ def _download_single_file(
     return False
 
 
+@beartype
 def _scrape_urls_from_html_page(
     page_url: str, session: requests.Session, file_suffix: str = ".csv.gz"
 ) -> list[str]:
@@ -85,6 +88,7 @@ def _scrape_urls_from_html_page(
     return found_urls
 
 
+@beartype
 def _download_dataset_files(
     dataset_name: str, dataset_config: dict, raw_files_root_dir: Path
 ) -> bool:
@@ -176,6 +180,7 @@ def _download_dataset_files(
     return downloaded_count == len(unique_files_to_process)
 
 
+@beartype
 def _load_csv_with_robust_parsing(csv_file_path: Path, table_name: str) -> pl.DataFrame:
     """
     Load a CSV file with proper type inference by scanning the entire file.
@@ -205,6 +210,7 @@ def _load_csv_with_robust_parsing(csv_file_path: Path, table_name: str) -> pl.Da
     return df
 
 
+@beartype
 def _etl_csv_collection_to_sqlite(csv_source_dir: Path, db_target_path: Path) -> bool:
     """Loads all .csv.gz files from a directory structure into an SQLite database."""
     db_target_path.parent.mkdir(parents=True, exist_ok=True)
@@ -299,6 +305,7 @@ def _etl_csv_collection_to_sqlite(csv_source_dir: Path, db_target_path: Path) ->
         return False
 
 
+@beartype
 def initialize_dataset(dataset_name: str, db_target_path: Path) -> bool:
     """Initializes a dataset: downloads files and loads them into a database."""
     dataset_config = get_dataset_config(dataset_name)

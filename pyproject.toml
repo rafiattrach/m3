@@ -50,6 +50,7 @@ dependencies = [
     "cryptography>=41.0.0", # Cryptographic operations for JWT
     "python-jose[cryptography]>=3.3.0", # Additional JWT support with crypto
     "httpx>=0.24.0", # Modern HTTP client for OAuth2 token validation
+    "beartype>=0.21.0",
 ]
 
 [project.dependency-groups]
