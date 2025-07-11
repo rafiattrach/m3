@@ -18,9 +18,10 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
+    - name: Set up uv
+      uses: astral-sh/setup-uv@v5
       with:
+        version: "latest"
         python-version: "3.11"
 
     - name: Extract version from tag
@@ -39,21 +40,23 @@ jobs:
         echo "Updated pyproject.toml version to ${{ steps.get_version.outputs.version }}"
         cat pyproject.toml | grep version
 
-    - name: Install dependencies and run quick validation
-      run: |
-        python -m pip install --upgrade pip
-        pip install build twine pytest
-        pip install -e .[dev]
+    - name: Lock dependencies
+      run: uv lock --locked
+
+    - name: Sync dependencies including dev
+      run: uv sync --all-groups
 
     - name: Run quick tests
       run: |
-        pytest tests/ -v --tb=short
+        uv add pytest==7.4.3
+        uv add pytest-asyncio
+        uv run pytest tests/ -v --tb=short
 
     - name: Build package
-      run: python -m build
+      run: uv build
 
     - name: Verify package
-      run: twine check dist/*
+      run: uv run --with twine twine check dist/*
 
     - name: Publish to PyPI
       uses: pypa/gh-action-pypi-publish@release/v1

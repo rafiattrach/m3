@@ -14,22 +14,18 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-python@v5
+      - name: Install UV and Python
+        uses: astral-sh/setup-uv@v5
         with:
-          python-version: '3.11'
+          version: "latest"
+          python-version: "3.11"
 
-      - name: Cache pip dependencies
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('pyproject.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
+      - name: Create virtual environment
+        run: uv venv
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install pytest==7.4.3
-          pip install -e ".[dev]"    # Install package with dev dependencies
+          uv sync --dev
+          uv add pytest==7.4.3
 
-      - uses: pre-commit/action@v3.0.1
+      - uses: tox-dev/action-pre-commit-uv@v1

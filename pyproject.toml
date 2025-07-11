@@ -1,6 +1,6 @@
 [build-system]
-requires = ["setuptools>=64", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"
 
 [project]
 name = "m3-mcp"
@@ -34,7 +34,7 @@ classifiers = [
 ]
 
 dependencies = [
-    "typer>=0.9.0",  # Typer as a core dependency for the CLI
+    "typer>=0.9.0", # Typer as a core dependency for the CLI
     "rich>=13.0.0", # For Typer's rich output
     "requests>=2.30.0",
     "beautifulsoup4>=4.12.0",
@@ -42,17 +42,17 @@ dependencies = [
     "appdirs>=1.4.0",
     "sqlalchemy>=2.0.0",
     "pandas>=2.0.0",
-    "fastmcp>=0.1.0",  # MCP server functionality
-    "google-cloud-bigquery>=3.0.0",  # BigQuery support
-    "db-dtypes>=1.0.0",  # BigQuery data types
-    "sqlparse>=0.4.0",  # SQL parsing for security validation
-    "pyjwt[crypto]>=2.8.0",  # JWT token handling with cryptography support
-    "cryptography>=41.0.0",  # Cryptographic operations for JWT
-    "python-jose[cryptography]>=3.3.0",  # Additional JWT support with crypto
-    "httpx>=0.24.0",  # Modern HTTP client for OAuth2 token validation
+    "fastmcp>=0.1.0", # MCP server functionality
+    "google-cloud-bigquery>=3.0.0", # BigQuery support
+    "db-dtypes>=1.0.0", # BigQuery data types
+    "sqlparse>=0.4.0", # SQL parsing for security validation
+    "pyjwt[crypto]>=2.8.0", # JWT token handling with cryptography support
+    "cryptography>=41.0.0", # Cryptographic operations for JWT
+    "python-jose[cryptography]>=3.3.0", # Additional JWT support with crypto
+    "httpx>=0.24.0", # Modern HTTP client for OAuth2 token validation
 ]
 
-[project.optional-dependencies]
+[project.dependency-groups]
 dev = [
     "ruff>=0.4.0",
     "pre-commit>=3.0.0",
@@ -73,15 +73,9 @@ Documentation = "https://github.com/rafiattrach/m3#readme"
 Issues = "https://github.com/rafiattrach/m3/issues"
 Changelog = "https://github.com/rafiattrach/m3/releases"
 
-[tool.setuptools.packages.find]
-where = ["src"]
-include = ["m3*"]
-
-[tool.setuptools.package-data]
-"*" = ["*.json", "*.yaml", "*.yml", "*.toml"]
-
-[tool.setuptools.dynamic]
-version = {attr = "m3.__version__"}
+[tool.pdm.version]
+source = "file"
+path = "src/m3/__init__.py"
 
 [tool.ruff]
 line-length = 88
