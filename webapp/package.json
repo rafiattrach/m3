@@ -4,6 +4,7 @@
   "private": true,
   "homepage": "https://rafiattrach.github.io/m3",
   "dependencies": {
+    "@emailjs/browser": "^4.4.1",
     "@testing-library/dom": "^10.4.0",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",
