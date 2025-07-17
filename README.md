@@ -4,6 +4,7 @@
 
 <a href="https://www.python.org/downloads/"><img alt="Python" src="https://img.shields.io/badge/Python-3.10+-blue?logo=python&logoColor=white"></a>
 <a href="https://modelcontextprotocol.io/"><img alt="MCP" src="https://img.shields.io/badge/MCP-Compatible-green?logo=ai&logoColor=white"></a>
+<a href="https://hub.docker.com/"><img alt="Docker" src="https://img.shields.io/badge/Docker-Ready-blue?logo=docker&logoColor=white"></a>
 <a href="https://github.com/rafiattrach/m3/actions/workflows/tests.yaml"><img alt="Tests" src="https://github.com/rafiattrach/m3/actions/workflows/tests.yaml/badge.svg"></a>
 <a href="https://github.com/rafiattrach/m3/actions/workflows/pre-commit.yaml"><img alt="Code Quality" src="https://github.com/rafiattrach/m3/actions/workflows/pre-commit.yaml/badge.svg"></a>
 <a href="https://github.com/rafiattrach/m3/pulls"><img alt="PRs Welcome" src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg"></a>
@@ -17,6 +18,7 @@ Transform medical data analysis with AI! Ask questions about MIMIC-IV data in pl
 - ☁️ **BigQuery Support**: Access full MIMIC-IV dataset on Google Cloud
 - 🔒 **Enterprise Security**: OAuth2 authentication with JWT tokens and rate limiting
 - 🛡️ **SQL Injection Protection**: Read-only queries with comprehensive validation
+- 🐳 **Docker Ready**: Pre-built Docker images for easy deployment
 
 ## 🚀 Quick Start
 
@@ -24,7 +26,7 @@ Transform medical data analysis with AI! Ask questions about MIMIC-IV data in pl
 
 ### 📦 Installation
 
-Choose your preferred installation method:
+**We recommend installing M3 via PyPI for the best experience. Docker is available as an alternative for containerized deployments.**
 
 #### Option A: Install from PyPI (Recommended)
 
@@ -86,6 +88,44 @@ uv sync
 # Do not forget to use `uv run` to any subsequent commands to ensure you're using the `uv` virtual environment
 ```
 
+#### Option C: Docker (Alternative Installation)
+
+**For containerized deployment or when you prefer Docker**
+
+**Step 1: Pull Docker Image**
+```bash
+# Pull the latest M3 Docker image
+docker pull ghcr.io/rafiattrach/m3:latest
+
+# Or build locally
+git clone https://github.com/rafiattrach/m3.git
+cd m3
+docker build -t m3:latest .
+```
+
+**Step 2: Run with SQLite (Demo Data)**
+```bash
+# Create a data volume
+docker volume create m3-data
+
+# Initialize demo database
+docker run --rm -v m3-data:/home/m3user/m3_data m3:latest m3 init mimic-iv-demo
+
+# Start MCP server
+docker run -d --name m3-server -p 8080:8080 \
+  -v m3-data:/home/m3user/m3_data \
+  -e M3_BACKEND=sqlite \
+  m3:latest m3-mcp-server
+```
+
+**Step 3: Configure MCP Client**
+```bash
+# Generate MCP client configuration
+docker run --rm -v m3-data:/home/m3user/m3_data m3:latest m3 config --quick
+```
+
+**For BigQuery with Docker:** See [Docker BigQuery Setup](#docker-bigquery-setup) below.
+
 ### 🗄️ Database Configuration
 
 After installation, choose your data source:
@@ -117,6 +157,44 @@ After installation, choose your data source:
 #### Option B: BigQuery (Full Dataset)
 
 **For researchers needing complete MIMIC-IV data**
+
+##### Docker BigQuery Setup
+
+**For Docker users only - if you installed via PyPI, skip to [Native BigQuery Setup](#native-bigquery-setup)**
+
+**Step 1: Prepare GCP Credentials**
+```bash
+# Create directory for credentials
+mkdir -p ./gcp-credentials
+
+# Download your service account key to this directory
+# (from Google Cloud Console > IAM & Admin > Service Accounts)
+cp /path/to/your-service-account-key.json ./gcp-credentials/service-account.json
+```
+
+**Step 2: Run with BigQuery Backend**
+```bash
+# Start M3 with BigQuery backend
+docker run -d --name m3-bigquery \
+  -p 8080:8080 \
+  -v ./gcp-credentials:/app/credentials:ro \
+  -e M3_BACKEND=bigquery \
+  -e M3_PROJECT_ID=your-gcp-project-id \
+  -e GOOGLE_APPLICATION_CREDENTIALS=/app/credentials/service-account.json \
+  m3:latest m3-mcp-server
+```
+
+**Step 3: Configure MCP Client**
+```bash
+# Generate BigQuery MCP configuration
+docker run --rm \
+  -v ./gcp-credentials:/app/credentials:ro \
+  -e M3_BACKEND=bigquery \
+  -e M3_PROJECT_ID=your-gcp-project-id \
+  m3:latest m3 config --quick --backend bigquery --project-id your-gcp-project-id
+```
+
+##### Native BigQuery Setup
 
 ##### Prerequisites
 - Google Cloud account and project with billing enabled
@@ -208,18 +286,89 @@ m3 config  # Choose OAuth2 option during setup
 
 > 📖 **Complete OAuth2 Setup Guide**: See [`docs/OAUTH2_AUTHENTICATION.md`](docs/OAUTH2_AUTHENTICATION.md) for detailed configuration, troubleshooting, and production deployment guidelines.
 
+## 🐳 Advanced Docker Usage
+
+### Docker Compose for Production Deployments
+
+**Step 1: Create Docker Compose Configuration**
+```yaml
+version: '3.8'
+
+services:
+  m3-sqlite:
+    image: m3:latest
+    container_name: m3-sqlite
+    environment:
+      - M3_BACKEND=sqlite
+    volumes:
+      - m3-data:/home/m3user/m3_data
+    ports:
+      - "8080:8080"
+    command: m3-mcp-server
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "m3", "--version"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  m3-bigquery:
+    image: m3:latest
+    container_name: m3-bigquery
+    environment:
+      - M3_BACKEND=bigquery
+      - M3_PROJECT_ID=${GCP_PROJECT_ID}
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/credentials/service-account.json
+    volumes:
+      - m3-data:/home/m3user/m3_data
+      - ./gcp-credentials:/app/credentials:ro
+    ports:
+      - "8081:8080"
+    command: m3-mcp-server
+    restart: unless-stopped
+
+volumes:
+  m3-data:
+```
+
+**Step 2: Run Services**
+```bash
+# Start SQLite service
+docker-compose up -d m3-sqlite
+
+# Start BigQuery service (with credentials)
+export GCP_PROJECT_ID=your-project-id
+docker-compose up -d m3-bigquery
+
+# View logs
+docker-compose logs -f m3-sqlite
+```
+
+### Docker Image Information
+
+- **Image Size**: ~936MB (optimized multi-stage build)
+- **Base Image**: `python:slim` (latest stable Python)
+- **Architecture**: Multi-stage build for minimal size
+- **User**: Non-root user (`m3user`) for security
+- **Health Check**: Built-in container health monitoring
+- **Data Path**: `/home/m3user/m3_data`
+
+> 📖 **Complete Docker Guide**: See [`DOCKER.md`](DOCKER.md) for comprehensive Docker usage, troubleshooting, and production deployment guidelines.
+
 ### Backend Comparison
 
 **SQLite Backend (Default)**
 - ✅ **Free**: No cloud costs
 - ✅ **Fast**: Local queries
 - ✅ **Easy**: No authentication needed
+- ✅ **Simple Setup**: Works with both PyPI and Docker
 - ❌ **Limited**: Demo dataset only (~1k records)
 
 **BigQuery Backend**
 - ✅ **Complete**: Full MIMIC-IV dataset (~500k admissions)
 - ✅ **Scalable**: Google Cloud infrastructure
 - ✅ **Current**: Latest MIMIC-IV version (3.1)
+- ✅ **Flexible**: Works with both PyPI and Docker
 - ❌ **Costs**: BigQuery usage fees apply
 
 ## 🛠️ Available MCP Tools
@@ -261,18 +410,68 @@ Try asking your MCP client these questions:
 
 ## 🔍 Troubleshooting
 
+### Docker Issues
+
+**Container won't start:**
+```bash
+# Check container logs
+docker logs m3-server
+
+# Check container status
+docker ps -a
+
+# Remove and recreate container
+docker stop m3-server && docker rm m3-server
+docker run -d --name m3-server -p 8080:8080 m3:latest m3-mcp-server
+```
+
+**"Database not found" in Docker:**
+```bash
+# Initialize database in Docker volume
+docker run --rm -v m3-data:/home/m3user/m3_data m3:latest m3 init mimic-iv-demo
+
+# Verify database exists
+docker run --rm -v m3-data:/home/m3user/m3_data m3:latest ls -la /home/m3user/m3_data/databases/
+```
+
+**BigQuery authentication issues in Docker:**
+```bash
+# Check credentials mount
+docker run --rm -v ./gcp-credentials:/app/credentials:ro m3:latest ls -la /app/credentials/
+
+# Verify service account key
+docker run --rm -v ./gcp-credentials:/app/credentials:ro m3:latest \
+  cat /app/credentials/service-account.json | jq '.type'
+```
+
+**Docker image build fails:**
+```bash
+# Clear Docker cache
+docker system prune -a
+
+# Build with no cache
+docker build --no-cache -t m3:latest .
+
+# Check disk space
+docker system df
+```
+
 ### Common Issues
 
 **SQLite "Database not found" errors:**
 ```bash
-# Re-download demo database
+# Native installation
 m3 init mimic-iv-demo
+
+# Docker installation
+docker run --rm -v m3-data:/home/m3user/m3_data m3:latest m3 init mimic-iv-demo
 ```
 
 **MCP client server not starting:**
 1. Check your MCP client logs (for Claude Desktop: Help → View Logs)
 2. Verify configuration file location and format
 3. Restart your MCP client completely
+4. For Docker: Check container health with `docker ps`
 
 ### OAuth2 Authentication Issues
 
@@ -317,7 +516,7 @@ gcloud auth list
 
 ### Development Setup
 
-#### Option A: Standard `pip` Development Setup
+#### Option A: Standard `pip` Development Setup (Recommended)
 **Step 1: Clone and Navigate**
 ```bash
 # Clone the repository
@@ -340,7 +539,7 @@ pip install -e ".[dev]"
 pre-commit install
 ```
 
-#### Option B: Development Setup with `UV` (Recommended)
+#### Option B: Development Setup with `UV` (Also Recommended)
 **Step 1: Clone and Navigate**
 ```bash
 # Clone the repository
@@ -363,6 +562,41 @@ uv sync
 uv run pre-commit install
 
 # Do not forget to use `uv run` to any subsequent commands to ensure you're using the `uv` virtual environment
+```
+
+#### Option C: Docker Development Setup (Alternative)
+
+**For developers who prefer containerized development environments**
+
+**Step 1: Clone and Build**
+```bash
+# Clone the repository
+git clone https://github.com/rafiattrach/m3.git
+cd m3
+
+# Build development Docker image
+docker build -t m3:dev .
+```
+
+**Step 2: Development with Volume Mounts**
+```bash
+# Run with source code mounted for development
+docker run --rm -it \
+  -v $(pwd)/src:/app/src \
+  -v m3-data:/home/m3user/m3_data \
+  m3:dev /bin/bash
+
+# Or run specific commands
+docker run --rm -v $(pwd)/src:/app/src m3:dev m3 --version
+```
+
+**Step 3: Testing in Docker**
+```bash
+# Run tests in Docker
+docker run --rm -v $(pwd):/app -w /app m3:dev pytest
+
+# Run linting
+docker run --rm -v $(pwd):/app -w /app m3:dev ruff check
 ```
 
 ### Testing

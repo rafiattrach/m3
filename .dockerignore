@@ -1,0 +1,48 @@
+# Development files
+.git
+.gitignore
+.venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+.coverage
+htmlcov/
+
+# Documentation
+CLAUDE.md
+docs/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Test files
+tests/
+benchmarks/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Data files (will be created at runtime)
+m3_data/
+
+# Web app (not needed for CLI/MCP server)
+webapp/
+
+# Lock files
+uv.lock
+package-lock.json
+
+# CI/CD
+.github/
+.pre-commit-config.yaml

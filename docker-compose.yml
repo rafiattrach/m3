@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  m3-sqlite:
+    image: m3:latest
+    container_name: m3-sqlite
+    environment:
+      - M3_BACKEND=sqlite
+    volumes:
+      - m3-data:/home/m3user/m3_data
+    ports:
+      - "8080:8080"
+    command: m3-mcp-server
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "m3", "--version"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  m3-bigquery:
+    image: m3:latest
+    container_name: m3-bigquery
+    environment:
+      - M3_BACKEND=bigquery
+      - M3_PROJECT_ID=${GCP_PROJECT_ID}
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/credentials/service-account.json
+    volumes:
+      - m3-data:/home/m3user/m3_data
+      - ./gcp-credentials:/app/credentials:ro
+    ports:
+      - "8081:8080"
+    command: m3-mcp-server
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "m3", "--version"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  m3-data:
+    driver: local
