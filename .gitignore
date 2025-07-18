@@ -65,6 +65,7 @@ mimic*.db
 # Configuration files
 config.json
 *config*.json
+m3_pipeline.json
 
 # Operating System specific files
 .DS_Store
