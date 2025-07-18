@@ -16,6 +16,7 @@ maintainers = [
     { name = "Rafi Al Attrach", email = "rafiaa@mit.edu" },
     { name = "Pedro Moreira", email = "pedrojfm@mit.edu" },
     { name = "Rajna Fani", email = "rajnaf@mit.edu" },
+    {name = "Provost Simon", email = "sgp29@kent.ac.uk" },
 ]
 readme = "README.md"
 license = "MIT"
@@ -50,21 +51,27 @@ dependencies = [
     "cryptography>=41.0.0", # Cryptographic operations for JWT
     "python-jose[cryptography]>=3.3.0", # Additional JWT support with crypto
     "httpx>=0.24.0", # Modern HTTP client for OAuth2 token validation
+    "pyaml>=25.7.0",
+    "beartype>=0.21.0",
+    "thefuzz>=0.22.1",
+    "rich-pyfiglet>=0.1.4",
+    "click==8.1.8",
 ]
 
-[project.dependency-groups]
+[dependency-groups]
 dev = [
     "ruff>=0.4.0",
     "pre-commit>=3.0.0",
     "pytest>=7.4.0",
     "pytest-asyncio>=0.23.0",
     "pytest-mock>=3.10.0",
-    "aiohttp>=3.8.0",  # For MCP client testing
+    "aiohttp>=3.8.0",
+    "pytest-cov>=6.2.1",
 ]
 
 [project.scripts]
-m3 = "m3.cli:app"
-m3-mcp-server = "m3.mcp_server:main"
+m3 = "m3.cli:main_cli"
+m3-mcp-server = "m3.core.__main__:main"
 
 [project.urls]
 Homepage = "https://github.com/rafiattrach/m3"
@@ -90,6 +97,8 @@ select = [
     "I",  # isort (import sorting)
     "UP", # pyupgrade (modernize syntax)
     "RUF",# Ruff-specific rules
+    "B",  # flake8-bugbear
+    "C4", # simplify comprehensions
 ]
 
 ignore = [
@@ -109,3 +118,35 @@ asyncio_default_fixture_loop_scope = "function"
 filterwarnings = [
     "ignore::DeprecationWarning:jupyter_client.*",
 ]
+
+[tool.coverage.paths]
+source = [
+    "src/m3",
+]
+
+[tool.coverage.run]
+branch = true
+omit = [
+    "src/m3/**/base.py",
+    "src/m3/**/__init__.py",
+    "src/m3/**/configurations/*.yaml",
+    "tests/**",
+]
+
+[tool.coverage.report]
+exclude_also = [
+    "def __repr__",
+    "if self\\.debug",
+
+    "raise AssertionError",
+    "raise NotImplementedError",
+
+    "if 0:",
+    "if __name__ == .__main__.:",
+
+    "@(abc\\.)?abstractmethod",
+]
+ignore_errors = true
+
+[tool.coverage.html]
+directory = "coverage_html_report"
