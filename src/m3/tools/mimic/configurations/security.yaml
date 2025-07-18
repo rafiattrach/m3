@@ -1,0 +1,40 @@
+dangerous_keywords:
+  - INSERT
+  - UPDATE
+  - DELETE
+  - DROP
+  - CREATE
+  - ALTER
+  - TRUNCATE
+  - REPLACE
+  - MERGE
+  - EXEC
+  - EXECUTE
+
+injection_patterns:
+  - ["1=1", "Classic injection pattern"]
+  - ["OR 1=1", "Boolean injection pattern"]
+  - ["AND 1=1", "Boolean injection pattern"]
+  - ["OR '1'='1'", "String injection pattern"]
+  - ["AND '1'='1'", "String injection pattern"]
+  - ["WAITFOR", "Time-based injection"]
+  - ["SLEEP(", "Time-based injection"]
+  - ["BENCHMARK(", "Time-based injection"]
+  - ["LOAD_FILE(", "File access injection"]
+  - ["INTO OUTFILE", "File write injection"]
+  - ["INTO DUMPFILE", "File write injection"]
+
+suspicious_names:
+  - PASSWORD
+  - ADMIN
+  - USER
+  - LOGIN
+  - AUTH
+  - TOKEN
+  - CREDENTIAL
+  - SECRET
+  - KEY
+  - HASH
+  - SALT
+  - SESSION
+  - COOKIE

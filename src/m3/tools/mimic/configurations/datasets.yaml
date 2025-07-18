@@ -1,0 +1,5 @@
+mimic-iv-demo:
+  file_listing_url: "https://physionet.org/files/mimic-iv-demo/2.2/"
+  subdirectories_to_scan: ["hosp", "icu"]
+  default_db_filename: "mimic_iv_demo.db"
+  primary_verification_table: "hosp_admissions"
