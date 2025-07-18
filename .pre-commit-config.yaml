@@ -22,7 +22,7 @@ repos:
     hooks:
       - id: pytest
         name: pytest
-        entry: pytest
+        entry: uv run pytest
         language: system # Assumes pytest is installed in your environment (via pip install .[dev])
         types: [python] # Run on changes to Python files
         pass_filenames: false # Pytest typically runs on the whole suite
