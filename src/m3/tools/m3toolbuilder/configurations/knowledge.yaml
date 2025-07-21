@@ -1,0 +1,51 @@
+principles:
+  idea_behind_m3_tools: >-
+    M3 tools are designed as modular, reusable components that integrate
+    seamlessly with the MCP (Model Context Protocol) ecosystem. The Model Context Protocol (MCP) is an open standard
+    developed by Anthropic to enable seamless integration between AI models (like large language models) and external
+    data sources or tools, standardizing access to context such as files, databases, or APIs to reduce custom
+    integrations.
+    The core idea is to create tool-agnostic building blocks that can be chained
+    together to form complex pipelines for tasks like data access, analysis, and
+    interaction. This allows for easy composition (e.g., combining multiple
+    tools in one pipeline), scalability (adding new tools without breaking
+    existing ones), and reproducibility (via presets and serialization). Tools
+    empower users to build custom MCP servers for specific domains, like
+    clinical data querying, while maintaining consistency across the library.
+  importance_of_architecture: >-
+    Following the M3 architecture is crucial for maintainability,
+    interoperability, and extensibility. By inheriting from BaseTool and
+    BaseToolCLI, tools ensure uniform lifecycle management (init/teardown),
+    environment validation, MCP action registration, and CLI consistency. This
+    structure prevents fragmentation, enables automatic registration/validation
+    in the registry, supports chaining APIs for pipelines, and facilitates
+    integration with MCP hosts like FastMCP or ClaudeDesktop. Deviating from it
+    could lead to incompatible tools, breaking builds/runs, or security
+    issues—sticking to it guarantees tools 'just work' in the ecosystem.
+  what_is_a_tool: >-
+    An M3 tool is essentially an MCP-compatible module that provides specific
+    functionality, such as data querying or processing, through a set of actions
+    (callable functions exposed to MCP). It encapsulates logic like backends
+    (e.g., databases), configurations (YAML for env/datasets/security), and
+    utilities (e.g., data I/O, validation). Tools are self-contained directories
+    with a main class (inheriting BaseTool for actions/lifecycle/serialization),
+    CLI (for user setup/status), and optional components. As MCP tools, they
+    register functions for conversational AI use, enabling secure, modular
+    interactions in pipelines.
+  python_best_practices: >-
+    1) IMPORTANT
+    - FILES NAMING for the tool itself. As follows. Name of a folder == name of file . py == name of class. Do not add suffixes, underscores or other characters if not needed.
+    - Highly-typed Pythonic code: Use beartype for runtime type checking on classes, with annotations strictly for parameters and return types (but not for variables within methods).
+    - Docstrings: Use one-liner docstrings at the class level only; avoid file-level docstrings.
+    - It is much better to use hardcoded data from a yaml declarative file than hardcoding the data in the python script.
+    - Error handling: use try-except blocks to catch side effects.
+    - Logging: Set up logging `logger = logging.getLogger(__name__)` and utilise logger for debugging and information messages instead of print statements.
+    - PEP8/idiomatic code: Follow PEP8 standards, use idiomatic Python (no async unless beneficial), and ensure meaningful variable names (avoid single-letter like x, y, z).
+
+    2) MID IMPORTANT
+    - Serialization: Include to_dict and from_dict methods for object serialization and deserialization.
+    - Validation: Perform environment and other checks (e.g., env/checks) to ensure integrity.
+
+    3) ADDITIONAL
+    - No individual READMEs: Do not create README.md files for individual tools; handle them manually at the project level.
+    - No version numbers in code: Avoid including version numbers within tool code; manage them manually at the M3 project level.
