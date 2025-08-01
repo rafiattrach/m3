@@ -19,13 +19,13 @@ jobs:
         with:
           version: "latest"
           python-version: "3.11"
-
-      - name: Create virtual environment
-        run: uv venv
-
-      - name: Install dependencies
+      - name: Symlink uv to expected path for pre-commit-uv
         run: |
-          uv sync --dev
-          uv add pytest==7.4.3
-
+          mkdir -p ~/.local/bin
+          ln -s $(which uv) ~/.local/bin/uv
+      - run: uv venv
+      - run: uv sync --dev
+      - run: uv add pytest==7.4.3
       - uses: tox-dev/action-pre-commit-uv@v1
+        with:
+          extra_args: --all-files
