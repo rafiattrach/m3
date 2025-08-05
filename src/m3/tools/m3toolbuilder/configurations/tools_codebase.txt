@@ -1,0 +1,1633 @@
+Directory structure:
+└── tools/
+    ├── __init__.py
+    ├── registry.py
+    └── mimic/
+        ├── __init__.py
+        ├── cli.py
+        ├── mimic.py
+        ├── components/
+        │   ├── __init__.py
+        │   ├── auth.py
+        │   ├── data_io.py
+        │   └── utils.py
+        └── configurations/
+            ├── datasets.yaml
+            ├── env_vars.yaml
+            └── security.yaml
+
+================================================
+FILE: __init__.py
+================================================
+
+
+
+================================================
+FILE: registry.py
+================================================
+import importlib
+import inspect
+import logging
+import os
+
+from beartype import beartype
+
+from m3.core.tool.base import BaseTool
+from m3.core.tool.cli.base import BaseToolCLI
+from m3.core.utils.exceptions import M3ValidationError
+
+logger = logging.getLogger(__name__)
+
+TOOLS_DIR = os.path.dirname(__file__)
+
+ALL_TOOLS = {}
+
+
+@beartype
+def _initialize() -> None:
+    """
+    Automatically discover and register tools from subdirectories in tools/.
+    """
+    for entry in os.scandir(TOOLS_DIR):
+        if entry.is_dir() and not entry.name.startswith("_"):
+            tool_name = entry.name.lower()
+            try:
+                main_module_path = f"m3.tools.{tool_name}.{tool_name}"
+                main_module = importlib.import_module(main_module_path)
+
+                tool_classes = [
+                    obj
+                    for name, obj in inspect.getmembers(main_module)
+                    if inspect.isclass(obj)
+                    and issubclass(obj, BaseTool)
+                    and obj != BaseTool
+                ]
+                if len(tool_classes) != 1:
+                    raise M3ValidationError(
+                        f"Tool '{tool_name}' must have exactly one subclass of BaseTool in {main_module_path}.py. Found: {len(tool_classes)}"
+                    )
+                tool_class = tool_classes[0]
+
+                cli_module_path = f"m3.tools.{tool_name}.cli"
+                cli_module = importlib.import_module(cli_module_path)
+
+                cli_classes = [
+                    obj
+                    for name, obj in inspect.getmembers(cli_module)
+                    if inspect.isclass(obj)
+                    and issubclass(obj, BaseToolCLI)
+                    and obj != BaseToolCLI
+                ]
+                if len(cli_classes) != 1:
+                    raise M3ValidationError(
+                        f"Tool '{tool_name}' must have exactly one subclass of BaseToolCLI in {cli_module_path}.py. Found: {len(cli_classes)}"
+                    )
+
+                ALL_TOOLS[tool_name] = tool_class
+            except ImportError as e:
+                logger.warning(
+                    f"Failed to import modules for tool '{tool_name}': {e!s}. Skipping registration (components not fully available)."
+                )
+            except M3ValidationError as e:
+                logger.warning(
+                    f"Validation failed for tool '{tool_name}': {e!s}. Skipping registration (BaseTool or BaseToolCLI not available as required)."
+                )
+            except Exception as e:
+                logger.error(
+                    f"Unexpected error discovering tool '{tool_name}': {e!s}. Skipping registration.",
+                    exc_info=True,
+                )
+
+
+_initialize()
+
+
+================================================
+FILE: mimic/__init__.py
+================================================
+from .cli import MimicCLI
+from .mimic import MIMIC
+
+__all__ = ["MIMIC", "MimicCLI"]
+
+
+
+================================================
+FILE: mimic/cli.py
+================================================
+import json
+import logging
+import os
+from pathlib import Path
+
+import typer
+from beartype import beartype
+from beartype.typing import Annotated, Any, Dict, Optional
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
+
+from m3.core.config import M3Config
+from m3.core.tool.cli.base import BaseToolCLI, ToolConfig
+from m3.core.utils.exceptions import M3ValidationError
+from m3.core.utils.helpers import get_config
+from m3.tools.mimic.components.data_io import DataIO
+from m3.tools.mimic.components.utils import (
+    get_default_database_path,
+    load_supported_datasets,
+)
+
+logger = logging.getLogger(__name__)
+
+console = Console()
+
+
+@beartype
+class MimicCLI(BaseToolCLI):
+    @classmethod
+    def get_app(cls) -> typer.Typer:
+        app = typer.Typer(
+            help="MIMIC-IV tool commands.",
+            add_completion=False,
+            pretty_exceptions_show_locals=False,
+            rich_markup_mode="markdown",
+        )
+        app.command(help="Initialise the dataset and database.")(cls.init)
+        app.command(help="Configure the MIMIC-IV tool.")(cls.configure)
+        app.command(help="Display the current status of the MIMIC-IV tool.")(cls.status)
+        return app
+
+    @classmethod
+    def init(
+        cls,
+        dataset: Annotated[
+            str,
+            typer.Option(
+                "--dataset",
+                "-d",
+                help="Dataset name to initialize (e.g., 'mimic-iv-demo').",
+            ),
+        ] = "mimic-iv-demo",
+        db_path: Annotated[
+            Optional[str],
+            typer.Option(
+                "--db-path",
+                "-p",
+                help="Path to save the SQLite DB (defaults to a standard location).",
+            ),
+        ] = None,
+        force: Annotated[
+            bool,
+            typer.Option(
+                "--force", "-f", help="Force re-download and re-initialization."
+            ),
+        ] = False,
+    ) -> None:
+        datasets = load_supported_datasets()
+        if dataset.lower() not in datasets:
+            console.print("[red]❌ Unknown dataset. Available:[/red]")
+            table = Table(show_header=False)
+            for ds in datasets.keys():
+                table.add_row(f"[cyan]{ds}[/cyan]")
+            console.print(table)
+            raise typer.Exit(code=1)
+
+        config = get_config()
+        _db_path = (
+            Path(db_path) if db_path else get_default_database_path(config, dataset)
+        )
+        if _db_path is None:
+            console.print("[red]❌ Cannot determine DB path.[/red]")
+            raise typer.Exit(code=1)
+
+        if _db_path.exists() and not force:
+            console.print(
+                f"[yellow]⚠️ DB exists at {_db_path}. Use --force to overwrite.[/yellow]"
+            )
+            raise typer.Exit(code=1)
+
+        data_io = DataIO(config)
+        success = data_io.initialize(dataset, _db_path)
+
+        if success:
+            console.print(f"[green]✅ Initialized {dataset} at {_db_path}.[/green]")
+        else:
+            console.print(f"[red]❌ Initialization failed for {dataset}.[/red]")
+            raise typer.Exit(code=1)
+
+    @classmethod
+    def configure(
+        cls,
+        backend: Annotated[
+            Optional[str],
+            typer.Option("--backend", "-b", help="Backend ('sqlite' or 'bigquery')."),
+        ] = None,
+        db_path: Annotated[
+            Optional[str],
+            typer.Option("--db-path", help="SQLite DB path (if backend=sqlite)."),
+        ] = None,
+        project_id: Annotated[
+            Optional[str],
+            typer.Option("--project-id", help="GCP Project ID (if backend=bigquery)."),
+        ] = None,
+        enable_oauth2: Annotated[
+            bool,
+            typer.Option("--enable-oauth2", "-o", help="Enable OAuth2."),
+        ] = False,
+        issuer_url: Annotated[
+            Optional[str],
+            typer.Option("--issuer-url", help="OAuth2 Issuer URL."),
+        ] = None,
+        audience: Annotated[
+            Optional[str],
+            typer.Option("--audience", help="OAuth2 Audience."),
+        ] = None,
+        required_scopes: Annotated[
+            Optional[str],
+            typer.Option(
+                "--required-scopes", help="OAuth2 Required Scopes (comma-separated)."
+            ),
+        ] = None,
+        jwks_url: Annotated[
+            Optional[str],
+            typer.Option("--jwks-url", help="OAuth2 JWKS URL (optional)."),
+        ] = None,
+        rate_limit_requests: Annotated[
+            int,
+            typer.Option("--rate-limit-requests", help="OAuth2 Rate Limit Requests."),
+        ] = 100,
+        output: Annotated[
+            Optional[str],
+            typer.Option("--output", "-o", help="Output path for config JSON."),
+        ] = None,
+        verbose: Annotated[
+            bool,
+            typer.Option("--verbose", "-v", help="Print config dict."),
+        ] = False,
+    ) -> ToolConfig:
+        env_vars: Dict[str, str] = {}
+        tool_params: Dict[str, Any] = {}
+
+        console.print("[turquoise4]💬 Configuring MIMIC-IV tool...[/turquoise4]")
+
+        if not backend:
+            backend = typer.prompt(
+                "Backend (sqlite/bigquery)", default="sqlite"
+            ).lower()
+
+        if backend not in ["sqlite", "bigquery"]:
+            console.print("[red]❌ Invalid backend. Use 'sqlite' or 'bigquery'.[/red]")
+            raise typer.Exit(code=1)
+
+        env_vars["M3_BACKEND"] = backend
+        tool_params["backend_key"] = backend
+
+        backends_list = []
+        if backend == "sqlite":
+            if db_path is None:
+                default_db = get_default_database_path(get_config(), "mimic-iv-demo")
+                if default_db is None:
+                    raise M3ValidationError("Cannot determine default DB path")
+                console.print(f"[yellow]💬 Default DB path: {default_db}[/yellow]")
+                db_path = typer.prompt(
+                    "SQLite DB path (Enter for default)", default=str(default_db)
+                )
+            if db_path and not Path(db_path).exists():
+                console.print(
+                    f"[yellow]⚠️ DB path {db_path} does not exist. Using default path.[/yellow]"
+                )
+                db_path = str(get_default_database_path(get_config(), "mimic-iv-demo"))
+            env_vars["M3_DB_PATH"] = db_path
+            backends_list.append({"type": "sqlite", "params": {"path": db_path}})
+        elif backend == "bigquery":
+            if project_id is None:
+                project_id = typer.prompt("GCP Project ID (required)")
+            if not project_id:
+                raise M3ValidationError("Project ID required for BigQuery")
+            env_vars["M3_PROJECT_ID"] = project_id
+            env_vars["GOOGLE_CLOUD_PROJECT"] = project_id
+            backends_list.append(
+                {"type": "bigquery", "params": {"project": project_id}}
+            )
+
+        tool_params["backends"] = backends_list
+
+        if enable_oauth2:
+            if issuer_url is None:
+                issuer_url = typer.prompt("Issuer URL")
+            if audience is None:
+                audience = typer.prompt("Audience")
+            if required_scopes is None:
+                required_scopes = typer.prompt(
+                    "Scopes [read:mimic-data]", default="read:mimic-data"
+                )
+            env_vars.update(
+                {
+                    "M3_OAUTH2_ENABLED": "true",
+                    "M3_OAUTH2_ISSUER_URL": issuer_url,
+                    "M3_OAUTH2_AUDIENCE": audience,
+                    "M3_OAUTH2_REQUIRED_SCOPES": required_scopes,
+                }
+            )
+            if jwks_url is None:
+                jwks_url = typer.prompt("JWKS URL (optional)", default="")
+                jwks_url = jwks_url.strip()
+            if jwks_url:
+                env_vars["M3_OAUTH2_JWKS_URL"] = jwks_url
+            env_vars["M3_OAUTH2_RATE_LIMIT_REQUESTS"] = str(rate_limit_requests)
+
+        console.print(
+            "\n[turquoise4]💬 Additional env vars (key=value, Enter to finish):[/turquoise4]"
+        )
+        additional_env = {}
+        while True:
+            env_var = typer.prompt("", default="", show_default=False)
+            if not env_var:
+                break
+            if "=" in env_var:
+                key, value = env_var.split("=", 1)
+                additional_env[key.strip()] = value.strip()
+            else:
+                console.print("[red]Invalid: Use key=value[/red]")
+        env_vars.update(additional_env)
+
+        config_dict = {"env_vars": env_vars, "tool_params": tool_params}
+
+        output = output or "mimic_config.json"
+        with open(output, "w") as f:
+            json.dump(config_dict, f, indent=4)
+        console.print(f"[green]✅ Config dict saved to {output}[/green]")
+
+        if verbose:
+            console.print(
+                Panel(
+                    json.dumps(config_dict, indent=2),
+                    title="[bold green]Configuration[/bold green]",
+                    border_style="green",
+                )
+            )
+        return config_dict
+
+    @classmethod
+    def status(cls, verbose: bool = False) -> None:
+        try:
+            config = M3Config(env_vars=os.environ.copy())
+            _db_path = (
+                str(get_default_database_path(config, "mimic-iv-demo")) or "Default"
+            )
+
+            table = Table(title="[bold green]MIMIC Tool Status[/bold green]")
+            table.add_column("Key", style="cyan")
+            table.add_column("Value", style="magenta")
+            table.add_row("Backend", config.get_env_var("M3_BACKEND", "sqlite"))
+            table.add_row("DB Path", config.get_env_var("M3_DB_PATH", _db_path))
+            table.add_row(
+                "OAuth2 Enabled", config.get_env_var("M3_OAUTH2_ENABLED", "No")
+            )
+            console.print(table)
+            if verbose:
+                env_table = Table(
+                    title="[bold green]Environment Variables (M3_*)[/bold green]"
+                )
+                env_table.add_column("Key", style="cyan")
+                env_table.add_column("Value", style="magenta")
+                for key, value in sorted(config.env_vars.items()):
+                    if key.startswith("M3_"):
+                        env_table.add_row(key, value)
+                console.print(env_table)
+        except Exception as e:
+            console.print(f"[red]❌ Error getting status: {e}[/red]")
+            logger.error(f"Status failed: {e}")
+
+
+
+================================================
+FILE: mimic/mimic.py
+================================================
+import logging
+from collections.abc import Callable
+
+import sqlparse
+from beartype import beartype
+from beartype.typing import Any, Dict, List, Optional, Tuple
+
+from m3.core.config import M3Config
+from m3.core.tool.backend.base import BackendBase
+from m3.core.tool.backend.registry import BACKEND_REGISTRY
+from m3.core.tool.base import BaseTool
+from m3.core.utils.exceptions import M3ValidationError
+from m3.tools.mimic.components.auth import Auth
+from m3.tools.mimic.components.data_io import DataIO
+from m3.tools.mimic.components.utils import (
+    load_env_vars_config,
+    load_security_config,
+    validate_limit,
+)
+
+logger = logging.getLogger(__name__)
+
+
+@beartype
+class MIMIC(BaseTool):
+    @beartype
+    def __init__(
+        self,
+        backends: List[BackendBase],
+        config: Optional[M3Config] = None,
+        data_io: Optional[DataIO] = None,
+        backend_key: str = "sqlite",
+    ) -> None:
+        super().__init__()
+        self.config = config or M3Config()
+        self.env_config = load_env_vars_config()
+        self._set_required_env_vars(backend_key)
+        self._set_backends(backends)
+        self.data_io = data_io or DataIO(self.config)
+        self.backend_key = backend_key
+        self._set_auth()
+        self._validate_backend_key(backend_key)
+        self.security_config = {}
+        self.table_names = {}
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "backend_key": self.backend_key,
+            "backends": [
+                {"type": k, "params": v.to_dict()} for k, v in self.backends.items()
+            ],
+        }
+
+    @classmethod
+    def from_dict(cls, params: Dict[str, Any]) -> "MIMIC":
+        try:
+            backends_list = []
+            for bd in params["backends"]:
+                backend_type = bd["type"]
+                if backend_type not in BACKEND_REGISTRY:
+                    raise ValueError(f"Unknown backend type: {backend_type}")
+                backend_cls = BACKEND_REGISTRY[backend_type]
+                backends_list.append(backend_cls.from_dict(bd["params"]))
+            return cls(
+                backends=backends_list,
+                backend_key=params["backend_key"],
+            )
+        except KeyError as e:
+            raise ValueError(f"Missing required param: {e}") from e
+        except Exception as e:
+            raise ValueError(f"Failed to reconstruct MIMIC: {e}") from e
+
+    def actions(self) -> List[Callable]:
+        def get_database_schema() -> str:
+            """🔍 Discover what data is available in the MIMIC-IV database.
+
+            **When to use:** Start here when you need to understand what tables exist, or when someone asks about data that might be in multiple tables.
+
+            **What this does:** Shows all available tables so you can identify which ones contain the data you need.
+
+            **Next steps after using this:**
+            - If you see relevant tables, use `get_table_info(table_name)` to explore their structure
+            - Common tables: `patients` (demographics), `admissions` (hospital stays), `icustays` (ICU data), `labevents` (lab results)
+
+            Returns:
+                List of all available tables in the database with current backend info
+            """
+            backend_info = self._get_backend_info()
+            if "sqlite" in self.backend_key.lower():
+                query = (
+                    "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
+                )
+                result = self.backends[self.backend_key].execute(query)
+                return f"{backend_info}\n📋 **Available Tables:**\n{result}"
+            else:
+                hosp_dataset = self.config.get_env_var(
+                    "M3_BIGQUERY_HOSP_DATASET", "mimiciv_3_1_hosp"
+                )
+                icu_dataset = self.config.get_env_var(
+                    "M3_BIGQUERY_ICU_DATASET", "mimiciv_3_1_icu"
+                )
+                project = self.config.get_env_var(
+                    "M3_BIGQUERY_PROJECT", "physionet-data"
+                )
+                query = f"""
+                   SELECT CONCAT('`{project}.{hosp_dataset}.', table_name, '`') as query_ready_table_name
+                   FROM `{project}.{hosp_dataset}.INFORMATION_SCHEMA.TABLES`
+                   UNION ALL
+                   SELECT CONCAT('`{project}.{icu_dataset}.', table_name, '`') as query_ready_table_name
+                   FROM `{project}.{icu_dataset}.INFORMATION_SCHEMA.TABLES`
+                   ORDER BY query_ready_table_name
+                   """
+                result = self.backends[self.backend_key].execute(query)
+                return f"{backend_info}\n📋 **Available Tables (query-ready names):**\n{result}\n\n💡 **Copy-paste ready:** These table names can be used directly in your SQL queries!"
+
+        def get_table_info(table_name: str, show_sample: bool = True) -> str:
+            """📋 Explore a specific table's structure and see sample data.
+
+            **When to use:** After you know which table you need (from `get_database_schema()`), use this to understand the columns and data format.
+
+            **What this does:**
+            - Shows column names, types, and constraints
+            - Displays sample rows so you understand the actual data format
+            - Helps you write accurate SQL queries
+
+            **Pro tip:** Always look at sample data! It shows you the actual values, date formats, and data patterns.
+
+            Args:
+                table_name: Exact table name from the schema (case-sensitive). Can be simple name or fully qualified BigQuery name.
+                show_sample: Whether to include sample rows (default: True, recommended)
+
+            Returns:
+                Complete table structure with sample data to help you write queries
+            """
+            backend_info = self._get_backend_info()
+            if "sqlite" in self.backend_key.lower():
+                pragma_query = f"PRAGMA table_info({table_name})"
+                try:
+                    result = self.backends[self.backend_key].execute(pragma_query)
+                    info_result = f"{backend_info}📋 **Table:** {table_name}\n\n**Column Information:**\n{result}"
+                    if show_sample:
+                        sample_query = f"SELECT * FROM {table_name} LIMIT 3"
+                        sample_result = self.backends[self.backend_key].execute(
+                            sample_query
+                        )
+                        info_result += (
+                            f"\n\n📊 **Sample Data (first 3 rows):**\n{sample_result}"
+                        )
+                    return info_result
+                except Exception as e:
+                    return f"{backend_info}❌ Error examining table '{table_name}': {e}\n\n💡 Use get_database_schema() to see available tables."
+            else:
+                if "." in table_name and "physionet-data" in table_name:
+                    clean_name = table_name.strip("`")
+                    full_table_name = f"`{clean_name}`"
+                    parts = clean_name.split(".")
+                    if len(parts) != 3:
+                        return f"{backend_info}❌ **Invalid qualified table name:** `{table_name}`\n\n**Expected format:** `project.dataset.table`\n**Example:** `physionet-data.mimiciv_3_1_hosp.diagnoses_icd`\n\n**Available MIMIC-IV datasets:**\n- `physionet-data.mimiciv_3_1_hosp.*` (hospital module)\n- `physionet-data.mimiciv_3_1_icu.*` (ICU module)"
+                    simple_table_name = parts[2]
+                    dataset = f"{parts[0]}.{parts[1]}"
+                else:
+                    simple_table_name = table_name
+                    full_table_name = None
+                    dataset = None
+
+                if full_table_name:
+                    try:
+                        info_query = f"""
+                           SELECT column_name, data_type, is_nullable
+                           FROM {dataset}.INFORMATION_SCHEMA.COLUMNS
+                           WHERE table_name = '{simple_table_name}'
+                           ORDER BY ordinal_position
+                           """
+                        info_result = self.backends[self.backend_key].execute(
+                            info_query
+                        )
+                        if "No results found" not in info_result:
+                            result = f"{backend_info}📋 **Table:** {full_table_name}\n\n**Column Information:**\n{info_result}"
+                            if show_sample:
+                                sample_query = (
+                                    f"SELECT * FROM {full_table_name} LIMIT 3"
+                                )
+                                sample_result = self.backends[self.backend_key].execute(
+                                    sample_query
+                                )
+                                result += f"\n\n📊 **Sample Data (first 3 rows):**\n{sample_result}"
+                            return result
+                    except Exception:
+                        pass
+
+                for ds in [
+                    self.config.get_env_var(
+                        "M3_BIGQUERY_HOSP_DATASET", "mimiciv_3_1_hosp"
+                    ),
+                    self.config.get_env_var(
+                        "M3_BIGQUERY_ICU_DATASET", "mimiciv_3_1_icu"
+                    ),
+                ]:
+                    try:
+                        full_table_name = f"`{self.config.get_env_var('M3_BIGQUERY_PROJECT', 'physionet-data')}.{ds}.{simple_table_name}`"
+                        info_query = f"""
+                           SELECT column_name, data_type, is_nullable
+                           FROM `{self.config.get_env_var("M3_BIGQUERY_PROJECT", "physionet-data")}.{ds}.INFORMATION_SCHEMA.COLUMNS`
+                           WHERE table_name = '{simple_table_name}'
+                           ORDER BY ordinal_position
+                           """
+                        info_result = self.backends[self.backend_key].execute(
+                            info_query
+                        )
+                        if "No results found" not in info_result:
+                            result = f"{backend_info}📋 **Table:** {full_table_name}\n\n**Column Information:**\n{info_result}"
+                            if show_sample:
+                                sample_query = (
+                                    f"SELECT * FROM {full_table_name} LIMIT 3"
+                                )
+                                sample_result = self.backends[self.backend_key].execute(
+                                    sample_query
+                                )
+                                result += f"\n\n📊 **Sample Data (first 3 rows):**\n{sample_result}"
+                            return result
+                    except Exception:
+                        continue
+                return f"{backend_info}❌ Table '{table_name}' not found in any dataset. Use get_database_schema() to see available tables."
+
+        def execute_mimic_query(sql_query: str) -> str:
+            """🚀 Execute SQL queries to analyze MIMIC-IV data.
+
+            **💡 Pro tip:** For best results, explore the database structure first!
+
+            **Recommended workflow (especially for smaller models):**
+            1. **See available tables:** Use `get_database_schema()` to list all tables
+            2. **Examine table structure:** Use `get_table_info('table_name')` to see columns and sample data
+            3. **Write your SQL query:** Use exact table/column names from exploration
+
+            **Why exploration helps:**
+            - Table names vary between backends (SQLite vs BigQuery)
+            - Column names may be unexpected (e.g., age might be 'anchor_age')
+            - Sample data shows actual formats and constraints
+
+            Args:
+                sql_query: Your SQL SELECT query (must be SELECT only)
+
+            Returns:
+                Query results or helpful error messages with next steps
+            """
+            is_safe, message = self._is_safe_query(sql_query)
+            if not is_safe:
+                if "describe" in sql_query.lower() or "show" in sql_query.lower():
+                    return f"❌ **Security Error:** {message}\n\n🔍 **For table structure:** Use `get_table_info('table_name')` instead of DESCRIBE\n📋 **Why this is better:** Shows columns, types, AND sample data to understand the actual data\n\n💡 **Recommended workflow:**\n1. `get_database_schema()` ← See available tables\n2. `get_table_info('table_name')` ← Explore structure\n3. `execute_mimic_query('SELECT ...')` ← Run your analysis"
+                return f"❌ **Security Error:** {message}\n\n💡 **Tip:** Only SELECT statements are allowed for data analysis."
+            try:
+                result = self.backends[self.backend_key].execute(sql_query)
+                return result
+            except Exception as e:
+                error_msg = str(e).lower()
+                suggestions = []
+                if "no such table" in error_msg or "table not found" in error_msg:
+                    suggestions.append(
+                        "🔍 **Table name issue:** Use `get_database_schema()` to see exact table names"
+                    )
+                    suggestions.append(
+                        f"📋 **Backend-specific naming:** {self.backend_key} has specific table naming conventions"
+                    )
+                    suggestions.append(
+                        "💡 **Quick fix:** Check if the table name matches exactly (case-sensitive)"
+                    )
+                if "no such column" in error_msg or "column not found" in error_msg:
+                    suggestions.append(
+                        "🔍 **Column name issue:** Use `get_table_info('table_name')` to see available columns"
+                    )
+                    suggestions.append(
+                        "📝 **Common issue:** Column might be named differently (e.g., 'anchor_age' not 'age')"
+                    )
+                    suggestions.append(
+                        "👀 **Check sample data:** `get_table_info()` shows actual column names and sample values"
+                    )
+                if "syntax error" in error_msg:
+                    suggestions.append(
+                        "📝 **SQL syntax issue:** Check quotes, commas, and parentheses"
+                    )
+                    suggestions.append(
+                        f"🎯 **Backend syntax:** Verify your SQL works with {self.backend_key}"
+                    )
+                    suggestions.append(
+                        "💭 **Try simpler:** Start with `SELECT * FROM table_name LIMIT 5`"
+                    )
+                if "describe" in error_msg.lower() or "show" in error_msg.lower():
+                    suggestions.append(
+                        "🔍 **Schema exploration:** Use `get_table_info('table_name')` instead of DESCRIBE"
+                    )
+                    suggestions.append(
+                        "📋 **Better approach:** `get_table_info()` shows columns AND sample data"
+                    )
+                if not suggestions:
+                    suggestions.append(
+                        "🔍 **Start exploration:** Use `get_database_schema()` to see available tables"
+                    )
+                    suggestions.append(
+                        "📋 **Check structure:** Use `get_table_info('table_name')` to understand the data"
+                    )
+                suggestion_text = "\n".join(f"   {s}" for s in suggestions)
+                return f"❌ **Query Failed:** {e}\n\n🛠️ **How to fix this:**\n{suggestion_text}\n\n🎯 **Quick Recovery Steps:**\n1. `get_database_schema()` ← See what tables exist\n2. `get_table_info('your_table')` ← Check exact column names\n3. Retry your query with correct names\n\n📚 **Current Backend:** {self.backend_key} - table names and syntax are backend-specific"
+
+        def get_icu_stays(patient_id: Optional[int] = None, limit: int = 10) -> str:
+            """🏥 Get ICU stay information and length of stay data.
+
+            **⚠️ Note:** This is a convenience function that assumes standard MIMIC-IV table structure.
+            **For reliable queries:** Use `get_database_schema()` → `get_table_info()` → `execute_mimic_query()` workflow.
+
+            **What you'll get:** Patient IDs, admission times, length of stay, and ICU details.
+
+            Args:
+                patient_id: Specific patient ID to query (optional)
+                limit: Maximum number of records to return (default: 10)
+
+            Returns:
+                ICU stay data as formatted text or guidance if table not found
+            """
+            if not validate_limit(limit):
+                return "Error: Invalid limit. Must be a positive integer between 1 and 1000."
+            icustays_table = self.table_names["icustays"]
+            if patient_id:
+                query = (
+                    f"SELECT * FROM {icustays_table} WHERE subject_id = {patient_id}"
+                )
+            else:
+                query = f"SELECT * FROM {icustays_table} LIMIT {limit}"
+            result = self.backends[self.backend_key].execute(query)
+            if "error" in result.lower() or "not found" in result.lower():
+                return f"❌ **Convenience function failed:** {result}\n\n💡 **For reliable results, use the proper workflow:**\n1. `get_database_schema()` ← See actual table names\n2. `get_table_info('table_name')` ← Understand structure\n3. `execute_mimic_query('your_sql')` ← Use exact names\n\nThis ensures compatibility across different MIMIC-IV setups."
+            return result
+
+        def get_lab_results(
+            patient_id: Optional[int] = None,
+            lab_item: Optional[str] = None,
+            limit: int = 20,
+        ) -> str:
+            """🧪 Get laboratory test results quickly.
+
+            **⚠️ Note:** This is a convenience function that assumes standard MIMIC-IV table structure.
+            **For reliable queries:** Use `get_database_schema()` → `get_table_info()` → `execute_mimic_query()` workflow.
+
+            **What you'll get:** Lab values, timestamps, patient IDs, and test details.
+
+            Args:
+                patient_id: Specific patient ID to query (optional)
+                lab_item: Lab item to search for in the value field (optional)
+                limit: Maximum number of records to return (default: 20)
+
+            Returns:
+                Lab results as formatted text or guidance if table not found
+            """
+            if not validate_limit(limit):
+                return "Error: Invalid limit. Must be a positive integer between 1 and 1000."
+            labevents_table = self.table_names["labevents"]
+            conditions = []
+            if patient_id:
+                conditions.append(f"subject_id = {patient_id}")
+            if lab_item:
+                escaped_lab_item = lab_item.replace("'", "''")
+                conditions.append(f"value LIKE '%{escaped_lab_item}%'")
+            base_query = f"SELECT * FROM {labevents_table}"
+            if conditions:
+                base_query += " WHERE " + " AND ".join(conditions)
+            base_query += f" LIMIT {limit}"
+            result = self.backends[self.backend_key].execute(base_query)
+            if "error" in result.lower() or "not found" in result.lower():
+                return f"❌ **Convenience function failed:** {result}\n\n💡 **For reliable results, use the proper workflow:**\n1. `get_database_schema()` ← See actual table names\n2. `get_table_info('table_name')` ← Understand structure\n3. `execute_mimic_query('your_sql')` ← Use exact names\n\nThis ensures compatibility across different MIMIC-IV setups."
+            return result
+
+        def get_race_distribution(limit: int = 10) -> str:
+            """📊 Get race distribution from hospital admissions.
+
+            **⚠️ Note:** This is a convenience function that assumes standard MIMIC-IV table structure.
+            **For reliable queries:** Use `get_database_schema()` → `get_table_info()` → `execute_mimic_query()` workflow.
+
+            **What you'll get:** Count of patients by race category, ordered by frequency.
+
+            Args:
+                limit: Maximum number of race categories to return (default: 10)
+
+            Returns:
+                Race distribution as formatted text or guidance if table not found
+            """
+            if not validate_limit(limit):
+                return "Error: Invalid limit. Must be a positive integer between 1 and 1000."
+            admissions_table = self.table_names["admissions"]
+            query = f"SELECT race, COUNT(*) as count FROM {admissions_table} GROUP BY race ORDER BY count DESC LIMIT {limit}"
+            result = self.backends[self.backend_key].execute(query)
+            if "error" in result.lower() or "not found" in result.lower():
+                return f"❌ **Convenience function failed:** {result}\n\n💡 **For reliable results, use the proper workflow:**\n1. `get_database_schema()` ← See actual table names\n2. `get_table_info('table_name')` ← Understand structure\n3. `execute_mimic_query('your_sql')` ← Use exact names\n\nThis ensures compatibility across different MIMIC-IV setups."
+            return result
+
+        actions_list = [
+            get_database_schema,
+            get_table_info,
+            execute_mimic_query,
+            get_icu_stays,
+            get_lab_results,
+            get_race_distribution,
+        ]
+        if self.auth:
+            actions_list = [self.auth.decorator(action) for action in actions_list]
+        return actions_list
+
+    def _set_required_env_vars(self, backend_key: str) -> None:
+        self.required_env_vars = {}
+
+        def add_required_vars(section_vars: List[Dict[str, Any]]) -> None:
+            for var in section_vars:
+                if var.get("required", False):
+                    key = var["key"]
+                    default = var.get("default", None)
+                    self.required_env_vars[key] = default
+
+        add_required_vars(self.env_config.get("core", []))
+
+        backend_section = self.env_config.get("backends", {}).get(backend_key, [])
+        add_required_vars(backend_section)
+
+        enabled = (
+            self.config.get_env_var("M3_OAUTH2_ENABLED", "false").lower() == "true"
+        )
+        if enabled:
+            add_required_vars(self.env_config.get("oauth2", []))
+
+        logger.debug(
+            f"Set {len(self.required_env_vars)} required env vars for backend '{backend_key}', oauth enabled: {enabled}"
+        )
+
+    def _set_backends(self, backends: List[BackendBase]) -> None:
+        self.backends = {
+            b.__class__.__name__.lower().replace("backend", ""): b for b in backends
+        }
+
+    def _set_auth(self) -> None:
+        enabled = (
+            self.config.get_env_var("M3_OAUTH2_ENABLED", "false").lower() == "true"
+        )
+        self.auth = Auth(self.config) if enabled else None
+
+    def _validate_backend_key(self, backend_key: str) -> None:
+        if backend_key not in self.backends:
+            raise M3ValidationError(f"Invalid backend key: {backend_key}")
+
+    def _initialize(self) -> None:
+        self.table_names = {}
+        if self.backend_key == "sqlite":
+            env_vars = {
+                "icustays": ("M3_ICUSTAYS_TABLE", "icu_icustays"),
+                "labevents": ("M3_LABEVENTS_TABLE", "hosp_labevents"),
+                "admissions": ("M3_ADMISSIONS_TABLE", "hosp_admissions"),
+            }
+            self.table_names = {
+                key: self.config.get_env_var(*env) for key, env in env_vars.items()
+            }
+        else:
+            prefix = self.config.get_env_var(
+                "M3_BIGQUERY_PREFIX", "`physionet-data.mimiciv_3_1_"
+            )
+            self.table_names = {
+                "icustays": f"{prefix}icu.icustays`",
+                "labevents": f"{prefix}hosp.labevents`",
+                "admissions": f"{prefix}hosp.admissions`",
+            }
+
+    def _get_backend_info(self) -> str:
+        if "sqlite" in self.backend_key.lower():
+            return f"🔧 **Current Backend:** SQLite (local database)\n📁 **Database Path:** {self.backends[self.backend_key].path}\n"
+        else:
+            return f"🔧 **Current Backend:** BigQuery (cloud database)\n☁️ **Project ID:** {self.backends[self.backend_key].project}\n"
+
+    def _is_safe_query(self, sql_query: str) -> Tuple[bool, str]:
+        if not sql_query or not sql_query.strip():
+            return False, "Empty query"
+        parsed = sqlparse.parse(sql_query.strip())
+        if not parsed:
+            return False, "Invalid SQL syntax"
+        if len(parsed) > 1:
+            return False, "Multiple statements not allowed"
+        statement = parsed[0]
+        statement_type = statement.get_type()
+        if statement_type not in ("SELECT", "UNKNOWN"):
+            return False, "Only SELECT and PRAGMA queries allowed"
+        sql_upper = sql_query.strip().upper()
+        if sql_upper.startswith("PRAGMA"):
+            return True, "Safe PRAGMA statement"
+        if not self.security_config:
+            self.security_config = load_security_config()
+        dangerous_keywords = set(self.security_config.get("dangerous_keywords", []))
+        for keyword in dangerous_keywords:
+            if f" {keyword} " in f" {sql_upper} ":
+                return False, f"Write operation not allowed: {keyword}"
+        injection_patterns = self.security_config.get("injection_patterns", [])
+        for pattern, description in injection_patterns:
+            if pattern.upper() in sql_upper:
+                return False, f"Injection pattern detected: {description}"
+        suspicious_names = set(self.security_config.get("suspicious_names", []))
+        for name in suspicious_names:
+            if name.upper() in sql_upper:
+                return (
+                    False,
+                    f"Suspicious identifier detected: {name} (not medical data)",
+                )
+        return True, "Safe"
+
+    def _post_load(self) -> None:
+        self.data_io = DataIO(self.config)
+        enabled = (
+            self.config.get_env_var("M3_OAUTH2_ENABLED", "false").lower() == "true"
+        )
+        self.auth = Auth(self.config) if enabled else None
+
+
+
+================================================
+FILE: mimic/components/__init__.py
+================================================
+from .auth import Auth
+from .data_io import DataIO
+
+__all__ = ["Auth", "DataIO"]
+
+
+
+================================================
+FILE: mimic/components/auth.py
+================================================
+import asyncio
+import logging
+import time
+from collections.abc import Callable
+from functools import wraps
+from urllib.parse import urljoin
+
+import httpx
+import jwt
+from beartype import beartype
+from beartype.typing import Any, Dict, List, Optional
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
+
+from m3.core.config import M3Config
+from m3.core.utils.exceptions import M3ValidationError
+
+logger = logging.getLogger(__name__)
+
+
+@beartype
+class Auth:
+    def __init__(self, config: M3Config) -> None:
+        self.config = config
+        self._set_enabled()
+        if not self.enabled:
+            return
+        self._set_issuer_and_audience()
+        self._set_required_scopes()
+        self._set_jwks_url()
+        self._set_cache()
+        self._set_http_client()
+        self._set_rate_limit()
+        self._set_validation_flags()
+        logger.info(f"OAuth2 enabled: {self.enabled}, issuer: {self.issuer_url}")
+
+    async def authenticate(self, token: str) -> Dict[str, Any]:
+        jwks = await self._get_jwks()
+        unverified_header = jwt.get_unverified_header(token)
+        kid = unverified_header.get("kid")
+        if not kid:
+            raise M3ValidationError("Token missing key ID (kid)")
+        key = self._find_key(jwks, kid)
+        if not key:
+            raise M3ValidationError(f"No key found for kid: {kid}")
+        public_key = self._jwk_to_pem(key)
+        payload = jwt.decode(
+            token,
+            public_key,
+            algorithms=["RS256", "ES256"],
+            audience=self.audience,
+            issuer=self.issuer_url,
+        )
+        self._validate_scopes(payload)
+        if self.rate_limit_enabled:
+            self._check_rate_limit(payload)
+        return payload
+
+    @staticmethod
+    def generate_test_token(
+        issuer: str = "https://test-issuer.example.com",
+        audience: str = "m3-api",
+        subject: str = "test-user",
+        scopes: Optional[List[str]] = None,
+        expires_in: int = 3600,
+    ) -> str:
+        from datetime import datetime, timedelta, timezone
+
+        scopes = scopes or ["read:mimic-data"]
+        now = datetime.now(timezone.utc)
+        claims = {
+            "iss": issuer,
+            "aud": audience,
+            "sub": subject,
+            "iat": int(now.timestamp()),
+            "exp": int((now + timedelta(seconds=expires_in)).timestamp()),
+            "scope": " ".join(scopes),
+        }
+        private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        private_pem = private_key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption(),
+        )
+        return jwt.encode(claims, private_pem, algorithm="RS256")
+
+    def decorator(self, func: Callable) -> Callable:
+        @wraps(func)
+        async def wrapper(*args: Any, **kwargs: Any) -> Any:
+            if not self.enabled:
+                return (
+                    await func(*args, **kwargs)
+                    if asyncio.iscoroutinefunction(func)
+                    else func(*args, **kwargs)
+                )
+            token = self.config.get_env_var("M3_OAUTH2_TOKEN", "")
+            if token.startswith("Bearer "):
+                token = token[7:]
+            if not token:
+                raise M3ValidationError("Missing OAuth2 access token")
+            await self.authenticate(token)
+            return (
+                await func(*args, **kwargs)
+                if asyncio.iscoroutinefunction(func)
+                else func(*args, **kwargs)
+            )
+
+        return wrapper
+
+    async def _get_jwks(self) -> Dict[str, Any]:
+        current_time = time.time()
+        if (
+            self._jwks_cache
+            and current_time - self._jwks_cache_time < self.jwks_cache_ttl
+        ):
+            return self._jwks_cache
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.get(self.jwks_url)
+            response.raise_for_status()
+            jwks = response.json()
+        self._jwks_cache = jwks
+        self._jwks_cache_time = current_time
+        return jwks
+
+    def _find_key(self, jwks: Dict[str, Any], kid: str) -> Optional[Dict[str, Any]]:
+        keys = jwks.get("keys", [])
+        for key in keys:
+            if key.get("kid") == kid:
+                return key
+        return None
+
+    def _jwk_to_pem(self, jwk: Dict[str, Any]) -> bytes:
+        from jose.utils import base64url_decode
+
+        if jwk.get("kty") == "RSA":
+            n = base64url_decode(jwk["n"])
+            e = base64url_decode(jwk["e"])
+            public_numbers = rsa.RSAPublicNumbers(
+                int.from_bytes(e, byteorder="big"),
+                int.from_bytes(n, byteorder="big"),
+            )
+            public_key = public_numbers.public_key()
+            pem = public_key.public_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PublicFormat.SubjectPublicKeyInfo,
+            )
+            return pem
+        raise M3ValidationError(f"Unsupported key type: {jwk.get('kty')}")
+
+    def _validate_scopes(self, payload: Dict[str, Any]) -> None:
+        token_scopes = set()
+        scope_claim = payload.get("scope", "")
+        if isinstance(scope_claim, str):
+            token_scopes = set(scope_claim.split())
+        elif isinstance(scope_claim, list):
+            token_scopes = set(scope_claim)
+        scp_claim = payload.get("scp", [])
+        if isinstance(scp_claim, list):
+            token_scopes.update(scp_claim)
+        missing_scopes = self.required_scopes - token_scopes
+        if missing_scopes:
+            raise M3ValidationError(f"Missing required scopes: {missing_scopes}")
+
+    def _check_rate_limit(self, payload: Dict[str, Any]) -> None:
+        user_id = payload.get("sub", "unknown")
+        current_time = time.time()
+        window_start = current_time - self.rate_limit_window
+        user_requests = self._rate_limit_cache.get(user_id, [])
+        user_requests = [t for t in user_requests if t > window_start]
+        if len(user_requests) >= self.rate_limit_requests:
+            raise M3ValidationError("Rate limit exceeded")
+        user_requests.append(current_time)
+        self._rate_limit_cache[user_id] = user_requests
+
+    def _set_enabled(self) -> None:
+        self.enabled = (
+            self.config.get_env_var("M3_OAUTH2_ENABLED", "false").lower() == "true"
+        )
+
+    def _set_issuer_and_audience(self) -> None:
+        self.issuer_url = self.config.get_env_var(
+            "M3_OAUTH2_ISSUER_URL", raise_if_missing=True
+        )
+        self.audience = self.config.get_env_var(
+            "M3_OAUTH2_AUDIENCE", raise_if_missing=True
+        )
+
+    def _set_required_scopes(self) -> None:
+        self.required_scopes = {
+            scope.strip()
+            for scope in self.config.get_env_var(
+                "M3_OAUTH2_REQUIRED_SCOPES", "read:mimic-data"
+            ).split(",")
+        }
+
+    def _set_jwks_url(self) -> None:
+        self.jwks_url = self.config.get_env_var("M3_OAUTH2_JWKS_URL") or urljoin(
+            self.issuer_url.rstrip("/"), "/.well-known/jwks.json"
+        )
+
+    def _set_cache(self) -> None:
+        self.jwks_cache_ttl = 3600
+        self._jwks_cache = {}
+        self._jwks_cache_time = 0
+
+    def _set_http_client(self) -> None:
+        self.http_client = httpx.Client(timeout=30.0)
+
+    def _set_rate_limit(self) -> None:
+        self.rate_limit_enabled = True
+        self.rate_limit_requests = 100
+        self.rate_limit_window = 3600
+        self._rate_limit_cache = {}
+
+    def _set_validation_flags(self) -> None:
+        self.validate_exp = (
+            self.config.get_env_var("M3_OAUTH2_VALIDATE_EXP", "true").lower() == "true"
+        )
+        self.validate_aud = (
+            self.config.get_env_var("M3_OAUTH2_VALIDATE_AUD", "true").lower() == "true"
+        )
+        self.validate_iss = (
+            self.config.get_env_var("M3_OAUTH2_VALIDATE_ISS", "true").lower() == "true"
+        )
+
+
+
+================================================
+FILE: mimic/components/data_io.py
+================================================
+import logging
+from pathlib import Path
+from urllib.parse import urljoin, urlparse
+
+import polars as pl
+import requests
+from beartype import beartype
+from beartype.typing import Any, Dict, List
+from bs4 import BeautifulSoup
+from rich.console import Console
+from rich.progress import Progress
+
+from m3.core.config import M3Config
+from m3.core.utils.exceptions import M3ValidationError
+from m3.tools.mimic.components.utils import (
+    get_dataset_config,
+    get_dataset_raw_files_path,
+)
+
+logger = logging.getLogger(__name__)
+
+COMMON_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+
+console = Console()
+
+
+@beartype
+class DataIO:
+    def __init__(self, config: M3Config) -> None:
+        self.config = config
+
+    def initialize(self, dataset: str, path: Path) -> bool:
+        dataset_config = self._get_dataset_config(dataset)
+        raw_files_root_dir = self._get_raw_files_path(dataset)
+        logger.info(f"Initializing {dataset} at {path}")
+        console.print(
+            f"[turquoise4]💬 Initializing {dataset} at {path}...[/turquoise4]"
+        )
+
+        console.print("[cyan]Downloading dataset files...[/cyan]")
+        if not self._download_dataset_files(dataset_config, raw_files_root_dir):
+            logger.error(f"Download failed for {dataset}.")
+            console.print(f"[red]❌ Download failed for {dataset}.[/red]")
+            return False
+
+        console.print("[cyan]Loading files to SQLite...[/cyan]")
+        if not self._etl_csv_collection_to_sqlite(raw_files_root_dir, path):
+            logger.error(f"ETL failed for {dataset}.")
+            console.print(f"[red]❌ ETL failed for {dataset}.[/red]")
+            return False
+
+        logger.info(f"Successfully initialized {dataset}.")
+        console.print(f"[green]✅ Successfully initialized {dataset}.[/green]")
+        return True
+
+    def _get_dataset_config(self, dataset: str) -> Dict[str, Any]:
+        config = get_dataset_config(dataset)
+        if not config:
+            raise M3ValidationError(f"Config not found for '{dataset}'.")
+        return config
+
+    def _get_raw_files_path(self, dataset: str) -> Path:
+        path = get_dataset_raw_files_path(self.config, dataset)
+        if path is None:
+            raise M3ValidationError(f"Raw files path not found for '{dataset}'.")
+        return path
+
+    def _download_dataset_files(
+        self,
+        dataset_config: Dict[str, Any],
+        raw_files_root_dir: Path,
+    ) -> bool:
+        base_listing_url = dataset_config["file_listing_url"]
+        subdirs_to_scan = dataset_config.get("subdirectories_to_scan", [])
+        session = requests.Session()
+        session.headers.update({"User-Agent": COMMON_USER_AGENT})
+        all_files_to_process = []
+        for subdir_name in subdirs_to_scan:
+            subdir_listing_url = urljoin(base_listing_url, f"{subdir_name}/")
+            csv_urls_in_subdir = self._scrape_urls_from_html_page(
+                subdir_listing_url, session
+            )
+            if not csv_urls_in_subdir:
+                continue
+            for file_url in csv_urls_in_subdir:
+                url_path_obj = Path(urlparse(file_url).path)
+                base_listing_url_path_obj = Path(urlparse(base_listing_url).path)
+                relative_file_path = (
+                    url_path_obj.relative_to(base_listing_url_path_obj)
+                    if url_path_obj.as_posix().startswith(
+                        base_listing_url_path_obj.as_posix()
+                    )
+                    else Path(subdir_name) / url_path_obj.name
+                )
+                local_target_path = raw_files_root_dir / relative_file_path
+                all_files_to_process.append((file_url, local_target_path))
+        if not all_files_to_process:
+            return False
+        unique_files_to_process = sorted(set(all_files_to_process), key=lambda x: x[1])
+        downloaded_count = 0
+        for file_url, target_filepath in unique_files_to_process:
+            if not self._download_single_file(file_url, target_filepath, session):
+                return False
+            downloaded_count += 1
+        return downloaded_count == len(unique_files_to_process)
+
+    def _download_single_file(
+        self, url: str, target_filepath: Path, session: requests.Session
+    ) -> bool:
+        try:
+            response = session.get(url, stream=True, timeout=60)
+            response.raise_for_status()
+            total_size = int(response.headers.get("content-length", 0))
+            target_filepath.parent.mkdir(parents=True, exist_ok=True)
+            with open(target_filepath, "wb") as file_object:
+                with Progress(console=console, transient=True) as progress:
+                    task = progress.add_task(
+                        f"[cyan]Downloading {target_filepath.name}", total=total_size
+                    )
+                    for chunk in response.iter_content(chunk_size=8192):
+                        if chunk:
+                            file_object.write(chunk)
+                            progress.update(task, advance=len(chunk))
+            return True
+        except Exception as e:
+            logger.error(f"Download failed for {url}: {e}")
+            if target_filepath.exists():
+                target_filepath.unlink()
+            console.print(f"[red]❌ Download failed for {url}: {e}[/red]")
+            return False
+
+    def _scrape_urls_from_html_page(
+        self, page_url: str, session: requests.Session, file_suffix: str = ".csv.gz"
+    ) -> List[str]:
+        found_urls = []
+        try:
+            page_response = session.get(page_url, timeout=30)
+            page_response.raise_for_status()
+            soup = BeautifulSoup(page_response.content, "html.parser")
+            for link_tag in soup.find_all("a", href=True):
+                href_path = link_tag["href"]
+                if (
+                    href_path.endswith(file_suffix)
+                    and not href_path.startswith(("?", "#"))
+                    and ".." not in href_path
+                ):
+                    absolute_url = urljoin(page_url, href_path)
+                    found_urls.append(absolute_url)
+        except Exception as e:
+            logger.error(f"Scrape failed for {page_url}: {e}")
+            console.print(f"[red]❌ Scrape failed for {page_url}: {e}[/red]")
+        return found_urls
+
+    def _etl_csv_collection_to_sqlite(
+        self, csv_source_dir: Path, db_target_path: Path
+    ) -> bool:
+        db_target_path.parent.mkdir(parents=True, exist_ok=True)
+        db_connection_uri = f"sqlite:///{db_target_path.resolve()}"
+        csv_file_paths = list(csv_source_dir.rglob("*.csv.gz"))
+        if not csv_file_paths:
+            return False
+        successfully_loaded_count = 0
+        files_with_errors = []
+        with Progress(console=console) as progress:
+            total_task = progress.add_task(
+                "[cyan]Loading CSV files to SQLite...", total=len(csv_file_paths)
+            )
+            for csv_file_path in csv_file_paths:
+                relative_path = csv_file_path.relative_to(csv_source_dir)
+                table_name_parts = [part.lower() for part in relative_path.parts]
+                table_name = (
+                    "_".join(table_name_parts)
+                    .replace(".csv.gz", "")
+                    .replace("-", "_")
+                    .replace(".", "_")
+                )
+                try:
+                    dataframe = self._load_csv_with_robust_parsing(
+                        csv_file_path, table_name
+                    )
+                    dataframe.write_database(
+                        table_name=table_name,
+                        connection=db_connection_uri,
+                        if_table_exists="replace",
+                        engine="sqlalchemy",
+                    )
+                    successfully_loaded_count += 1
+                except Exception as e:
+                    err_msg = (
+                        f"ETL error for '{relative_path}' (table '{table_name}'): {e}"
+                    )
+                    logger.error(err_msg, exc_info=True)
+                    files_with_errors.append(err_msg)
+                    console.print(f"[red]❌ {err_msg}[/red]")
+                progress.update(total_task, advance=1)
+
+        if files_with_errors:
+            logger.warning(f"ETL errors in {len(files_with_errors)} files:")
+            for detail in files_with_errors:
+                logger.warning(f"  - {detail}")
+
+        return successfully_loaded_count == len(csv_file_paths)
+
+    def _load_csv_with_robust_parsing(
+        self, csv_file_path: Path, table_name: str
+    ) -> pl.DataFrame:
+        try:
+            dataframe = pl.read_csv(
+                source=csv_file_path,
+                infer_schema_length=None,
+                try_parse_dates=True,
+                ignore_errors=False,
+                null_values=["", "NULL", "null", "\\N", "NA"],
+            )
+            if dataframe.height > 0:
+                empty_columns = [
+                    column
+                    for column in dataframe.columns
+                    if dataframe[column].is_null().all()
+                ]
+                if empty_columns:
+                    logger.debug(f"Empty columns in {table_name}: {empty_columns}")
+            return dataframe
+        except Exception as e:
+            raise M3ValidationError(f"Failed to parse CSV {csv_file_path}: {e}") from e
+
+
+
+================================================
+FILE: mimic/components/utils.py
+================================================
+import logging
+from pathlib import Path
+
+import yaml
+from beartype import beartype
+from beartype.typing import Any, Dict
+
+from m3.core.config import M3Config
+from m3.core.utils.exceptions import M3ValidationError
+
+logger = logging.getLogger(__name__)
+
+
+@beartype
+def load_supported_datasets() -> Dict[str, Dict[str, Any]]:
+    yaml_path = Path(__file__).parent.parent / "configurations" / "datasets.yaml"
+    if not yaml_path.exists():
+        raise RuntimeError(f"datasets.yaml not found at {yaml_path}")
+    with open(yaml_path) as f:
+        return yaml.safe_load(f)
+
+
+@beartype
+def get_dataset_config(dataset_name: str) -> Dict[str, Any] | None:
+    datasets = load_supported_datasets()
+    return datasets.get(dataset_name.lower())
+
+
+@beartype
+def get_default_database_path(base_config: M3Config, dataset_name: str) -> Path | None:
+    cfg = get_dataset_config(dataset_name)
+    if not cfg:
+        return None
+    default_filename = cfg.get("default_db_filename", f"{dataset_name}.db")
+    env_key = f"M3_{dataset_name.upper()}_DATA_DIR"
+    default_dir_str = base_config.get_env_var(env_key)
+    default_dir = (
+        Path(default_dir_str)
+        if default_dir_str
+        else base_config.databases_dir / dataset_name
+    )
+    return default_dir / default_filename
+
+
+@beartype
+def get_dataset_raw_files_path(base_config: M3Config, dataset_name: str) -> Path | None:
+    cfg = get_dataset_config(dataset_name)
+    if not cfg:
+        logger.warning(f"Unknown dataset: {dataset_name}")
+        return None
+    env_key = f"M3_{dataset_name.upper()}_RAW_DIR"
+    raw_dir_str = base_config.get_env_var(env_key)
+    path = (
+        Path(raw_dir_str)
+        if raw_dir_str
+        else base_config.raw_files_dir / dataset_name.lower()
+    )
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+@beartype
+def load_security_config() -> Dict[str, Any]:
+    yaml_path = Path(__file__).parent.parent / "configurations" / "security.yaml"
+    if not yaml_path.exists():
+        raise RuntimeError(f"security.yaml not found at {yaml_path}")
+    with open(yaml_path) as f:
+        return yaml.safe_load(f)
+
+
+@beartype
+def load_env_vars_config() -> Dict[str, Any]:
+    yaml_path = Path(__file__).parent.parent / "configurations" / "env_vars.yaml"
+    if not yaml_path.exists():
+        raise M3ValidationError(f"env_vars.yaml not found at {yaml_path}")
+    try:
+        with open(yaml_path) as f:
+            config = yaml.safe_load(f)
+        if not isinstance(config, dict):
+            raise ValueError("Invalid YAML structure; expected a dictionary.")
+        logger.debug(f"Loaded env_vars.yaml from {yaml_path}")
+        return config
+    except (yaml.YAMLError, ValueError) as e:
+        raise M3ValidationError(f"Failed to load env_vars.yaml: {e}") from e
+
+
+def validate_limit(limit: int) -> bool:
+    return isinstance(limit, int) and 0 < limit <= 1000
+
+
+
+================================================
+FILE: mimic/configurations/datasets.yaml
+================================================
+mimic-iv-demo:
+  file_listing_url: "https://physionet.org/files/mimic-iv-demo/2.2/"
+  subdirectories_to_scan: ["hosp", "icu"]
+  default_db_filename: "mimic_iv_demo.db"
+  primary_verification_table: "hosp_admissions"
+
+
+
+================================================
+FILE: mimic/configurations/env_vars.yaml
+================================================
+core:
+  - key: M3_BACKEND
+    default: sqlite
+    required: false
+    description: "Backend type ('sqlite' or 'bigquery'). Determines data storage and query engine."
+
+backends:
+  sqlite:
+    - key: M3_DB_PATH
+      default: null
+      required: false
+      description: "Path to SQLite database file."
+    - key: M3_ICUSTAYS_TABLE
+      default: icu_icustays
+      required: false
+      description: "Table name for ICU stays in SQLite."
+    - key: M3_LABEVENTS_TABLE
+      default: hosp_labevents
+      required: false
+      description: "Table name for lab events in SQLite."
+    - key: M3_ADMISSIONS_TABLE
+      default: hosp_admissions
+      required: false
+      description: "Table name for admissions in SQLite."
+  bigquery:
+    - key: M3_PROJECT_ID
+      default: null
+      required: true
+      description: "GCP Project ID for BigQuery."
+    - key: GOOGLE_CLOUD_PROJECT
+      default: null
+      required: true
+      description: "GCP Project ID (alias for M3_PROJECT_ID)."
+    - key: M3_BIGQUERY_PREFIX
+      default: "`physionet-data.mimiciv_3_1_"
+      required: false
+      description: "Prefix for BigQuery table names."
+    - key: M3_BIGQUERY_HOSP_DATASET
+      default: mimiciv_3_1_hosp
+      required: false
+      description: "BigQuery dataset for hospital data."
+    - key: M3_BIGQUERY_ICU_DATASET
+      default: mimiciv_3_1_icu
+      required: false
+      description: "BigQuery dataset for ICU data."
+    - key: M3_BIGQUERY_PROJECT
+      default: physionet-data
+      required: false
+      description: "BigQuery project name."
+
+oauth2:
+  - key: M3_OAUTH2_ENABLED
+    default: false
+    required: false
+    description: "Enable OAuth2 authentication (true/false)."
+  - key: M3_OAUTH2_ISSUER_URL
+    default: null
+    required: true
+    description: "OAuth2 issuer URL. (Required if OAuth2 is enabled.)"
+  - key: M3_OAUTH2_AUDIENCE
+    default: null
+    required: true
+    description: "OAuth2 audience. (Required if OAuth2 is enabled.)"
+  - key: M3_OAUTH2_REQUIRED_SCOPES
+    default: read:mimic-data
+    required: false
+    description: "Required OAuth2 scopes (comma-separated)."
+  - key: M3_OAUTH2_JWKS_URL
+    default: null
+    required: false
+    description: "OAuth2 JWKS URL (optional; auto-derived if unset)."
+  - key: M3_OAUTH2_VALIDATE_EXP
+    default: true
+    required: false
+    description: "Validate token expiration (true/false)."
+  - key: M3_OAUTH2_VALIDATE_AUD
+    default: true
+    required: false
+    description: "Validate token audience (true/false)."
+  - key: M3_OAUTH2_VALIDATE_ISS
+    default: true
+    required: false
+    description: "Validate token issuer (true/false)."
+  - key: M3_OAUTH2_TOKEN
+    default: ""
+    required: false
+    description: "OAuth2 access token (set at runtime)."
+
+
+
+================================================
+FILE: mimic/configurations/security.yaml
+================================================
+dangerous_keywords:
+  - INSERT
+  - UPDATE
+  - DELETE
+  - DROP
+  - CREATE
+  - ALTER
+  - TRUNCATE
+  - REPLACE
+  - MERGE
+  - EXEC
+  - EXECUTE
+
+injection_patterns:
+  - ["1=1", "Classic injection pattern"]
+  - ["OR 1=1", "Boolean injection pattern"]
+  - ["AND 1=1", "Boolean injection pattern"]
+  - ["OR '1'='1'", "String injection pattern"]
+  - ["AND '1'='1'", "String injection pattern"]
+  - ["WAITFOR", "Time-based injection"]
+  - ["SLEEP(", "Time-based injection"]
+  - ["BENCHMARK(", "Time-based injection"]
+  - ["LOAD_FILE(", "File access injection"]
+  - ["INTO OUTFILE", "File write injection"]
+  - ["INTO DUMPFILE", "File write injection"]
+
+suspicious_names:
+  - PASSWORD
+  - ADMIN
+  - USER
+  - LOGIN
+  - AUTH
+  - TOKEN
+  - CREDENTIAL
+  - SECRET
+  - KEY
+  - HASH
+  - SALT
+  - SESSION
+  - COOKIE
