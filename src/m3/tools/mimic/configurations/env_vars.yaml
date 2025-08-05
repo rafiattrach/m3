@@ -1,0 +1,87 @@
+core:
+  - key: M3_BACKEND
+    default: sqlite
+    required: false
+    description: "Backend type ('sqlite' or 'bigquery'). Determines data storage and query engine."
+
+backends:
+  sqlite:
+    - key: M3_DB_PATH
+      default: null
+      required: false
+      description: "Path to SQLite database file."
+    - key: M3_ICUSTAYS_TABLE
+      default: icu_icustays
+      required: false
+      description: "Table name for ICU stays in SQLite."
+    - key: M3_LABEVENTS_TABLE
+      default: hosp_labevents
+      required: false
+      description: "Table name for lab events in SQLite."
+    - key: M3_ADMISSIONS_TABLE
+      default: hosp_admissions
+      required: false
+      description: "Table name for admissions in SQLite."
+  bigquery:
+    - key: M3_PROJECT_ID
+      default: null
+      required: true
+      description: "GCP Project ID for BigQuery."
+    - key: GOOGLE_CLOUD_PROJECT
+      default: null
+      required: true
+      description: "GCP Project ID (alias for M3_PROJECT_ID)."
+    - key: M3_BIGQUERY_PREFIX
+      default: "`physionet-data.mimiciv_3_1_"
+      required: false
+      description: "Prefix for BigQuery table names."
+    - key: M3_BIGQUERY_HOSP_DATASET
+      default: mimiciv_3_1_hosp
+      required: false
+      description: "BigQuery dataset for hospital data."
+    - key: M3_BIGQUERY_ICU_DATASET
+      default: mimiciv_3_1_icu
+      required: false
+      description: "BigQuery dataset for ICU data."
+    - key: M3_BIGQUERY_PROJECT
+      default: physionet-data
+      required: false
+      description: "BigQuery project name."
+
+oauth2:
+  - key: M3_OAUTH2_ENABLED
+    default: false
+    required: false
+    description: "Enable OAuth2 authentication (true/false)."
+  - key: M3_OAUTH2_ISSUER_URL
+    default: null
+    required: true
+    description: "OAuth2 issuer URL. (Required if OAuth2 is enabled.)"
+  - key: M3_OAUTH2_AUDIENCE
+    default: null
+    required: true
+    description: "OAuth2 audience. (Required if OAuth2 is enabled.)"
+  - key: M3_OAUTH2_REQUIRED_SCOPES
+    default: read:mimic-data
+    required: false
+    description: "Required OAuth2 scopes (comma-separated)."
+  - key: M3_OAUTH2_JWKS_URL
+    default: null
+    required: false
+    description: "OAuth2 JWKS URL (optional; auto-derived if unset)."
+  - key: M3_OAUTH2_VALIDATE_EXP
+    default: true
+    required: false
+    description: "Validate token expiration (true/false)."
+  - key: M3_OAUTH2_VALIDATE_AUD
+    default: true
+    required: false
+    description: "Validate token audience (true/false)."
+  - key: M3_OAUTH2_VALIDATE_ISS
+    default: true
+    required: false
+    description: "Validate token issuer (true/false)."
+  - key: M3_OAUTH2_TOKEN
+    default: ""
+    required: false
+    description: "OAuth2 access token (set at runtime)."
