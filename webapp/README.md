@@ -2,6 +2,12 @@
 
 This file provides instructions on how to run and build the M3 web application.
 
+## Setup
+```bash
+cd webapp        # Navigate to webapp directory
+npm install      # Install dependencies
+```
+
 ## Available Scripts
 
 In the project directory, you can run:
