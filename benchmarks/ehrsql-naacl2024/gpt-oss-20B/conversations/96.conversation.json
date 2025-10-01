@@ -1,0 +1,1277 @@
+{
+  "name": "Current Elderly Patient Count",
+  "pinned": false,
+  "createdAt": 1758977659374,
+  "preset": "@local:m3-benchmark",
+  "tokenCount": 3042,
+  "systemPrompt": "",
+  "messages": [
+    {
+      "versions": [
+        {
+          "type": "singleStep",
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "How many current patients are there aged 60 or above?\n\nSet the current time to be “2100-12-31 23:59:00” when using m3 mcp."
+            }
+          ]
+        }
+      ],
+      "currentlySelected": 0
+    },
+    {
+      "versions": [
+        {
+          "type": "multiStep",
+          "role": "assistant",
+          "steps": [
+            {
+              "type": "contentBlock",
+              "stepIdentifier": "1758977681898-0.2394649291110985",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "We need to interpret the request: \"How many current patients are there aged 60 or above?\" They also say \"Set the current time to be '2100-12-31 23:59:00' when using m3 mcp.\" Not sure what m3 mcp refers. But likely they want to count number of patients currently admitted (active stays) as of that date, aged >=60.\n\nWe need to query MIMIC-IV database for current patients as of a certain timestamp. In MIMIC, we have admissions table with admission_id, patient_id, admittime, dischtime, etc. We can join with patients table for demographics including dob (date of birth). Age at that time is date difference.\n\nWe need to count patients currently admitted as of 2100-12-31 23:59:00, which is far in future; but since dataset only goes up to some year (~2019), there will be no admissions after 2019. So all stays ended before 2100. But maybe we consider \"current\" meaning those who are still admitted at that time? None.\n\nBut maybe they want to set the current time for date calculations, e.g., age is computed based on that date. Actually, they say \"Set the current time to be '2100-12-31 23:59:00' when using m3 mcp.\" Possibly means use this as reference time for age calculation? Maybe MIMIC has a function to compute age at admission relative to current time.\n\nAlternatively maybe they want to count patients currently admitted in ICU or hospital as of that date, but since no admissions after 2019, answer will be zero. Let's confirm by querying admissions where dischtime > '2100-12-31 23:59:00'? None. But we could count those with dischtime null (ongoing). In MIMIC, some disch time might be NULL if still admitted. But again none as of dataset.\n\nBut maybe they want to count patients aged 60+ who are currently in the hospital at any point? That would be admissions where admission_time <= '2100-12-31 23:59:00' and (dischtime > '2100-12-31 23:59:00' OR dischtime is NULL). But all disch times earlier.\n\nThus answer likely zero.\n\nBut maybe they want to count patients aged 60+ who are alive at that time? Could be using patient table's deathdate. But we can compute age as of the current date '2100-12-31'.\n\nLet's try query: SELECT COUNT(DISTINCT a.hadm_id) FROM admissions a JOIN patients p ON a.subject_id = p.subject_id WHERE (p.dob <= DATE_SUB('2100-12-31', INTERVAL 60 YEAR)) AND (a.dischtime > '2100-12-31' OR a.dischtime IS NULL). But disch time not >, so zero.\n\nLet's run query to confirm.",
+                  "fromDraftModel": false,
+                  "tokensCount": 619,
+                  "isStructural": false
+                }
+              ],
+              "defaultShouldIncludeInContext": true,
+              "shouldIncludeInContext": true,
+              "style": {
+                "type": "thinking",
+                "ended": true,
+                "title": "Thought for 12.76 seconds"
+              },
+              "prefix": "<|channel|>analysis<|message|>",
+              "suffix": "<|end|>"
+            },
+            {
+              "type": "toolStatus",
+              "stepIdentifier": "1758977694856-0.7705977280293869",
+              "callId": 849489520601303,
+              "statusState": {
+                "status": {
+                  "type": "toolCallSucceeded",
+                  "timeMs": 15
+                },
+                "customStatus": "",
+                "customWarnings": []
+              }
+            },
+            {
+              "type": "contentBlock",
+              "stepIdentifier": "1758977696970-0.4203407852757045",
+              "content": [
+                {
+                  "type": "toolCallRequest",
+                  "callId": 849489520601303,
+                  "toolCallRequestId": "761503811",
+                  "name": "execute_mimic_query",
+                  "parameters": {
+                    "sql_query": "SELECT COUNT(DISTINCT a.hadm_id) AS current_patients_60_plus\nFROM admissions a\nJOIN patients p ON a.subject_id = p.subject_id\nWHERE (p.dob <= DATE_SUB('2100-12-31', INTERVAL 60 YEAR))\nAND (a.dischtime > '2100-12-31' OR a.dischtime IS NULL);"
+                  },
+                  "pluginIdentifier": "mcp/m3"
+                }
+              ],
+              "defaultShouldIncludeInContext": true,
+              "shouldIncludeInContext": true,
+              "genInfo": {
+                "indexedModelIdentifier": "openai/gpt-oss-20b",
+                "identifier": "openai/gpt-oss-20b",
+                "loadModelConfig": {
+                  "fields": [
+                    {
+                      "key": "llm.load.llama.cpuThreadPoolSize",
+                      "value": 7
+                    },
+                    {
+                      "key": "llm.load.contextLength",
+                      "value": 32000
+                    },
+                    {
+                      "key": "llm.load.numExperts",
+                      "value": 4
+                    },
+                    {
+                      "key": "llm.load.llama.acceleration.offloadRatio",
+                      "value": 1
+                    }
+                  ]
+                },
+                "predictionConfig": {
+                  "fields": [
+                    {
+                      "key": "llm.prediction.promptTemplate",
+                      "value": {
+                        "type": "jinja",
+                        "jinjaPromptTemplate": {
+                          "template": "{#-\n  In addition to the normal inputs of `messages` and `tools`, this template also accepts the\n  following kwargs:\n  - \"builtin_tools\": A list, can contain \"browser\" and/or \"python\".\n  - \"model_identity\": A string that optionally describes the model identity.\n  - \"reasoning_effort\": A string that describes the reasoning effort, defaults to \"medium\".\n #}\n\n{#- Tool Definition Rendering ============================================== #}\n{%- macro render_typescript_type(param_spec, required_params, is_nullable=false) -%}\n    {%- if param_spec.type == \"array\" -%}\n        {%- if param_spec['items'] -%}\n            {%- if param_spec['items']['type'] == \"string\" -%}\n                {{- \"string[]\" }}\n            {%- elif param_spec['items']['type'] == \"number\" -%}\n                {{- \"number[]\" }}\n            {%- elif param_spec['items']['type'] == \"integer\" -%}\n                {{- \"number[]\" }}\n            {%- elif param_spec['items']['type'] == \"boolean\" -%}\n                {{- \"boolean[]\" }}\n            {%- else -%}\n                {%- set inner_type = render_typescript_type(param_spec['items'], required_params) -%}\n                {%- if inner_type == \"object | object\" or inner_type|length > 50 -%}\n                    {{- \"any[]\" }}\n                {%- else -%}\n                    {{- inner_type + \"[]\" }}\n                {%- endif -%}\n            {%- endif -%}\n            {%- if param_spec.nullable -%}\n                {{- \" | null\" }}\n            {%- endif -%}\n        {%- else -%}\n            {{- \"any[]\" }}\n            {%- if param_spec.nullable -%}\n                {{- \" | null\" }}\n            {%- endif -%}\n        {%- endif -%}\n    {%- elif param_spec.type is defined and param_spec.type is iterable and param_spec.type is not string and param_spec.type is not mapping and param_spec.type[0] is defined -%}\n        {#- Handle array of types like [\"object\", \"object\"] from Union[dict, list] #}\n        {%- if param_spec.type | length > 1 -%}\n            {{- param_spec.type | join(\" | \") }}\n        {%- else -%}\n            {{- param_spec.type[0] }}\n        {%- endif -%}\n    {%- elif param_spec.oneOf -%}\n        {#- Handle oneOf schemas - check for complex unions and fallback to any #}\n        {%- set has_object_variants = false -%}\n        {%- for variant in param_spec.oneOf -%}\n            {%- if variant.type == \"object\" -%}\n                {%- set has_object_variants = true -%}\n            {%- endif -%}\n        {%- endfor -%}\n        {%- if has_object_variants and param_spec.oneOf|length > 1 -%}\n            {{- \"any\" }}\n        {%- else -%}\n            {%- for variant in param_spec.oneOf -%}\n                {{- render_typescript_type(variant, required_params) -}}\n                {%- if variant.description %}\n                    {{- \"// \" + variant.description }}\n                {%- endif -%}\n                {%- if variant.default is defined %}\n                    {{ \"// default: \" + variant.default|tojson }}\n                {%- endif -%}\n                {%- if not loop.last %}\n                    {{- \" | \" }}\n                {% endif -%}\n            {%- endfor -%}\n        {%- endif -%}\n    {%- elif param_spec.type == \"string\" -%}\n        {%- if param_spec.enum -%}\n            {{- '\"' + param_spec.enum|join('\" | \"') + '\"' -}}\n        {%- else -%}\n            {{- \"string\" }}\n            {%- if param_spec.nullable %}\n                {{- \" | null\" }}\n            {%- endif -%}\n        {%- endif -%}\n    {%- elif param_spec.type == \"number\" -%}\n        {{- \"number\" }}\n    {%- elif param_spec.type == \"integer\" -%}\n        {{- \"number\" }}\n    {%- elif param_spec.type == \"boolean\" -%}\n        {{- \"boolean\" }}\n\n    {%- elif param_spec.type == \"object\" -%}\n        {%- if param_spec.properties -%}\n            {{- \"{\n\" }}\n            {%- for prop_name, prop_spec in param_spec.properties.items() -%}\n                {{- prop_name -}}\n                {%- if prop_name not in (param_spec.required or []) -%}\n                    {{- \"?\" }}\n                {%- endif -%}\n                {{- \": \" }}\n                {{ render_typescript_type(prop_spec, param_spec.required or []) }}\n                {%- if not loop.last -%}\n                    {{-\", \" }}\n                {%- endif -%}\n            {%- endfor -%}\n            {{- \"}\" }}\n        {%- else -%}\n            {{- \"object\" }}\n        {%- endif -%}\n    {%- else -%}\n        {{- \"any\" }}\n    {%- endif -%}\n{%- endmacro -%}\n\n{%- macro render_tool_namespace(namespace_name, tools) -%}\n    {{- \"## \" + namespace_name + \"\n\n\" }}\n    {{- \"namespace \" + namespace_name + \" {\n\n\" }}\n    {%- for tool in tools %}\n        {%- set tool = tool.function %}\n        {{- \"// \" + tool.description + \"\n\" }}\n        {{- \"type \"+ tool.name + \" = \" }}\n        {%- if tool.parameters and tool.parameters.properties %}\n            {{- \"(_: {\n\" }}\n            {%- for param_name, param_spec in tool.parameters.properties.items() %}\n                {%- if param_spec.description %}\n                    {{- \"// \" + param_spec.description + \"\n\" }}\n                {%- endif %}\n                {{- param_name }}\n                {%- if param_name not in (tool.parameters.required or []) -%}\n                    {{- \"?\" }}\n                {%- endif -%}\n                {{- \": \" }}\n                {{- render_typescript_type(param_spec, tool.parameters.required or []) }}\n                {%- if param_spec.default is defined -%}\n                    {%- if param_spec.enum %}\n                        {{- \", // default: \" + param_spec.default }}\n                    {%- elif param_spec.oneOf %}\n                        {{- \"// default: \" + param_spec.default }}\n                    {%- else %}\n                        {{- \", // default: \" + param_spec.default|tojson }}\n                    {%- endif -%}\n                {%- endif -%}\n                {%- if not loop.last %}\n                    {{- \",\n\" }}\n                {%- else %}\n                    {{- \"\n\" }}\n                {%- endif -%}\n            {%- endfor %}\n            {{- \"}) => any;\n\n\" }}\n        {%- else -%}\n            {{- \"() => any;\n\n\" }}\n        {%- endif -%}\n    {%- endfor %}\n    {{- \"} // namespace \" + namespace_name }}\n{%- endmacro -%}\n\n{%- macro render_builtin_tools(browser_tool, python_tool) -%}\n    {%- if browser_tool %}\n        {{- \"## browser\n\n\" }}\n        {{- \"// Tool for browsing.\n\" }}\n        {{- \"// The `cursor` appears in brackets before each browsing display: `[{cursor}]`.\n\" }}\n        {{- \"// Cite information from the tool using the following format:\n\" }}\n        {{- \"// `【{cursor}†L{line_start}(-L{line_end})?】`, for example: `【6†L9-L11】` or `【8†L3】`.\n\" }}\n        {{- \"// Do not quote more than 10 words directly from the tool output.\n\" }}\n        {{- \"// sources=web (default: web)\n\" }}\n        {{- \"namespace browser {\n\n\" }}\n        {{- \"// Searches for information related to `query` and displays `topn` results.\n\" }}\n        {{- \"type search = (_: {\n\" }}\n        {{- \"query: string,\n\" }}\n        {{- \"topn?: number, // default: 10\n\" }}\n        {{- \"source?: string,\n\" }}\n        {{- \"}) => any;\n\n\" }}\n        {{- \"// Opens the link `id` from the page indicated by `cursor` starting at line number `loc`, showing `num_lines` lines.\n\" }}\n        {{- \"// Valid link ids are displayed with the formatting: `【{id}†.*】`.\n\" }}\n        {{- \"// If `cursor` is not provided, the most recent page is implied.\n\" }}\n        {{- \"// If `id` is a string, it is treated as a fully qualified URL associated with `source`.\n\" }}\n        {{- \"// If `loc` is not provided, the viewport will be positioned at the beginning of the document or centered on the most relevant passage, if available.\n\" }}\n        {{- \"// Use this function without `id` to scroll to a new location of an opened page.\n\" }}\n        {{- \"type open = (_: {\n\" }}\n        {{- \"id?: number | string, // default: -1\n\" }}\n        {{- \"cursor?: number, // default: -1\n\" }}\n        {{- \"loc?: number, // default: -1\n\" }}\n        {{- \"num_lines?: number, // default: -1\n\" }}\n        {{- \"view_source?: boolean, // default: false\n\" }}\n        {{- \"source?: string,\n\" }}\n        {{- \"}) => any;\n\n\" }}\n        {{- \"// Finds exact matches of `pattern` in the current page, or the page given by `cursor`.\n\" }}\n        {{- \"type find = (_: {\n\" }}\n        {{- \"pattern: string,\n\" }}\n        {{- \"cursor?: number, // default: -1\n\" }}\n        {{- \"}) => any;\n\n\" }}\n        {{- \"} // namespace browser\n\n\" }}\n    {%- endif -%}\n\n    {%- if python_tool %}\n        {{- \"## python\n\n\" }}\n        {{- \"Use this tool to execute Python code in your chain of thought. The code will not be shown to the user. This tool should be used for internal reasoning, but not for code that is intended to be visible to the user (e.g. when creating plots, tables, or files).\n\n\" }}\n        {{- \"When you send a message containing Python code to python, it will be executed in a stateful Jupyter notebook environment. python will respond with the output of the execution or time out after 120.0 seconds. The drive at '/mnt/data' can be used to save and persist user files. Internet access for this session is UNKNOWN. Depends on the cluster.\n\n\" }}\n    {%- endif -%}\n{%- endmacro -%}\n\n{#- System Message Construction ============================================ #}\n{%- macro build_system_message() -%}\n    {%- if model_identity is not defined %}\n        {%- set model_identity = \"You are ChatGPT, a large language model trained by OpenAI.\" %}\n    {%- endif %}\n    {{- model_identity + \"\n\" }}\n    {{- \"Knowledge cutoff: 2024-06\n\" }}\n    {{- \"Current date: \" + strftime_now(\"%Y-%m-%d\") + \"\n\n\" }}\n    {%- if reasoning_effort is not defined %}\n        {%- set reasoning_effort = \"medium\" %}\n    {%- endif %}\n    {{- \"Reasoning: \" + reasoning_effort + \"\n\n\" }}\n    {%- if builtin_tools %}\n        {{- \"# Tools\n\n\" }}\n        {%- set available_builtin_tools = namespace(browser=false, python=false) %}\n        {%- for tool in builtin_tools %}\n            {%- if tool == \"browser\" %}\n                {%- set available_builtin_tools.browser = true %}\n            {%- elif tool == \"python\" %}\n                {%- set available_builtin_tools.python = true %}\n            {%- endif %}\n        {%- endfor %}\n        {{- render_builtin_tools(available_builtin_tools.browser, available_builtin_tools.python) }}\n    {%- endif -%}\n    {{- \"# Valid channels: analysis, commentary, final. Channel must be included for every message.\" }}\n    {%- if tools -%}\n        {{- \"\nCalls to these tools must go to the commentary channel: 'functions'.\" }}\n    {%- endif -%}\n{%- endmacro -%}\n\n{#- Main Template Logic ================================================= #}\n{#- Set defaults #}\n\n{#- Render system message #}\n{{- \"<|start|>system<|message|>\" }}\n{{- build_system_message() }}\n{{- \"<|end|>\" }}\n\n{#- Extract developer message #}\n{%- if messages[0].role == \"developer\" or messages[0].role == \"system\" %}\n    {%- set developer_message = messages[0].content %}\n    {%- set loop_messages = messages[1:] %}\n{%- else %}\n    {%- set developer_message = \"\" %}\n    {%- set loop_messages = messages %}\n{%- endif %}\n\n{#- Render developer message #}\n{%- if developer_message or tools %}\n    {{- \"<|start|>developer<|message|>\" }}\n    {%- if developer_message %}\n        {{- \"# Instructions\n\n\" }}\n        {{- developer_message }}\n    {%- endif %}\n    {%- if tools -%}\n        {{- \"\n\n\" }}\n        {{- \"# Tools\n\n\" }}\n        {{- render_tool_namespace(\"functions\", tools) }}\n    {%- endif -%}\n    {{- \"<|end|>\" }}\n{%- endif %}\n\n{#- Render messages #}\n{%- set last_tool_call = namespace(name=none) %}\n{%- for message in loop_messages -%}\n    {#- At this point only assistant/user/tool messages should remain #}\n    {%- if message.role == 'assistant' -%}\n        {#- Checks to ensure the messages are being passed in the format we expect #}\n        {%- if \"content\" in message %}\n            {%- if \"<|channel|>analysis<|message|>\" in message.content or \"<|channel|>final<|message|>\" in message.content %}\n                {{- raise_exception(\"You have passed a message containing <|channel|> tags in the content field. Instead of doing this, you should pass analysis messages (the string between '<|message|>' and '<|end|>') in the 'thinking' field, and final messages (the string between '<|message|>' and '<|end|>') in the 'content' field.\") }}\n            {%- endif %}\n        {%- endif %}\n        {%- if \"thinking\" in message %}\n            {%- if \"<|channel|>analysis<|message|>\" in message.thinking or \"<|channel|>final<|message|>\" in message.thinking %}\n                {{- raise_exception(\"You have passed a message containing <|channel|> tags in the thinking field. Instead of doing this, you should pass analysis messages (the string between '<|message|>' and '<|end|>') in the 'thinking' field, and final messages (the string between '<|message|>' and '<|end|>') in the 'content' field.\") }}\n            {%- endif %}\n        {%- endif %}\n        {%- if \"tool_calls\" in message %}\n            {#- We assume max 1 tool call per message, and so we infer the tool call name #}\n            {#- in \"tool\" messages from the most recent assistant tool call name #}\n            {%- set tool_call = message.tool_calls[0] %}\n            {%- if tool_call.function %}\n                {%- set tool_call = tool_call.function %}\n            {%- endif %}\n            {%- if message.content and message.thinking %}\n                {{- raise_exception(\"Cannot pass both content and thinking in an assistant message with tool calls! Put the analysis message in one or the other, but not both.\") }}\n            {%- elif message.content %}\n                {{- \"<|start|>assistant<|channel|>analysis<|message|>\" + message.content + \"<|end|>\" }}\n            {%- elif message.thinking %}\n                {{- \"<|start|>assistant<|channel|>analysis<|message|>\" + message.thinking + \"<|end|>\" }}\n            {%- endif %}\n            {{- \"<|start|>assistant to=\" }}\n            {{- \"functions.\" + tool_call.name + \"<|channel|>commentary \" }}\n            {{- (tool_call.content_type if tool_call.content_type is defined else \"json\") + \"<|message|>\" }}\n            {{- tool_call.arguments|tojson }}\n            {{- \"<|call|>\" }}\n            {%- set last_tool_call.name = tool_call.name %}\n        {%- elif loop.last and not add_generation_prompt %}\n            {#- Only render the CoT if the final turn is an assistant turn and add_generation_prompt is false #}\n            {#- This is a situation that should only occur in training, never in inference. #}\n            {%- if \"thinking\" in message %}\n                {{- \"<|start|>assistant<|channel|>analysis<|message|>\" + message.thinking + \"<|end|>\" }}\n            {%- endif %}\n            {#- <|return|> indicates the end of generation, but <|end|> does not #}\n            {#- <|return|> should never be an input to the model, but we include it as the final token #}\n            {#- when training, so the model learns to emit it. #}\n            {{- \"<|start|>assistant<|channel|>final<|message|>\" + message.content + \"<|return|>\" }}\n        {%- else %}\n            {#- CoT is dropped during all previous turns, so we never render it for inference #}\n            {{- \"<|start|>assistant<|channel|>final<|message|>\" + message.content + \"<|end|>\" }}\n            {%- set last_tool_call.name = none %}\n        {%- endif %}\n    {%- elif message.role == 'tool' -%}\n        {%- if last_tool_call.name is none %}\n            {{- raise_exception(\"Message has tool role, but there was no previous assistant message with a tool call!\") }}\n        {%- endif %}\n        {{- \"<|start|>functions.\" + last_tool_call.name }}\n        {{- \" to=assistant<|channel|>commentary<|message|>\" + message.content|tojson + \"<|end|>\" }}\n    {%- elif message.role == 'user' -%}\n        {{- \"<|start|>user<|message|>\" + message.content + \"<|end|>\" }}\n    {%- endif -%}\n{%- endfor -%}\n\n{#- Generation prompt #}\n{%- if add_generation_prompt -%}\n<|start|>assistant\n{%- endif -%}"
+                        },
+                        "stopStrings": []
+                      }
+                    },
+                    {
+                      "key": "llm.prediction.llama.cpuThreads",
+                      "value": 7
+                    },
+                    {
+                      "key": "llm.prediction.contextPrefill",
+                      "value": []
+                    },
+                    {
+                      "key": "llm.prediction.temperature",
+                      "value": 0.8
+                    },
+                    {
+                      "key": "llm.prediction.topKSampling",
+                      "value": 40
+                    },
+                    {
+                      "key": "llm.prediction.topPSampling",
+                      "value": {
+                        "checked": true,
+                        "value": 0.8
+                      }
+                    },
+                    {
+                      "key": "llm.prediction.repeatPenalty",
+                      "value": {
+                        "checked": true,
+                        "value": 1.1
+                      }
+                    },
+                    {
+                      "key": "llm.prediction.minPSampling",
+                      "value": {
+                        "checked": true,
+                        "value": 0.05
+                      }
+                    },
+                    {
+                      "key": "ext.virtualModel.customField.openai.gptOss20b.reasoningEffort",
+                      "value": "medium"
+                    },
+                    {
+                      "key": "llm.prediction.tools",
+                      "value": {
+                        "type": "toolArray",
+                        "tools": [
+                          {
+                            "type": "function",
+                            "function": {
+                              "name": "get_database_schema",
+                              "description": "🔍 Discover what data is available in the MIMIC-IV database.\n\n    **When to use:** Start here when you need to understand what tables exist, or when someone asks about data that might be in multiple tables.\n\n    **What this does:** Shows all available tables so you can identify which ones contain the data you need.\n\n    **Next steps after using this:**\n    - If you see relevant tables, use `get_table_info(table_name)` to explore their structure\n    - Common tables: `patients` (demographics), `admissions` (hospital stays), `icustays` (ICU data), `labevents` (lab results)\n\n    Returns:\n        List of all available tables in the database with current backend info\n    ",
+                              "parameters": {
+                                "type": "object",
+                                "properties": {}
+                              }
+                            }
+                          },
+                          {
+                            "type": "function",
+                            "function": {
+                              "name": "get_table_info",
+                              "description": "📋 Explore a specific table's structure and see sample data.\n\n    **When to use:** After you know which table you need (from `get_database_schema()`), use this to understand the columns and data format.\n\n    **What this does:**\n    - Shows column names, types, and constraints\n    - Displays sample rows so you understand the actual data format\n    - Helps you write accurate SQL queries\n\n    **Pro tip:** Always look at sample data! It shows you the actual values, date formats, and data patterns.\n\n    Args:\n        table_name: Exact table name from the schema (case-sensitive). Can be simple name or fully qualified BigQuery name.\n        show_sample: Whether to include sample rows (default: True, recommended)\n\n    Returns:\n        Complete table structure with sample data to help you write queries\n    ",
+                              "parameters": {
+                                "type": "object",
+                                "properties": {
+                                  "table_name": {
+                                    "title": "Table Name",
+                                    "type": "string"
+                                  },
+                                  "show_sample": {
+                                    "default": true,
+                                    "title": "Show Sample",
+                                    "type": "boolean"
+                                  }
+                                },
+                                "required": [
+                                  "table_name"
+                                ]
+                              }
+                            }
+                          },
+                          {
+                            "type": "function",
+                            "function": {
+                              "name": "execute_mimic_query",
+                              "description": "🚀 Execute SQL queries to analyze MIMIC-IV data.\n\n    **💡 Pro tip:** For best results, explore the database structure first!\n\n    **Recommended workflow (especially for smaller models):**\n    1. **See available tables:** Use `get_database_schema()` to list all tables\n    2. **Examine table structure:** Use `get_table_info('table_name')` to see columns and sample data\n    3. **Write your SQL query:** Use exact table/column names from exploration\n\n    **Why exploration helps:**\n    - Table names vary between backends (SQLite vs BigQuery)\n    - Column names may be unexpected (e.g., age might be 'anchor_age')\n    - Sample data shows actual formats and constraints\n\n    Args:\n        sql_query: Your SQL SELECT query (must be SELECT only)\n\n    Returns:\n        Query results or helpful error messages with next steps\n    ",
+                              "parameters": {
+                                "type": "object",
+                                "properties": {
+                                  "sql_query": {
+                                    "title": "Sql Query",
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "sql_query"
+                                ]
+                              }
+                            }
+                          },
+                          {
+                            "type": "function",
+                            "function": {
+                              "name": "get_icu_stays",
+                              "description": "🏥 Get ICU stay information and length of stay data.\n\n    **⚠️ Note:** This is a convenience function that assumes standard MIMIC-IV table structure.\n    **For reliable queries:** Use `get_database_schema()` → `get_table_info()` → `execute_mimic_query()` workflow.\n\n    **What you'll get:** Patient IDs, admission times, length of stay, and ICU details.\n\n    Args:\n        patient_id: Specific patient ID to query (optional)\n        limit: Maximum number of records to return (default: 10)\n\n    Returns:\n        ICU stay data as formatted text or guidance if table not found\n    ",
+                              "parameters": {
+                                "type": "object",
+                                "properties": {
+                                  "patient_id": {
+                                    "anyOf": [
+                                      {
+                                        "type": "integer"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ],
+                                    "default": null,
+                                    "title": "Patient Id"
+                                  },
+                                  "limit": {
+                                    "default": 10,
+                                    "title": "Limit",
+                                    "type": "integer"
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          {
+                            "type": "function",
+                            "function": {
+                              "name": "get_lab_results",
+                              "description": "🧪 Get laboratory test results quickly.\n\n    **⚠️ Note:** This is a convenience function that assumes standard MIMIC-IV table structure.\n    **For reliable queries:** Use `get_database_schema()` → `get_table_info()` → `execute_mimic_query()` workflow.\n\n    **What you'll get:** Lab values, timestamps, patient IDs, and test details.\n\n    Args:\n        patient_id: Specific patient ID to query (optional)\n        lab_item: Lab item to search for in the value field (optional)\n        limit: Maximum number of records to return (default: 20)\n\n    Returns:\n        Lab results as formatted text or guidance if table not found\n    ",
+                              "parameters": {
+                                "type": "object",
+                                "properties": {
+                                  "patient_id": {
+                                    "anyOf": [
+                                      {
+                                        "type": "integer"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ],
+                                    "default": null,
+                                    "title": "Patient Id"
+                                  },
+                                  "lab_item": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ],
+                                    "default": null,
+                                    "title": "Lab Item"
+                                  },
+                                  "limit": {
+                                    "default": 20,
+                                    "title": "Limit",
+                                    "type": "integer"
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          {
+                            "type": "function",
+                            "function": {
+                              "name": "get_race_distribution",
+                              "description": "📊 Get race distribution from hospital admissions.\n\n    **⚠️ Note:** This is a convenience function that assumes standard MIMIC-IV table structure.\n    **For reliable queries:** Use `get_database_schema()` → `get_table_info()` → `execute_mimic_query()` workflow.\n\n    **What you'll get:** Count of patients by race category, ordered by frequency.\n\n    Args:\n        limit: Maximum number of race categories to return (default: 10)\n\n    Returns:\n        Race distribution as formatted text or guidance if table not found\n    ",
+                              "parameters": {
+                                "type": "object",
+                                "properties": {
+                                  "limit": {
+                                    "default": 10,
+                                    "title": "Limit",
+                                    "type": "integer"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                },
+                "stats": {
+                  "stopReason": "eosFound",
+                  "tokensPerSecond": 47.25262177098394,
+                  "numGpuLayers": -1,
+                  "timeToFirstTokenSec": 2.677,
+                  "totalTimeSec": 15.343,
+                  "promptTokensCount": 1376,
+                  "predictedTokensCount": 725,
+                  "totalTokensCount": 2101
+                }
+              }
+            },
+            {
+              "type": "contentBlock",
+              "stepIdentifier": "1758977696985-0.4444125737568526",
+              "content": [
+                {
+                  "type": "toolCallResult",
+                  "callId": 849489520601303,
+                  "toolCallRequestId": "761503811",
+                  "content": "[{\"type\":\"text\",\"text\":\"❌ **Query Failed:** Execution failed on sql 'SELECT COUNT(DISTINCT a.hadm_id) AS current_patients_60_plus\\nFROM admissions a\\nJOIN patients p ON a.subject_id = p.subject_id\\nWHERE (p.dob <= DATE_SUB('2100-12-31', INTERVAL 60 YEAR))\\nAND (a.dischtime > '2100-12-31' OR a.dischtime IS NULL);': near \\\"60\\\": syntax error\\n\\n🛠️ **How to fix this:**\\n   📝 **SQL syntax issue:** Check quotes, commas, and parentheses\\n   🎯 **Backend syntax:** Verify your SQL works with sqlite\\n   💭 **Try simpler:** Start with `SELECT * FROM table_name LIMIT 5`\\n\\n🎯 **Quick Recovery Steps:**\\n1. `get_database_schema()` ← See what tables exist\\n2. `get_table_info('your_table')` ← Check exact column names\\n3. Retry your query with correct names\\n\\n📚 **Current Backend:** sqlite - table names and syntax are backend-specific\"}]"
+                }
+              ],
+              "roleOverride": "tool",
+              "defaultShouldIncludeInContext": true,
+              "shouldIncludeInContext": true
+            },
+            {
+              "type": "contentBlock",
+              "stepIdentifier": "1758977697943-0.1661028996059175",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "SQLite does not support DATE_SUB, uses date functions like date() + interval? Actually SQLite has date(), julianday, etc. Use strftime or datetime.\n\nWe can compute age by subtracting dob from '2100-12-31'. In SQLite: (strftime('%Y', '2100-12-31') - strftime('%Y', p.dob)) > 60? But need to account month/day. Simpler: use julianday('2100-12-31') - julianday(p.dob) >= 60*365.25\n\nLet's compute age_years = (julianday('2100-12-31') - julianday(p.dob)) / 365.25\n\nWe can filter where age >= 60.\n\nAlso check dischtime > '2100-12-31' or NULL: SQLite compares strings lexicographically if format is ISO? Use date() function: date(a.dischtime) > date('2100-12-31'). But a.dischtime may be null.\n\nLet's write query:\n\nSELECT COUNT(DISTINCT a.hadm_id) AS current_patients_60_plus\nFROM admissions a\nJOIN patients p ON a.subject_id = p.subject_id\nWHERE (julianday('2100-12-31') - julianday(p.dob)) / 365.25 >= 60\nAND (a.dischtime IS NULL OR date(a.dischtime) > date('2100-12-31'));\n\nLet's run.",
+                  "fromDraftModel": false,
+                  "tokensCount": 303,
+                  "isStructural": false
+                }
+              ],
+              "defaultShouldIncludeInContext": true,
+              "shouldIncludeInContext": true,
+              "style": {
+                "type": "thinking",
+                "ended": true,
+                "title": "Thought for 7.11 seconds"
+              },
+              "prefix": "<|channel|>analysis<|message|>",
+              "suffix": "<|end|>"
+            },
+            {
+              "type": "toolStatus",
+              "stepIdentifier": "1758977705270-0.11774637552624945",
+              "callId": 849489520601304,
+              "statusState": {
+                "status": {
+                  "type": "toolCallSucceeded",
+                  "timeMs": 32
+                },
+                "customStatus": "",
+                "customWarnings": []
+              }
+            },
+            {
+              "type": "contentBlock",
+              "stepIdentifier": "1758977707788-0.3487265425761553",
+              "content": [
+                {
+                  "type": "toolCallRequest",
+                  "callId": 849489520601304,
+                  "toolCallRequestId": "116435119",
+                  "name": "execute_mimic_query",
+                  "parameters": {
+                    "sql_query": "SELECT COUNT(DISTINCT a.hadm_id) AS current_patients_60_plus\nFROM admissions a\nJOIN patients p ON a.subject_id = p.subject_id\nWHERE (julianday('2100-12-31') - julianday(p.dob)) / 365.25 >= 60\nAND (a.dischtime IS NULL OR date(a.dischtime) > date('2100-12-31'));"
+                  },
+                  "pluginIdentifier": "mcp/m3"
+                }
+              ],
+              "defaultShouldIncludeInContext": true,
+              "shouldIncludeInContext": true,
+              "genInfo": {
+                "indexedModelIdentifier": "openai/gpt-oss-20b",
+                "identifier": "openai/gpt-oss-20b",
+                "loadModelConfig": {
+                  "fields": [
+                    {
+                      "key": "llm.load.llama.cpuThreadPoolSize",
+                      "value": 7
+                    },
+                    {
+                      "key": "llm.load.contextLength",
+                      "value": 32000
+                    },
+                    {
+                      "key": "llm.load.numExperts",
+                      "value": 4
+                    },
+                    {
+                      "key": "llm.load.llama.acceleration.offloadRatio",
+                      "value": 1
+                    }
+                  ]
+                },
+                "predictionConfig": {
+                  "fields": [
+                    {
+                      "key": "llm.prediction.promptTemplate",
+                      "value": {
+                        "type": "jinja",
+                        "jinjaPromptTemplate": {
+                          "template": "{#-\n  In addition to the normal inputs of `messages` and `tools`, this template also accepts the\n  following kwargs:\n  - \"builtin_tools\": A list, can contain \"browser\" and/or \"python\".\n  - \"model_identity\": A string that optionally describes the model identity.\n  - \"reasoning_effort\": A string that describes the reasoning effort, defaults to \"medium\".\n #}\n\n{#- Tool Definition Rendering ============================================== #}\n{%- macro render_typescript_type(param_spec, required_params, is_nullable=false) -%}\n    {%- if param_spec.type == \"array\" -%}\n        {%- if param_spec['items'] -%}\n            {%- if param_spec['items']['type'] == \"string\" -%}\n                {{- \"string[]\" }}\n            {%- elif param_spec['items']['type'] == \"number\" -%}\n                {{- \"number[]\" }}\n            {%- elif param_spec['items']['type'] == \"integer\" -%}\n                {{- \"number[]\" }}\n            {%- elif param_spec['items']['type'] == \"boolean\" -%}\n                {{- \"boolean[]\" }}\n            {%- else -%}\n                {%- set inner_type = render_typescript_type(param_spec['items'], required_params) -%}\n                {%- if inner_type == \"object | object\" or inner_type|length > 50 -%}\n                    {{- \"any[]\" }}\n                {%- else -%}\n                    {{- inner_type + \"[]\" }}\n                {%- endif -%}\n            {%- endif -%}\n            {%- if param_spec.nullable -%}\n                {{- \" | null\" }}\n            {%- endif -%}\n        {%- else -%}\n            {{- \"any[]\" }}\n            {%- if param_spec.nullable -%}\n                {{- \" | null\" }}\n            {%- endif -%}\n        {%- endif -%}\n    {%- elif param_spec.type is defined and param_spec.type is iterable and param_spec.type is not string and param_spec.type is not mapping and param_spec.type[0] is defined -%}\n        {#- Handle array of types like [\"object\", \"object\"] from Union[dict, list] #}\n        {%- if param_spec.type | length > 1 -%}\n            {{- param_spec.type | join(\" | \") }}\n        {%- else -%}\n            {{- param_spec.type[0] }}\n        {%- endif -%}\n    {%- elif param_spec.oneOf -%}\n        {#- Handle oneOf schemas - check for complex unions and fallback to any #}\n        {%- set has_object_variants = false -%}\n        {%- for variant in param_spec.oneOf -%}\n            {%- if variant.type == \"object\" -%}\n                {%- set has_object_variants = true -%}\n            {%- endif -%}\n        {%- endfor -%}\n        {%- if has_object_variants and param_spec.oneOf|length > 1 -%}\n            {{- \"any\" }}\n        {%- else -%}\n            {%- for variant in param_spec.oneOf -%}\n                {{- render_typescript_type(variant, required_params) -}}\n                {%- if variant.description %}\n                    {{- \"// \" + variant.description }}\n                {%- endif -%}\n                {%- if variant.default is defined %}\n                    {{ \"// default: \" + variant.default|tojson }}\n                {%- endif -%}\n                {%- if not loop.last %}\n                    {{- \" | \" }}\n                {% endif -%}\n            {%- endfor -%}\n        {%- endif -%}\n    {%- elif param_spec.type == \"string\" -%}\n        {%- if param_spec.enum -%}\n            {{- '\"' + param_spec.enum|join('\" | \"') + '\"' -}}\n        {%- else -%}\n            {{- \"string\" }}\n            {%- if param_spec.nullable %}\n                {{- \" | null\" }}\n            {%- endif -%}\n        {%- endif -%}\n    {%- elif param_spec.type == \"number\" -%}\n        {{- \"number\" }}\n    {%- elif param_spec.type == \"integer\" -%}\n        {{- \"number\" }}\n    {%- elif param_spec.type == \"boolean\" -%}\n        {{- \"boolean\" }}\n\n    {%- elif param_spec.type == \"object\" -%}\n        {%- if param_spec.properties -%}\n            {{- \"{\n\" }}\n            {%- for prop_name, prop_spec in param_spec.properties.items() -%}\n                {{- prop_name -}}\n                {%- if prop_name not in (param_spec.required or []) -%}\n                    {{- \"?\" }}\n                {%- endif -%}\n                {{- \": \" }}\n                {{ render_typescript_type(prop_spec, param_spec.required or []) }}\n                {%- if not loop.last -%}\n                    {{-\", \" }}\n                {%- endif -%}\n            {%- endfor -%}\n            {{- \"}\" }}\n        {%- else -%}\n            {{- \"object\" }}\n        {%- endif -%}\n    {%- else -%}\n        {{- \"any\" }}\n    {%- endif -%}\n{%- endmacro -%}\n\n{%- macro render_tool_namespace(namespace_name, tools) -%}\n    {{- \"## \" + namespace_name + \"\n\n\" }}\n    {{- \"namespace \" + namespace_name + \" {\n\n\" }}\n    {%- for tool in tools %}\n        {%- set tool = tool.function %}\n        {{- \"// \" + tool.description + \"\n\" }}\n        {{- \"type \"+ tool.name + \" = \" }}\n        {%- if tool.parameters and tool.parameters.properties %}\n            {{- \"(_: {\n\" }}\n            {%- for param_name, param_spec in tool.parameters.properties.items() %}\n                {%- if param_spec.description %}\n                    {{- \"// \" + param_spec.description + \"\n\" }}\n                {%- endif %}\n                {{- param_name }}\n                {%- if param_name not in (tool.parameters.required or []) -%}\n                    {{- \"?\" }}\n                {%- endif -%}\n                {{- \": \" }}\n                {{- render_typescript_type(param_spec, tool.parameters.required or []) }}\n                {%- if param_spec.default is defined -%}\n                    {%- if param_spec.enum %}\n                        {{- \", // default: \" + param_spec.default }}\n                    {%- elif param_spec.oneOf %}\n                        {{- \"// default: \" + param_spec.default }}\n                    {%- else %}\n                        {{- \", // default: \" + param_spec.default|tojson }}\n                    {%- endif -%}\n                {%- endif -%}\n                {%- if not loop.last %}\n                    {{- \",\n\" }}\n                {%- else %}\n                    {{- \"\n\" }}\n                {%- endif -%}\n            {%- endfor %}\n            {{- \"}) => any;\n\n\" }}\n        {%- else -%}\n            {{- \"() => any;\n\n\" }}\n        {%- endif -%}\n    {%- endfor %}\n    {{- \"} // namespace \" + namespace_name }}\n{%- endmacro -%}\n\n{%- macro render_builtin_tools(browser_tool, python_tool) -%}\n    {%- if browser_tool %}\n        {{- \"## browser\n\n\" }}\n        {{- \"// Tool for browsing.\n\" }}\n        {{- \"// The `cursor` appears in brackets before each browsing display: `[{cursor}]`.\n\" }}\n        {{- \"// Cite information from the tool using the following format:\n\" }}\n        {{- \"// `【{cursor}†L{line_start}(-L{line_end})?】`, for example: `【6†L9-L11】` or `【8†L3】`.\n\" }}\n        {{- \"// Do not quote more than 10 words directly from the tool output.\n\" }}\n        {{- \"// sources=web (default: web)\n\" }}\n        {{- \"namespace browser {\n\n\" }}\n        {{- \"// Searches for information related to `query` and displays `topn` results.\n\" }}\n        {{- \"type search = (_: {\n\" }}\n        {{- \"query: string,\n\" }}\n        {{- \"topn?: number, // default: 10\n\" }}\n        {{- \"source?: string,\n\" }}\n        {{- \"}) => any;\n\n\" }}\n        {{- \"// Opens the link `id` from the page indicated by `cursor` starting at line number `loc`, showing `num_lines` lines.\n\" }}\n        {{- \"// Valid link ids are displayed with the formatting: `【{id}†.*】`.\n\" }}\n        {{- \"// If `cursor` is not provided, the most recent page is implied.\n\" }}\n        {{- \"// If `id` is a string, it is treated as a fully qualified URL associated with `source`.\n\" }}\n        {{- \"// If `loc` is not provided, the viewport will be positioned at the beginning of the document or centered on the most relevant passage, if available.\n\" }}\n        {{- \"// Use this function without `id` to scroll to a new location of an opened page.\n\" }}\n        {{- \"type open = (_: {\n\" }}\n        {{- \"id?: number | string, // default: -1\n\" }}\n        {{- \"cursor?: number, // default: -1\n\" }}\n        {{- \"loc?: number, // default: -1\n\" }}\n        {{- \"num_lines?: number, // default: -1\n\" }}\n        {{- \"view_source?: boolean, // default: false\n\" }}\n        {{- \"source?: string,\n\" }}\n        {{- \"}) => any;\n\n\" }}\n        {{- \"// Finds exact matches of `pattern` in the current page, or the page given by `cursor`.\n\" }}\n        {{- \"type find = (_: {\n\" }}\n        {{- \"pattern: string,\n\" }}\n        {{- \"cursor?: number, // default: -1\n\" }}\n        {{- \"}) => any;\n\n\" }}\n        {{- \"} // namespace browser\n\n\" }}\n    {%- endif -%}\n\n    {%- if python_tool %}\n        {{- \"## python\n\n\" }}\n        {{- \"Use this tool to execute Python code in your chain of thought. The code will not be shown to the user. This tool should be used for internal reasoning, but not for code that is intended to be visible to the user (e.g. when creating plots, tables, or files).\n\n\" }}\n        {{- \"When you send a message containing Python code to python, it will be executed in a stateful Jupyter notebook environment. python will respond with the output of the execution or time out after 120.0 seconds. The drive at '/mnt/data' can be used to save and persist user files. Internet access for this session is UNKNOWN. Depends on the cluster.\n\n\" }}\n    {%- endif -%}\n{%- endmacro -%}\n\n{#- System Message Construction ============================================ #}\n{%- macro build_system_message() -%}\n    {%- if model_identity is not defined %}\n        {%- set model_identity = \"You are ChatGPT, a large language model trained by OpenAI.\" %}\n    {%- endif %}\n    {{- model_identity + \"\n\" }}\n    {{- \"Knowledge cutoff: 2024-06\n\" }}\n    {{- \"Current date: \" + strftime_now(\"%Y-%m-%d\") + \"\n\n\" }}\n    {%- if reasoning_effort is not defined %}\n        {%- set reasoning_effort = \"medium\" %}\n    {%- endif %}\n    {{- \"Reasoning: \" + reasoning_effort + \"\n\n\" }}\n    {%- if builtin_tools %}\n        {{- \"# Tools\n\n\" }}\n        {%- set available_builtin_tools = namespace(browser=false, python=false) %}\n        {%- for tool in builtin_tools %}\n            {%- if tool == \"browser\" %}\n                {%- set available_builtin_tools.browser = true %}\n            {%- elif tool == \"python\" %}\n                {%- set available_builtin_tools.python = true %}\n            {%- endif %}\n        {%- endfor %}\n        {{- render_builtin_tools(available_builtin_tools.browser, available_builtin_tools.python) }}\n    {%- endif -%}\n    {{- \"# Valid channels: analysis, commentary, final. Channel must be included for every message.\" }}\n    {%- if tools -%}\n        {{- \"\nCalls to these tools must go to the commentary channel: 'functions'.\" }}\n    {%- endif -%}\n{%- endmacro -%}\n\n{#- Main Template Logic ================================================= #}\n{#- Set defaults #}\n\n{#- Render system message #}\n{{- \"<|start|>system<|message|>\" }}\n{{- build_system_message() }}\n{{- \"<|end|>\" }}\n\n{#- Extract developer message #}\n{%- if messages[0].role == \"developer\" or messages[0].role == \"system\" %}\n    {%- set developer_message = messages[0].content %}\n    {%- set loop_messages = messages[1:] %}\n{%- else %}\n    {%- set developer_message = \"\" %}\n    {%- set loop_messages = messages %}\n{%- endif %}\n\n{#- Render developer message #}\n{%- if developer_message or tools %}\n    {{- \"<|start|>developer<|message|>\" }}\n    {%- if developer_message %}\n        {{- \"# Instructions\n\n\" }}\n        {{- developer_message }}\n    {%- endif %}\n    {%- if tools -%}\n        {{- \"\n\n\" }}\n        {{- \"# Tools\n\n\" }}\n        {{- render_tool_namespace(\"functions\", tools) }}\n    {%- endif -%}\n    {{- \"<|end|>\" }}\n{%- endif %}\n\n{#- Render messages #}\n{%- set last_tool_call = namespace(name=none) %}\n{%- for message in loop_messages -%}\n    {#- At this point only assistant/user/tool messages should remain #}\n    {%- if message.role == 'assistant' -%}\n        {#- Checks to ensure the messages are being passed in the format we expect #}\n        {%- if \"content\" in message %}\n            {%- if \"<|channel|>analysis<|message|>\" in message.content or \"<|channel|>final<|message|>\" in message.content %}\n                {{- raise_exception(\"You have passed a message containing <|channel|> tags in the content field. Instead of doing this, you should pass analysis messages (the string between '<|message|>' and '<|end|>') in the 'thinking' field, and final messages (the string between '<|message|>' and '<|end|>') in the 'content' field.\") }}\n            {%- endif %}\n        {%- endif %}\n        {%- if \"thinking\" in message %}\n            {%- if \"<|channel|>analysis<|message|>\" in message.thinking or \"<|channel|>final<|message|>\" in message.thinking %}\n                {{- raise_exception(\"You have passed a message containing <|channel|> tags in the thinking field. Instead of doing this, you should pass analysis messages (the string between '<|message|>' and '<|end|>') in the 'thinking' field, and final messages (the string between '<|message|>' and '<|end|>') in the 'content' field.\") }}\n            {%- endif %}\n        {%- endif %}\n        {%- if \"tool_calls\" in message %}\n            {#- We assume max 1 tool call per message, and so we infer the tool call name #}\n            {#- in \"tool\" messages from the most recent assistant tool call name #}\n            {%- set tool_call = message.tool_calls[0] %}\n            {%- if tool_call.function %}\n                {%- set tool_call = tool_call.function %}\n            {%- endif %}\n            {%- if message.content and message.thinking %}\n                {{- raise_exception(\"Cannot pass both content and thinking in an assistant message with tool calls! Put the analysis message in one or the other, but not both.\") }}\n            {%- elif message.content %}\n                {{- \"<|start|>assistant<|channel|>analysis<|message|>\" + message.content + \"<|end|>\" }}\n            {%- elif message.thinking %}\n                {{- \"<|start|>assistant<|channel|>analysis<|message|>\" + message.thinking + \"<|end|>\" }}\n            {%- endif %}\n            {{- \"<|start|>assistant to=\" }}\n            {{- \"functions.\" + tool_call.name + \"<|channel|>commentary \" }}\n            {{- (tool_call.content_type if tool_call.content_type is defined else \"json\") + \"<|message|>\" }}\n            {{- tool_call.arguments|tojson }}\n            {{- \"<|call|>\" }}\n            {%- set last_tool_call.name = tool_call.name %}\n        {%- elif loop.last and not add_generation_prompt %}\n            {#- Only render the CoT if the final turn is an assistant turn and add_generation_prompt is false #}\n            {#- This is a situation that should only occur in training, never in inference. #}\n            {%- if \"thinking\" in message %}\n                {{- \"<|start|>assistant<|channel|>analysis<|message|>\" + message.thinking + \"<|end|>\" }}\n            {%- endif %}\n            {#- <|return|> indicates the end of generation, but <|end|> does not #}\n            {#- <|return|> should never be an input to the model, but we include it as the final token #}\n            {#- when training, so the model learns to emit it. #}\n            {{- \"<|start|>assistant<|channel|>final<|message|>\" + message.content + \"<|return|>\" }}\n        {%- else %}\n            {#- CoT is dropped during all previous turns, so we never render it for inference #}\n            {{- \"<|start|>assistant<|channel|>final<|message|>\" + message.content + \"<|end|>\" }}\n            {%- set last_tool_call.name = none %}\n        {%- endif %}\n    {%- elif message.role == 'tool' -%}\n        {%- if last_tool_call.name is none %}\n            {{- raise_exception(\"Message has tool role, but there was no previous assistant message with a tool call!\") }}\n        {%- endif %}\n        {{- \"<|start|>functions.\" + last_tool_call.name }}\n        {{- \" to=assistant<|channel|>commentary<|message|>\" + message.content|tojson + \"<|end|>\" }}\n    {%- elif message.role == 'user' -%}\n        {{- \"<|start|>user<|message|>\" + message.content + \"<|end|>\" }}\n    {%- endif -%}\n{%- endfor -%}\n\n{#- Generation prompt #}\n{%- if add_generation_prompt -%}\n<|start|>assistant\n{%- endif -%}"
+                        },
+                        "stopStrings": []
+                      }
+                    },
+                    {
+                      "key": "llm.prediction.llama.cpuThreads",
+                      "value": 7
+                    },
+                    {
+                      "key": "llm.prediction.contextPrefill",
+                      "value": []
+                    },
+                    {
+                      "key": "llm.prediction.temperature",
+                      "value": 0.8
+                    },
+                    {
+                      "key": "llm.prediction.topKSampling",
+                      "value": 40
+                    },
+                    {
+                      "key": "llm.prediction.topPSampling",
+                      "value": {
+                        "checked": true,
+                        "value": 0.8
+                      }
+                    },
+                    {
+                      "key": "llm.prediction.repeatPenalty",
+                      "value": {
+                        "checked": true,
+                        "value": 1.1
+                      }
+                    },
+                    {
+                      "key": "llm.prediction.minPSampling",
+                      "value": {
+                        "checked": true,
+                        "value": 0.05
+                      }
+                    },
+                    {
+                      "key": "ext.virtualModel.customField.openai.gptOss20b.reasoningEffort",
+                      "value": "medium"
+                    },
+                    {
+                      "key": "llm.prediction.tools",
+                      "value": {
+                        "type": "toolArray",
+                        "tools": [
+                          {
+                            "type": "function",
+                            "function": {
+                              "name": "get_database_schema",
+                              "description": "🔍 Discover what data is available in the MIMIC-IV database.\n\n    **When to use:** Start here when you need to understand what tables exist, or when someone asks about data that might be in multiple tables.\n\n    **What this does:** Shows all available tables so you can identify which ones contain the data you need.\n\n    **Next steps after using this:**\n    - If you see relevant tables, use `get_table_info(table_name)` to explore their structure\n    - Common tables: `patients` (demographics), `admissions` (hospital stays), `icustays` (ICU data), `labevents` (lab results)\n\n    Returns:\n        List of all available tables in the database with current backend info\n    ",
+                              "parameters": {
+                                "type": "object",
+                                "properties": {}
+                              }
+                            }
+                          },
+                          {
+                            "type": "function",
+                            "function": {
+                              "name": "get_table_info",
+                              "description": "📋 Explore a specific table's structure and see sample data.\n\n    **When to use:** After you know which table you need (from `get_database_schema()`), use this to understand the columns and data format.\n\n    **What this does:**\n    - Shows column names, types, and constraints\n    - Displays sample rows so you understand the actual data format\n    - Helps you write accurate SQL queries\n\n    **Pro tip:** Always look at sample data! It shows you the actual values, date formats, and data patterns.\n\n    Args:\n        table_name: Exact table name from the schema (case-sensitive). Can be simple name or fully qualified BigQuery name.\n        show_sample: Whether to include sample rows (default: True, recommended)\n\n    Returns:\n        Complete table structure with sample data to help you write queries\n    ",
+                              "parameters": {
+                                "type": "object",
+                                "properties": {
+                                  "table_name": {
+                                    "title": "Table Name",
+                                    "type": "string"
+                                  },
+                                  "show_sample": {
+                                    "default": true,
+                                    "title": "Show Sample",
+                                    "type": "boolean"
+                                  }
+                                },
+                                "required": [
+                                  "table_name"
+                                ]
+                              }
+                            }
+                          },
+                          {
+                            "type": "function",
+                            "function": {
+                              "name": "execute_mimic_query",
+                              "description": "🚀 Execute SQL queries to analyze MIMIC-IV data.\n\n    **💡 Pro tip:** For best results, explore the database structure first!\n\n    **Recommended workflow (especially for smaller models):**\n    1. **See available tables:** Use `get_database_schema()` to list all tables\n    2. **Examine table structure:** Use `get_table_info('table_name')` to see columns and sample data\n    3. **Write your SQL query:** Use exact table/column names from exploration\n\n    **Why exploration helps:**\n    - Table names vary between backends (SQLite vs BigQuery)\n    - Column names may be unexpected (e.g., age might be 'anchor_age')\n    - Sample data shows actual formats and constraints\n\n    Args:\n        sql_query: Your SQL SELECT query (must be SELECT only)\n\n    Returns:\n        Query results or helpful error messages with next steps\n    ",
+                              "parameters": {
+                                "type": "object",
+                                "properties": {
+                                  "sql_query": {
+                                    "title": "Sql Query",
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "sql_query"
+                                ]
+                              }
+                            }
+                          },
+                          {
+                            "type": "function",
+                            "function": {
+                              "name": "get_icu_stays",
+                              "description": "🏥 Get ICU stay information and length of stay data.\n\n    **⚠️ Note:** This is a convenience function that assumes standard MIMIC-IV table structure.\n    **For reliable queries:** Use `get_database_schema()` → `get_table_info()` → `execute_mimic_query()` workflow.\n\n    **What you'll get:** Patient IDs, admission times, length of stay, and ICU details.\n\n    Args:\n        patient_id: Specific patient ID to query (optional)\n        limit: Maximum number of records to return (default: 10)\n\n    Returns:\n        ICU stay data as formatted text or guidance if table not found\n    ",
+                              "parameters": {
+                                "type": "object",
+                                "properties": {
+                                  "patient_id": {
+                                    "anyOf": [
+                                      {
+                                        "type": "integer"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ],
+                                    "default": null,
+                                    "title": "Patient Id"
+                                  },
+                                  "limit": {
+                                    "default": 10,
+                                    "title": "Limit",
+                                    "type": "integer"
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          {
+                            "type": "function",
+                            "function": {
+                              "name": "get_lab_results",
+                              "description": "🧪 Get laboratory test results quickly.\n\n    **⚠️ Note:** This is a convenience function that assumes standard MIMIC-IV table structure.\n    **For reliable queries:** Use `get_database_schema()` → `get_table_info()` → `execute_mimic_query()` workflow.\n\n    **What you'll get:** Lab values, timestamps, patient IDs, and test details.\n\n    Args:\n        patient_id: Specific patient ID to query (optional)\n        lab_item: Lab item to search for in the value field (optional)\n        limit: Maximum number of records to return (default: 20)\n\n    Returns:\n        Lab results as formatted text or guidance if table not found\n    ",
+                              "parameters": {
+                                "type": "object",
+                                "properties": {
+                                  "patient_id": {
+                                    "anyOf": [
+                                      {
+                                        "type": "integer"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ],
+                                    "default": null,
+                                    "title": "Patient Id"
+                                  },
+                                  "lab_item": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ],
+                                    "default": null,
+                                    "title": "Lab Item"
+                                  },
+                                  "limit": {
+                                    "default": 20,
+                                    "title": "Limit",
+                                    "type": "integer"
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          {
+                            "type": "function",
+                            "function": {
+                              "name": "get_race_distribution",
+                              "description": "📊 Get race distribution from hospital admissions.\n\n    **⚠️ Note:** This is a convenience function that assumes standard MIMIC-IV table structure.\n    **For reliable queries:** Use `get_database_schema()` → `get_table_info()` → `execute_mimic_query()` workflow.\n\n    **What you'll get:** Count of patients by race category, ordered by frequency.\n\n    Args:\n        limit: Maximum number of race categories to return (default: 10)\n\n    Returns:\n        Race distribution as formatted text or guidance if table not found\n    ",
+                              "parameters": {
+                                "type": "object",
+                                "properties": {
+                                  "limit": {
+                                    "default": 10,
+                                    "title": "Limit",
+                                    "type": "integer"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                },
+                "stats": {
+                  "stopReason": "eosFound",
+                  "tokensPerSecond": 40.79468438381448,
+                  "numGpuLayers": -1,
+                  "timeToFirstTokenSec": 0.597,
+                  "totalTimeSec": 10.173,
+                  "promptTokensCount": 2352,
+                  "predictedTokensCount": 415,
+                  "totalTokensCount": 2767
+                }
+              }
+            },
+            {
+              "type": "contentBlock",
+              "stepIdentifier": "1758977707821-0.7965195833422907",
+              "content": [
+                {
+                  "type": "toolCallResult",
+                  "callId": 849489520601304,
+                  "toolCallRequestId": "116435119",
+                  "content": "[{\"type\":\"text\",\"text\":\" current_patients_60_plus\\n                        1\"}]"
+                }
+              ],
+              "roleOverride": "tool",
+              "defaultShouldIncludeInContext": true,
+              "shouldIncludeInContext": true
+            },
+            {
+              "type": "contentBlock",
+              "stepIdentifier": "1758977708596-0.28947733003217935",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "It returned 1? That seems odd. Let's see the result. It says 1 row with column name. But maybe we need to extract value. It's likely 0 but misinterpreted. Let's fetch sample rows of admissions for that patient. Use query to find hadm_id and dischtime.\n\n",
+                  "fromDraftModel": false,
+                  "tokensCount": 61,
+                  "isStructural": false
+                }
+              ],
+              "defaultShouldIncludeInContext": true,
+              "shouldIncludeInContext": true,
+              "style": {
+                "type": "thinking",
+                "ended": true,
+                "title": "Thought for 1.18 seconds"
+              },
+              "prefix": "<|channel|>analysis<|message|>",
+              "suffix": "<|end|>"
+            },
+            {
+              "type": "toolStatus",
+              "stepIdentifier": "1758977710330-0.3755403282729175",
+              "callId": 849489520601305,
+              "statusState": {
+                "status": {
+                  "type": "toolCallSucceeded",
+                  "timeMs": 31
+                },
+                "customStatus": "",
+                "customWarnings": []
+              }
+            },
+            {
+              "type": "contentBlock",
+              "stepIdentifier": "1758977712661-0.28489036524269107",
+              "content": [
+                {
+                  "type": "toolCallRequest",
+                  "callId": 849489520601305,
+                  "toolCallRequestId": "719097313",
+                  "name": "execute_mimic_query",
+                  "parameters": {
+                    "sql_query": "SELECT a.hadm_id, a.subject_id, p.dob, a.dischtime\nFROM admissions a\nJOIN patients p ON a.subject_id = p.subject_id\nWHERE (julianday('2100-12-31') - julianday(p.dob)) / 365.25 >= 60\nAND (a.dischtime IS NULL OR date(a.dischtime) > date('2100-12-31'))\nLIMIT 5;"
+                  },
+                  "pluginIdentifier": "mcp/m3"
+                }
+              ],
+              "defaultShouldIncludeInContext": true,
+              "shouldIncludeInContext": true,
+              "genInfo": {
+                "indexedModelIdentifier": "openai/gpt-oss-20b",
+                "identifier": "openai/gpt-oss-20b",
+                "loadModelConfig": {
+                  "fields": [
+                    {
+                      "key": "llm.load.llama.cpuThreadPoolSize",
+                      "value": 7
+                    },
+                    {
+                      "key": "llm.load.contextLength",
+                      "value": 32000
+                    },
+                    {
+                      "key": "llm.load.numExperts",
+                      "value": 4
+                    },
+                    {
+                      "key": "llm.load.llama.acceleration.offloadRatio",
+                      "value": 1
+                    }
+                  ]
+                },
+                "predictionConfig": {
+                  "fields": [
+                    {
+                      "key": "llm.prediction.promptTemplate",
+                      "value": {
+                        "type": "jinja",
+                        "jinjaPromptTemplate": {
+                          "template": "{#-\n  In addition to the normal inputs of `messages` and `tools`, this template also accepts the\n  following kwargs:\n  - \"builtin_tools\": A list, can contain \"browser\" and/or \"python\".\n  - \"model_identity\": A string that optionally describes the model identity.\n  - \"reasoning_effort\": A string that describes the reasoning effort, defaults to \"medium\".\n #}\n\n{#- Tool Definition Rendering ============================================== #}\n{%- macro render_typescript_type(param_spec, required_params, is_nullable=false) -%}\n    {%- if param_spec.type == \"array\" -%}\n        {%- if param_spec['items'] -%}\n            {%- if param_spec['items']['type'] == \"string\" -%}\n                {{- \"string[]\" }}\n            {%- elif param_spec['items']['type'] == \"number\" -%}\n                {{- \"number[]\" }}\n            {%- elif param_spec['items']['type'] == \"integer\" -%}\n                {{- \"number[]\" }}\n            {%- elif param_spec['items']['type'] == \"boolean\" -%}\n                {{- \"boolean[]\" }}\n            {%- else -%}\n                {%- set inner_type = render_typescript_type(param_spec['items'], required_params) -%}\n                {%- if inner_type == \"object | object\" or inner_type|length > 50 -%}\n                    {{- \"any[]\" }}\n                {%- else -%}\n                    {{- inner_type + \"[]\" }}\n                {%- endif -%}\n            {%- endif -%}\n            {%- if param_spec.nullable -%}\n                {{- \" | null\" }}\n            {%- endif -%}\n        {%- else -%}\n            {{- \"any[]\" }}\n            {%- if param_spec.nullable -%}\n                {{- \" | null\" }}\n            {%- endif -%}\n        {%- endif -%}\n    {%- elif param_spec.type is defined and param_spec.type is iterable and param_spec.type is not string and param_spec.type is not mapping and param_spec.type[0] is defined -%}\n        {#- Handle array of types like [\"object\", \"object\"] from Union[dict, list] #}\n        {%- if param_spec.type | length > 1 -%}\n            {{- param_spec.type | join(\" | \") }}\n        {%- else -%}\n            {{- param_spec.type[0] }}\n        {%- endif -%}\n    {%- elif param_spec.oneOf -%}\n        {#- Handle oneOf schemas - check for complex unions and fallback to any #}\n        {%- set has_object_variants = false -%}\n        {%- for variant in param_spec.oneOf -%}\n            {%- if variant.type == \"object\" -%}\n                {%- set has_object_variants = true -%}\n            {%- endif -%}\n        {%- endfor -%}\n        {%- if has_object_variants and param_spec.oneOf|length > 1 -%}\n            {{- \"any\" }}\n        {%- else -%}\n            {%- for variant in param_spec.oneOf -%}\n                {{- render_typescript_type(variant, required_params) -}}\n                {%- if variant.description %}\n                    {{- \"// \" + variant.description }}\n                {%- endif -%}\n                {%- if variant.default is defined %}\n                    {{ \"// default: \" + variant.default|tojson }}\n                {%- endif -%}\n                {%- if not loop.last %}\n                    {{- \" | \" }}\n                {% endif -%}\n            {%- endfor -%}\n        {%- endif -%}\n    {%- elif param_spec.type == \"string\" -%}\n        {%- if param_spec.enum -%}\n            {{- '\"' + param_spec.enum|join('\" | \"') + '\"' -}}\n        {%- else -%}\n            {{- \"string\" }}\n            {%- if param_spec.nullable %}\n                {{- \" | null\" }}\n            {%- endif -%}\n        {%- endif -%}\n    {%- elif param_spec.type == \"number\" -%}\n        {{- \"number\" }}\n    {%- elif param_spec.type == \"integer\" -%}\n        {{- \"number\" }}\n    {%- elif param_spec.type == \"boolean\" -%}\n        {{- \"boolean\" }}\n\n    {%- elif param_spec.type == \"object\" -%}\n        {%- if param_spec.properties -%}\n            {{- \"{\n\" }}\n            {%- for prop_name, prop_spec in param_spec.properties.items() -%}\n                {{- prop_name -}}\n                {%- if prop_name not in (param_spec.required or []) -%}\n                    {{- \"?\" }}\n                {%- endif -%}\n                {{- \": \" }}\n                {{ render_typescript_type(prop_spec, param_spec.required or []) }}\n                {%- if not loop.last -%}\n                    {{-\", \" }}\n                {%- endif -%}\n            {%- endfor -%}\n            {{- \"}\" }}\n        {%- else -%}\n            {{- \"object\" }}\n        {%- endif -%}\n    {%- else -%}\n        {{- \"any\" }}\n    {%- endif -%}\n{%- endmacro -%}\n\n{%- macro render_tool_namespace(namespace_name, tools) -%}\n    {{- \"## \" + namespace_name + \"\n\n\" }}\n    {{- \"namespace \" + namespace_name + \" {\n\n\" }}\n    {%- for tool in tools %}\n        {%- set tool = tool.function %}\n        {{- \"// \" + tool.description + \"\n\" }}\n        {{- \"type \"+ tool.name + \" = \" }}\n        {%- if tool.parameters and tool.parameters.properties %}\n            {{- \"(_: {\n\" }}\n            {%- for param_name, param_spec in tool.parameters.properties.items() %}\n                {%- if param_spec.description %}\n                    {{- \"// \" + param_spec.description + \"\n\" }}\n                {%- endif %}\n                {{- param_name }}\n                {%- if param_name not in (tool.parameters.required or []) -%}\n                    {{- \"?\" }}\n                {%- endif -%}\n                {{- \": \" }}\n                {{- render_typescript_type(param_spec, tool.parameters.required or []) }}\n                {%- if param_spec.default is defined -%}\n                    {%- if param_spec.enum %}\n                        {{- \", // default: \" + param_spec.default }}\n                    {%- elif param_spec.oneOf %}\n                        {{- \"// default: \" + param_spec.default }}\n                    {%- else %}\n                        {{- \", // default: \" + param_spec.default|tojson }}\n                    {%- endif -%}\n                {%- endif -%}\n                {%- if not loop.last %}\n                    {{- \",\n\" }}\n                {%- else %}\n                    {{- \"\n\" }}\n                {%- endif -%}\n            {%- endfor %}\n            {{- \"}) => any;\n\n\" }}\n        {%- else -%}\n            {{- \"() => any;\n\n\" }}\n        {%- endif -%}\n    {%- endfor %}\n    {{- \"} // namespace \" + namespace_name }}\n{%- endmacro -%}\n\n{%- macro render_builtin_tools(browser_tool, python_tool) -%}\n    {%- if browser_tool %}\n        {{- \"## browser\n\n\" }}\n        {{- \"// Tool for browsing.\n\" }}\n        {{- \"// The `cursor` appears in brackets before each browsing display: `[{cursor}]`.\n\" }}\n        {{- \"// Cite information from the tool using the following format:\n\" }}\n        {{- \"// `【{cursor}†L{line_start}(-L{line_end})?】`, for example: `【6†L9-L11】` or `【8†L3】`.\n\" }}\n        {{- \"// Do not quote more than 10 words directly from the tool output.\n\" }}\n        {{- \"// sources=web (default: web)\n\" }}\n        {{- \"namespace browser {\n\n\" }}\n        {{- \"// Searches for information related to `query` and displays `topn` results.\n\" }}\n        {{- \"type search = (_: {\n\" }}\n        {{- \"query: string,\n\" }}\n        {{- \"topn?: number, // default: 10\n\" }}\n        {{- \"source?: string,\n\" }}\n        {{- \"}) => any;\n\n\" }}\n        {{- \"// Opens the link `id` from the page indicated by `cursor` starting at line number `loc`, showing `num_lines` lines.\n\" }}\n        {{- \"// Valid link ids are displayed with the formatting: `【{id}†.*】`.\n\" }}\n        {{- \"// If `cursor` is not provided, the most recent page is implied.\n\" }}\n        {{- \"// If `id` is a string, it is treated as a fully qualified URL associated with `source`.\n\" }}\n        {{- \"// If `loc` is not provided, the viewport will be positioned at the beginning of the document or centered on the most relevant passage, if available.\n\" }}\n        {{- \"// Use this function without `id` to scroll to a new location of an opened page.\n\" }}\n        {{- \"type open = (_: {\n\" }}\n        {{- \"id?: number | string, // default: -1\n\" }}\n        {{- \"cursor?: number, // default: -1\n\" }}\n        {{- \"loc?: number, // default: -1\n\" }}\n        {{- \"num_lines?: number, // default: -1\n\" }}\n        {{- \"view_source?: boolean, // default: false\n\" }}\n        {{- \"source?: string,\n\" }}\n        {{- \"}) => any;\n\n\" }}\n        {{- \"// Finds exact matches of `pattern` in the current page, or the page given by `cursor`.\n\" }}\n        {{- \"type find = (_: {\n\" }}\n        {{- \"pattern: string,\n\" }}\n        {{- \"cursor?: number, // default: -1\n\" }}\n        {{- \"}) => any;\n\n\" }}\n        {{- \"} // namespace browser\n\n\" }}\n    {%- endif -%}\n\n    {%- if python_tool %}\n        {{- \"## python\n\n\" }}\n        {{- \"Use this tool to execute Python code in your chain of thought. The code will not be shown to the user. This tool should be used for internal reasoning, but not for code that is intended to be visible to the user (e.g. when creating plots, tables, or files).\n\n\" }}\n        {{- \"When you send a message containing Python code to python, it will be executed in a stateful Jupyter notebook environment. python will respond with the output of the execution or time out after 120.0 seconds. The drive at '/mnt/data' can be used to save and persist user files. Internet access for this session is UNKNOWN. Depends on the cluster.\n\n\" }}\n    {%- endif -%}\n{%- endmacro -%}\n\n{#- System Message Construction ============================================ #}\n{%- macro build_system_message() -%}\n    {%- if model_identity is not defined %}\n        {%- set model_identity = \"You are ChatGPT, a large language model trained by OpenAI.\" %}\n    {%- endif %}\n    {{- model_identity + \"\n\" }}\n    {{- \"Knowledge cutoff: 2024-06\n\" }}\n    {{- \"Current date: \" + strftime_now(\"%Y-%m-%d\") + \"\n\n\" }}\n    {%- if reasoning_effort is not defined %}\n        {%- set reasoning_effort = \"medium\" %}\n    {%- endif %}\n    {{- \"Reasoning: \" + reasoning_effort + \"\n\n\" }}\n    {%- if builtin_tools %}\n        {{- \"# Tools\n\n\" }}\n        {%- set available_builtin_tools = namespace(browser=false, python=false) %}\n        {%- for tool in builtin_tools %}\n            {%- if tool == \"browser\" %}\n                {%- set available_builtin_tools.browser = true %}\n            {%- elif tool == \"python\" %}\n                {%- set available_builtin_tools.python = true %}\n            {%- endif %}\n        {%- endfor %}\n        {{- render_builtin_tools(available_builtin_tools.browser, available_builtin_tools.python) }}\n    {%- endif -%}\n    {{- \"# Valid channels: analysis, commentary, final. Channel must be included for every message.\" }}\n    {%- if tools -%}\n        {{- \"\nCalls to these tools must go to the commentary channel: 'functions'.\" }}\n    {%- endif -%}\n{%- endmacro -%}\n\n{#- Main Template Logic ================================================= #}\n{#- Set defaults #}\n\n{#- Render system message #}\n{{- \"<|start|>system<|message|>\" }}\n{{- build_system_message() }}\n{{- \"<|end|>\" }}\n\n{#- Extract developer message #}\n{%- if messages[0].role == \"developer\" or messages[0].role == \"system\" %}\n    {%- set developer_message = messages[0].content %}\n    {%- set loop_messages = messages[1:] %}\n{%- else %}\n    {%- set developer_message = \"\" %}\n    {%- set loop_messages = messages %}\n{%- endif %}\n\n{#- Render developer message #}\n{%- if developer_message or tools %}\n    {{- \"<|start|>developer<|message|>\" }}\n    {%- if developer_message %}\n        {{- \"# Instructions\n\n\" }}\n        {{- developer_message }}\n    {%- endif %}\n    {%- if tools -%}\n        {{- \"\n\n\" }}\n        {{- \"# Tools\n\n\" }}\n        {{- render_tool_namespace(\"functions\", tools) }}\n    {%- endif -%}\n    {{- \"<|end|>\" }}\n{%- endif %}\n\n{#- Render messages #}\n{%- set last_tool_call = namespace(name=none) %}\n{%- for message in loop_messages -%}\n    {#- At this point only assistant/user/tool messages should remain #}\n    {%- if message.role == 'assistant' -%}\n        {#- Checks to ensure the messages are being passed in the format we expect #}\n        {%- if \"content\" in message %}\n            {%- if \"<|channel|>analysis<|message|>\" in message.content or \"<|channel|>final<|message|>\" in message.content %}\n                {{- raise_exception(\"You have passed a message containing <|channel|> tags in the content field. Instead of doing this, you should pass analysis messages (the string between '<|message|>' and '<|end|>') in the 'thinking' field, and final messages (the string between '<|message|>' and '<|end|>') in the 'content' field.\") }}\n            {%- endif %}\n        {%- endif %}\n        {%- if \"thinking\" in message %}\n            {%- if \"<|channel|>analysis<|message|>\" in message.thinking or \"<|channel|>final<|message|>\" in message.thinking %}\n                {{- raise_exception(\"You have passed a message containing <|channel|> tags in the thinking field. Instead of doing this, you should pass analysis messages (the string between '<|message|>' and '<|end|>') in the 'thinking' field, and final messages (the string between '<|message|>' and '<|end|>') in the 'content' field.\") }}\n            {%- endif %}\n        {%- endif %}\n        {%- if \"tool_calls\" in message %}\n            {#- We assume max 1 tool call per message, and so we infer the tool call name #}\n            {#- in \"tool\" messages from the most recent assistant tool call name #}\n            {%- set tool_call = message.tool_calls[0] %}\n            {%- if tool_call.function %}\n                {%- set tool_call = tool_call.function %}\n            {%- endif %}\n            {%- if message.content and message.thinking %}\n                {{- raise_exception(\"Cannot pass both content and thinking in an assistant message with tool calls! Put the analysis message in one or the other, but not both.\") }}\n            {%- elif message.content %}\n                {{- \"<|start|>assistant<|channel|>analysis<|message|>\" + message.content + \"<|end|>\" }}\n            {%- elif message.thinking %}\n                {{- \"<|start|>assistant<|channel|>analysis<|message|>\" + message.thinking + \"<|end|>\" }}\n            {%- endif %}\n            {{- \"<|start|>assistant to=\" }}\n            {{- \"functions.\" + tool_call.name + \"<|channel|>commentary \" }}\n            {{- (tool_call.content_type if tool_call.content_type is defined else \"json\") + \"<|message|>\" }}\n            {{- tool_call.arguments|tojson }}\n            {{- \"<|call|>\" }}\n            {%- set last_tool_call.name = tool_call.name %}\n        {%- elif loop.last and not add_generation_prompt %}\n            {#- Only render the CoT if the final turn is an assistant turn and add_generation_prompt is false #}\n            {#- This is a situation that should only occur in training, never in inference. #}\n            {%- if \"thinking\" in message %}\n                {{- \"<|start|>assistant<|channel|>analysis<|message|>\" + message.thinking + \"<|end|>\" }}\n            {%- endif %}\n            {#- <|return|> indicates the end of generation, but <|end|> does not #}\n            {#- <|return|> should never be an input to the model, but we include it as the final token #}\n            {#- when training, so the model learns to emit it. #}\n            {{- \"<|start|>assistant<|channel|>final<|message|>\" + message.content + \"<|return|>\" }}\n        {%- else %}\n            {#- CoT is dropped during all previous turns, so we never render it for inference #}\n            {{- \"<|start|>assistant<|channel|>final<|message|>\" + message.content + \"<|end|>\" }}\n            {%- set last_tool_call.name = none %}\n        {%- endif %}\n    {%- elif message.role == 'tool' -%}\n        {%- if last_tool_call.name is none %}\n            {{- raise_exception(\"Message has tool role, but there was no previous assistant message with a tool call!\") }}\n        {%- endif %}\n        {{- \"<|start|>functions.\" + last_tool_call.name }}\n        {{- \" to=assistant<|channel|>commentary<|message|>\" + message.content|tojson + \"<|end|>\" }}\n    {%- elif message.role == 'user' -%}\n        {{- \"<|start|>user<|message|>\" + message.content + \"<|end|>\" }}\n    {%- endif -%}\n{%- endfor -%}\n\n{#- Generation prompt #}\n{%- if add_generation_prompt -%}\n<|start|>assistant\n{%- endif -%}"
+                        },
+                        "stopStrings": []
+                      }
+                    },
+                    {
+                      "key": "llm.prediction.llama.cpuThreads",
+                      "value": 7
+                    },
+                    {
+                      "key": "llm.prediction.contextPrefill",
+                      "value": []
+                    },
+                    {
+                      "key": "llm.prediction.temperature",
+                      "value": 0.8
+                    },
+                    {
+                      "key": "llm.prediction.topKSampling",
+                      "value": 40
+                    },
+                    {
+                      "key": "llm.prediction.topPSampling",
+                      "value": {
+                        "checked": true,
+                        "value": 0.8
+                      }
+                    },
+                    {
+                      "key": "llm.prediction.repeatPenalty",
+                      "value": {
+                        "checked": true,
+                        "value": 1.1
+                      }
+                    },
+                    {
+                      "key": "llm.prediction.minPSampling",
+                      "value": {
+                        "checked": true,
+                        "value": 0.05
+                      }
+                    },
+                    {
+                      "key": "ext.virtualModel.customField.openai.gptOss20b.reasoningEffort",
+                      "value": "medium"
+                    },
+                    {
+                      "key": "llm.prediction.tools",
+                      "value": {
+                        "type": "toolArray",
+                        "tools": [
+                          {
+                            "type": "function",
+                            "function": {
+                              "name": "get_database_schema",
+                              "description": "🔍 Discover what data is available in the MIMIC-IV database.\n\n    **When to use:** Start here when you need to understand what tables exist, or when someone asks about data that might be in multiple tables.\n\n    **What this does:** Shows all available tables so you can identify which ones contain the data you need.\n\n    **Next steps after using this:**\n    - If you see relevant tables, use `get_table_info(table_name)` to explore their structure\n    - Common tables: `patients` (demographics), `admissions` (hospital stays), `icustays` (ICU data), `labevents` (lab results)\n\n    Returns:\n        List of all available tables in the database with current backend info\n    ",
+                              "parameters": {
+                                "type": "object",
+                                "properties": {}
+                              }
+                            }
+                          },
+                          {
+                            "type": "function",
+                            "function": {
+                              "name": "get_table_info",
+                              "description": "📋 Explore a specific table's structure and see sample data.\n\n    **When to use:** After you know which table you need (from `get_database_schema()`), use this to understand the columns and data format.\n\n    **What this does:**\n    - Shows column names, types, and constraints\n    - Displays sample rows so you understand the actual data format\n    - Helps you write accurate SQL queries\n\n    **Pro tip:** Always look at sample data! It shows you the actual values, date formats, and data patterns.\n\n    Args:\n        table_name: Exact table name from the schema (case-sensitive). Can be simple name or fully qualified BigQuery name.\n        show_sample: Whether to include sample rows (default: True, recommended)\n\n    Returns:\n        Complete table structure with sample data to help you write queries\n    ",
+                              "parameters": {
+                                "type": "object",
+                                "properties": {
+                                  "table_name": {
+                                    "title": "Table Name",
+                                    "type": "string"
+                                  },
+                                  "show_sample": {
+                                    "default": true,
+                                    "title": "Show Sample",
+                                    "type": "boolean"
+                                  }
+                                },
+                                "required": [
+                                  "table_name"
+                                ]
+                              }
+                            }
+                          },
+                          {
+                            "type": "function",
+                            "function": {
+                              "name": "execute_mimic_query",
+                              "description": "🚀 Execute SQL queries to analyze MIMIC-IV data.\n\n    **💡 Pro tip:** For best results, explore the database structure first!\n\n    **Recommended workflow (especially for smaller models):**\n    1. **See available tables:** Use `get_database_schema()` to list all tables\n    2. **Examine table structure:** Use `get_table_info('table_name')` to see columns and sample data\n    3. **Write your SQL query:** Use exact table/column names from exploration\n\n    **Why exploration helps:**\n    - Table names vary between backends (SQLite vs BigQuery)\n    - Column names may be unexpected (e.g., age might be 'anchor_age')\n    - Sample data shows actual formats and constraints\n\n    Args:\n        sql_query: Your SQL SELECT query (must be SELECT only)\n\n    Returns:\n        Query results or helpful error messages with next steps\n    ",
+                              "parameters": {
+                                "type": "object",
+                                "properties": {
+                                  "sql_query": {
+                                    "title": "Sql Query",
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "sql_query"
+                                ]
+                              }
+                            }
+                          },
+                          {
+                            "type": "function",
+                            "function": {
+                              "name": "get_icu_stays",
+                              "description": "🏥 Get ICU stay information and length of stay data.\n\n    **⚠️ Note:** This is a convenience function that assumes standard MIMIC-IV table structure.\n    **For reliable queries:** Use `get_database_schema()` → `get_table_info()` → `execute_mimic_query()` workflow.\n\n    **What you'll get:** Patient IDs, admission times, length of stay, and ICU details.\n\n    Args:\n        patient_id: Specific patient ID to query (optional)\n        limit: Maximum number of records to return (default: 10)\n\n    Returns:\n        ICU stay data as formatted text or guidance if table not found\n    ",
+                              "parameters": {
+                                "type": "object",
+                                "properties": {
+                                  "patient_id": {
+                                    "anyOf": [
+                                      {
+                                        "type": "integer"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ],
+                                    "default": null,
+                                    "title": "Patient Id"
+                                  },
+                                  "limit": {
+                                    "default": 10,
+                                    "title": "Limit",
+                                    "type": "integer"
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          {
+                            "type": "function",
+                            "function": {
+                              "name": "get_lab_results",
+                              "description": "🧪 Get laboratory test results quickly.\n\n    **⚠️ Note:** This is a convenience function that assumes standard MIMIC-IV table structure.\n    **For reliable queries:** Use `get_database_schema()` → `get_table_info()` → `execute_mimic_query()` workflow.\n\n    **What you'll get:** Lab values, timestamps, patient IDs, and test details.\n\n    Args:\n        patient_id: Specific patient ID to query (optional)\n        lab_item: Lab item to search for in the value field (optional)\n        limit: Maximum number of records to return (default: 20)\n\n    Returns:\n        Lab results as formatted text or guidance if table not found\n    ",
+                              "parameters": {
+                                "type": "object",
+                                "properties": {
+                                  "patient_id": {
+                                    "anyOf": [
+                                      {
+                                        "type": "integer"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ],
+                                    "default": null,
+                                    "title": "Patient Id"
+                                  },
+                                  "lab_item": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ],
+                                    "default": null,
+                                    "title": "Lab Item"
+                                  },
+                                  "limit": {
+                                    "default": 20,
+                                    "title": "Limit",
+                                    "type": "integer"
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          {
+                            "type": "function",
+                            "function": {
+                              "name": "get_race_distribution",
+                              "description": "📊 Get race distribution from hospital admissions.\n\n    **⚠️ Note:** This is a convenience function that assumes standard MIMIC-IV table structure.\n    **For reliable queries:** Use `get_database_schema()` → `get_table_info()` → `execute_mimic_query()` workflow.\n\n    **What you'll get:** Count of patients by race category, ordered by frequency.\n\n    Args:\n        limit: Maximum number of race categories to return (default: 10)\n\n    Returns:\n        Race distribution as formatted text or guidance if table not found\n    ",
+                              "parameters": {
+                                "type": "object",
+                                "properties": {
+                                  "limit": {
+                                    "default": 10,
+                                    "title": "Limit",
+                                    "type": "integer"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                },
+                "stats": {
+                  "stopReason": "eosFound",
+                  "tokensPerSecond": 39.4406030089392,
+                  "numGpuLayers": -1,
+                  "timeToFirstTokenSec": 0.297,
+                  "totalTimeSec": 4.488,
+                  "promptTokensCount": 2803,
+                  "predictedTokensCount": 177,
+                  "totalTokensCount": 2980
+                }
+              }
+            },
+            {
+              "type": "contentBlock",
+              "stepIdentifier": "1758977712692-0.8273893571497944",
+              "content": [
+                {
+                  "type": "toolCallResult",
+                  "callId": 849489520601305,
+                  "toolCallRequestId": "719097313",
+                  "content": "[{\"type\":\"text\",\"text\":\" hadm_id  subject_id                 dob dischtime\\n21027282    10018081 2021-07-25 00:00:00      None\"}]"
+                }
+              ],
+              "roleOverride": "tool",
+              "defaultShouldIncludeInContext": true,
+              "shouldIncludeInContext": true
+            },
+            {
+              "type": "contentBlock",
+              "stepIdentifier": "1758977713424-0.23834665405841926",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "We see an admission with dischtime NULL. So there is one ongoing stay as of dataset end? But that admission date 2021-07-25 and no discharge time indicates still admitted at last update. So as of 2100-12-31, it's still ongoing (NULL). Age computed: dob 2021-07-25; that's age 79 years in 2100. Yes.\n\nSo answer is 1 current patient aged >=60.\n\nBut we need to double-check if there are other admissions with dischtime NULL and older than 60. Let's count distinct hadm_id again but maybe join duplicates? But we counted distinct hadm_id, which returned 1. So correct.\n\nThus answer: 1 current patient aged 60 or above.\n\nWe should explain methodology briefly.",
+                  "fromDraftModel": false,
+                  "tokensCount": 162,
+                  "isStructural": false
+                }
+              ],
+              "defaultShouldIncludeInContext": true,
+              "shouldIncludeInContext": true,
+              "style": {
+                "type": "thinking",
+                "ended": true,
+                "title": "Thought for 4.04 seconds"
+              },
+              "prefix": "<|channel|>analysis<|message|>",
+              "suffix": "<|end|>"
+            },
+            {
+              "type": "contentBlock",
+              "stepIdentifier": "1758977717647-0.3463470593010579",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "<|start|>assistant<|channel|>final<|message|>",
+                  "fromDraftModel": false,
+                  "tokensCount": 6,
+                  "isStructural": true
+                },
+                {
+                  "type": "text",
+                  "text": "**Answer**\n\nThere is **one (1)** patient who meets both criteria:\n\n| `hadm_id` | `subject_id` | Date of Birth (`dob`) | Discharge time (`dischtime`) |\n|-----------|--------------|-----------------------|-----------------------------|\n| 21 027 282 | 10 018 081 | 2021‑07‑25 00:00:00   | *NULL* (still admitted) |\n\n- **Age calculation** – Using the reference date “2100‑12‑31”, the patient’s age is  \n  \\[\n  \\frac{julianday('2100‑12‑31') - julianday('2021‑07‑25')}{365.25} \\approx 79\\,\\text{years}\n  \\]\n  which is ≥ 60 years.\n- **Current status** – The `dischtime` field is NULL, meaning the stay has not yet ended in the MIMIC‑IV dataset; thus the patient is considered “currently” admitted as of any future reference date (including the artificial time “2100‑12‑31 23:59:00”).\n\nNo other admissions satisfy both conditions. Therefore:\n\n**Number of current patients aged 60 or older:** **1**.",
+                  "fromDraftModel": false,
+                  "tokensCount": 259,
+                  "isStructural": false
+                }
+              ],
+              "defaultShouldIncludeInContext": true,
+              "shouldIncludeInContext": true,
+              "genInfo": {
+                "indexedModelIdentifier": "openai/gpt-oss-20b",
+                "identifier": "openai/gpt-oss-20b",
+                "loadModelConfig": {
+                  "fields": [
+                    {
+                      "key": "llm.load.llama.cpuThreadPoolSize",
+                      "value": 7
+                    },
+                    {
+                      "key": "llm.load.contextLength",
+                      "value": 32000
+                    },
+                    {
+                      "key": "llm.load.numExperts",
+                      "value": 4
+                    },
+                    {
+                      "key": "llm.load.llama.acceleration.offloadRatio",
+                      "value": 1
+                    }
+                  ]
+                },
+                "predictionConfig": {
+                  "fields": [
+                    {
+                      "key": "llm.prediction.promptTemplate",
+                      "value": {
+                        "type": "jinja",
+                        "jinjaPromptTemplate": {
+                          "template": "{#-\n  In addition to the normal inputs of `messages` and `tools`, this template also accepts the\n  following kwargs:\n  - \"builtin_tools\": A list, can contain \"browser\" and/or \"python\".\n  - \"model_identity\": A string that optionally describes the model identity.\n  - \"reasoning_effort\": A string that describes the reasoning effort, defaults to \"medium\".\n #}\n\n{#- Tool Definition Rendering ============================================== #}\n{%- macro render_typescript_type(param_spec, required_params, is_nullable=false) -%}\n    {%- if param_spec.type == \"array\" -%}\n        {%- if param_spec['items'] -%}\n            {%- if param_spec['items']['type'] == \"string\" -%}\n                {{- \"string[]\" }}\n            {%- elif param_spec['items']['type'] == \"number\" -%}\n                {{- \"number[]\" }}\n            {%- elif param_spec['items']['type'] == \"integer\" -%}\n                {{- \"number[]\" }}\n            {%- elif param_spec['items']['type'] == \"boolean\" -%}\n                {{- \"boolean[]\" }}\n            {%- else -%}\n                {%- set inner_type = render_typescript_type(param_spec['items'], required_params) -%}\n                {%- if inner_type == \"object | object\" or inner_type|length > 50 -%}\n                    {{- \"any[]\" }}\n                {%- else -%}\n                    {{- inner_type + \"[]\" }}\n                {%- endif -%}\n            {%- endif -%}\n            {%- if param_spec.nullable -%}\n                {{- \" | null\" }}\n            {%- endif -%}\n        {%- else -%}\n            {{- \"any[]\" }}\n            {%- if param_spec.nullable -%}\n                {{- \" | null\" }}\n            {%- endif -%}\n        {%- endif -%}\n    {%- elif param_spec.type is defined and param_spec.type is iterable and param_spec.type is not string and param_spec.type is not mapping and param_spec.type[0] is defined -%}\n        {#- Handle array of types like [\"object\", \"object\"] from Union[dict, list] #}\n        {%- if param_spec.type | length > 1 -%}\n            {{- param_spec.type | join(\" | \") }}\n        {%- else -%}\n            {{- param_spec.type[0] }}\n        {%- endif -%}\n    {%- elif param_spec.oneOf -%}\n        {#- Handle oneOf schemas - check for complex unions and fallback to any #}\n        {%- set has_object_variants = false -%}\n        {%- for variant in param_spec.oneOf -%}\n            {%- if variant.type == \"object\" -%}\n                {%- set has_object_variants = true -%}\n            {%- endif -%}\n        {%- endfor -%}\n        {%- if has_object_variants and param_spec.oneOf|length > 1 -%}\n            {{- \"any\" }}\n        {%- else -%}\n            {%- for variant in param_spec.oneOf -%}\n                {{- render_typescript_type(variant, required_params) -}}\n                {%- if variant.description %}\n                    {{- \"// \" + variant.description }}\n                {%- endif -%}\n                {%- if variant.default is defined %}\n                    {{ \"// default: \" + variant.default|tojson }}\n                {%- endif -%}\n                {%- if not loop.last %}\n                    {{- \" | \" }}\n                {% endif -%}\n            {%- endfor -%}\n        {%- endif -%}\n    {%- elif param_spec.type == \"string\" -%}\n        {%- if param_spec.enum -%}\n            {{- '\"' + param_spec.enum|join('\" | \"') + '\"' -}}\n        {%- else -%}\n            {{- \"string\" }}\n            {%- if param_spec.nullable %}\n                {{- \" | null\" }}\n            {%- endif -%}\n        {%- endif -%}\n    {%- elif param_spec.type == \"number\" -%}\n        {{- \"number\" }}\n    {%- elif param_spec.type == \"integer\" -%}\n        {{- \"number\" }}\n    {%- elif param_spec.type == \"boolean\" -%}\n        {{- \"boolean\" }}\n\n    {%- elif param_spec.type == \"object\" -%}\n        {%- if param_spec.properties -%}\n            {{- \"{\n\" }}\n            {%- for prop_name, prop_spec in param_spec.properties.items() -%}\n                {{- prop_name -}}\n                {%- if prop_name not in (param_spec.required or []) -%}\n                    {{- \"?\" }}\n                {%- endif -%}\n                {{- \": \" }}\n                {{ render_typescript_type(prop_spec, param_spec.required or []) }}\n                {%- if not loop.last -%}\n                    {{-\", \" }}\n                {%- endif -%}\n            {%- endfor -%}\n            {{- \"}\" }}\n        {%- else -%}\n            {{- \"object\" }}\n        {%- endif -%}\n    {%- else -%}\n        {{- \"any\" }}\n    {%- endif -%}\n{%- endmacro -%}\n\n{%- macro render_tool_namespace(namespace_name, tools) -%}\n    {{- \"## \" + namespace_name + \"\n\n\" }}\n    {{- \"namespace \" + namespace_name + \" {\n\n\" }}\n    {%- for tool in tools %}\n        {%- set tool = tool.function %}\n        {{- \"// \" + tool.description + \"\n\" }}\n        {{- \"type \"+ tool.name + \" = \" }}\n        {%- if tool.parameters and tool.parameters.properties %}\n            {{- \"(_: {\n\" }}\n            {%- for param_name, param_spec in tool.parameters.properties.items() %}\n                {%- if param_spec.description %}\n                    {{- \"// \" + param_spec.description + \"\n\" }}\n                {%- endif %}\n                {{- param_name }}\n                {%- if param_name not in (tool.parameters.required or []) -%}\n                    {{- \"?\" }}\n                {%- endif -%}\n                {{- \": \" }}\n                {{- render_typescript_type(param_spec, tool.parameters.required or []) }}\n                {%- if param_spec.default is defined -%}\n                    {%- if param_spec.enum %}\n                        {{- \", // default: \" + param_spec.default }}\n                    {%- elif param_spec.oneOf %}\n                        {{- \"// default: \" + param_spec.default }}\n                    {%- else %}\n                        {{- \", // default: \" + param_spec.default|tojson }}\n                    {%- endif -%}\n                {%- endif -%}\n                {%- if not loop.last %}\n                    {{- \",\n\" }}\n                {%- else %}\n                    {{- \"\n\" }}\n                {%- endif -%}\n            {%- endfor %}\n            {{- \"}) => any;\n\n\" }}\n        {%- else -%}\n            {{- \"() => any;\n\n\" }}\n        {%- endif -%}\n    {%- endfor %}\n    {{- \"} // namespace \" + namespace_name }}\n{%- endmacro -%}\n\n{%- macro render_builtin_tools(browser_tool, python_tool) -%}\n    {%- if browser_tool %}\n        {{- \"## browser\n\n\" }}\n        {{- \"// Tool for browsing.\n\" }}\n        {{- \"// The `cursor` appears in brackets before each browsing display: `[{cursor}]`.\n\" }}\n        {{- \"// Cite information from the tool using the following format:\n\" }}\n        {{- \"// `【{cursor}†L{line_start}(-L{line_end})?】`, for example: `【6†L9-L11】` or `【8†L3】`.\n\" }}\n        {{- \"// Do not quote more than 10 words directly from the tool output.\n\" }}\n        {{- \"// sources=web (default: web)\n\" }}\n        {{- \"namespace browser {\n\n\" }}\n        {{- \"// Searches for information related to `query` and displays `topn` results.\n\" }}\n        {{- \"type search = (_: {\n\" }}\n        {{- \"query: string,\n\" }}\n        {{- \"topn?: number, // default: 10\n\" }}\n        {{- \"source?: string,\n\" }}\n        {{- \"}) => any;\n\n\" }}\n        {{- \"// Opens the link `id` from the page indicated by `cursor` starting at line number `loc`, showing `num_lines` lines.\n\" }}\n        {{- \"// Valid link ids are displayed with the formatting: `【{id}†.*】`.\n\" }}\n        {{- \"// If `cursor` is not provided, the most recent page is implied.\n\" }}\n        {{- \"// If `id` is a string, it is treated as a fully qualified URL associated with `source`.\n\" }}\n        {{- \"// If `loc` is not provided, the viewport will be positioned at the beginning of the document or centered on the most relevant passage, if available.\n\" }}\n        {{- \"// Use this function without `id` to scroll to a new location of an opened page.\n\" }}\n        {{- \"type open = (_: {\n\" }}\n        {{- \"id?: number | string, // default: -1\n\" }}\n        {{- \"cursor?: number, // default: -1\n\" }}\n        {{- \"loc?: number, // default: -1\n\" }}\n        {{- \"num_lines?: number, // default: -1\n\" }}\n        {{- \"view_source?: boolean, // default: false\n\" }}\n        {{- \"source?: string,\n\" }}\n        {{- \"}) => any;\n\n\" }}\n        {{- \"// Finds exact matches of `pattern` in the current page, or the page given by `cursor`.\n\" }}\n        {{- \"type find = (_: {\n\" }}\n        {{- \"pattern: string,\n\" }}\n        {{- \"cursor?: number, // default: -1\n\" }}\n        {{- \"}) => any;\n\n\" }}\n        {{- \"} // namespace browser\n\n\" }}\n    {%- endif -%}\n\n    {%- if python_tool %}\n        {{- \"## python\n\n\" }}\n        {{- \"Use this tool to execute Python code in your chain of thought. The code will not be shown to the user. This tool should be used for internal reasoning, but not for code that is intended to be visible to the user (e.g. when creating plots, tables, or files).\n\n\" }}\n        {{- \"When you send a message containing Python code to python, it will be executed in a stateful Jupyter notebook environment. python will respond with the output of the execution or time out after 120.0 seconds. The drive at '/mnt/data' can be used to save and persist user files. Internet access for this session is UNKNOWN. Depends on the cluster.\n\n\" }}\n    {%- endif -%}\n{%- endmacro -%}\n\n{#- System Message Construction ============================================ #}\n{%- macro build_system_message() -%}\n    {%- if model_identity is not defined %}\n        {%- set model_identity = \"You are ChatGPT, a large language model trained by OpenAI.\" %}\n    {%- endif %}\n    {{- model_identity + \"\n\" }}\n    {{- \"Knowledge cutoff: 2024-06\n\" }}\n    {{- \"Current date: \" + strftime_now(\"%Y-%m-%d\") + \"\n\n\" }}\n    {%- if reasoning_effort is not defined %}\n        {%- set reasoning_effort = \"medium\" %}\n    {%- endif %}\n    {{- \"Reasoning: \" + reasoning_effort + \"\n\n\" }}\n    {%- if builtin_tools %}\n        {{- \"# Tools\n\n\" }}\n        {%- set available_builtin_tools = namespace(browser=false, python=false) %}\n        {%- for tool in builtin_tools %}\n            {%- if tool == \"browser\" %}\n                {%- set available_builtin_tools.browser = true %}\n            {%- elif tool == \"python\" %}\n                {%- set available_builtin_tools.python = true %}\n            {%- endif %}\n        {%- endfor %}\n        {{- render_builtin_tools(available_builtin_tools.browser, available_builtin_tools.python) }}\n    {%- endif -%}\n    {{- \"# Valid channels: analysis, commentary, final. Channel must be included for every message.\" }}\n    {%- if tools -%}\n        {{- \"\nCalls to these tools must go to the commentary channel: 'functions'.\" }}\n    {%- endif -%}\n{%- endmacro -%}\n\n{#- Main Template Logic ================================================= #}\n{#- Set defaults #}\n\n{#- Render system message #}\n{{- \"<|start|>system<|message|>\" }}\n{{- build_system_message() }}\n{{- \"<|end|>\" }}\n\n{#- Extract developer message #}\n{%- if messages[0].role == \"developer\" or messages[0].role == \"system\" %}\n    {%- set developer_message = messages[0].content %}\n    {%- set loop_messages = messages[1:] %}\n{%- else %}\n    {%- set developer_message = \"\" %}\n    {%- set loop_messages = messages %}\n{%- endif %}\n\n{#- Render developer message #}\n{%- if developer_message or tools %}\n    {{- \"<|start|>developer<|message|>\" }}\n    {%- if developer_message %}\n        {{- \"# Instructions\n\n\" }}\n        {{- developer_message }}\n    {%- endif %}\n    {%- if tools -%}\n        {{- \"\n\n\" }}\n        {{- \"# Tools\n\n\" }}\n        {{- render_tool_namespace(\"functions\", tools) }}\n    {%- endif -%}\n    {{- \"<|end|>\" }}\n{%- endif %}\n\n{#- Render messages #}\n{%- set last_tool_call = namespace(name=none) %}\n{%- for message in loop_messages -%}\n    {#- At this point only assistant/user/tool messages should remain #}\n    {%- if message.role == 'assistant' -%}\n        {#- Checks to ensure the messages are being passed in the format we expect #}\n        {%- if \"content\" in message %}\n            {%- if \"<|channel|>analysis<|message|>\" in message.content or \"<|channel|>final<|message|>\" in message.content %}\n                {{- raise_exception(\"You have passed a message containing <|channel|> tags in the content field. Instead of doing this, you should pass analysis messages (the string between '<|message|>' and '<|end|>') in the 'thinking' field, and final messages (the string between '<|message|>' and '<|end|>') in the 'content' field.\") }}\n            {%- endif %}\n        {%- endif %}\n        {%- if \"thinking\" in message %}\n            {%- if \"<|channel|>analysis<|message|>\" in message.thinking or \"<|channel|>final<|message|>\" in message.thinking %}\n                {{- raise_exception(\"You have passed a message containing <|channel|> tags in the thinking field. Instead of doing this, you should pass analysis messages (the string between '<|message|>' and '<|end|>') in the 'thinking' field, and final messages (the string between '<|message|>' and '<|end|>') in the 'content' field.\") }}\n            {%- endif %}\n        {%- endif %}\n        {%- if \"tool_calls\" in message %}\n            {#- We assume max 1 tool call per message, and so we infer the tool call name #}\n            {#- in \"tool\" messages from the most recent assistant tool call name #}\n            {%- set tool_call = message.tool_calls[0] %}\n            {%- if tool_call.function %}\n                {%- set tool_call = tool_call.function %}\n            {%- endif %}\n            {%- if message.content and message.thinking %}\n                {{- raise_exception(\"Cannot pass both content and thinking in an assistant message with tool calls! Put the analysis message in one or the other, but not both.\") }}\n            {%- elif message.content %}\n                {{- \"<|start|>assistant<|channel|>analysis<|message|>\" + message.content + \"<|end|>\" }}\n            {%- elif message.thinking %}\n                {{- \"<|start|>assistant<|channel|>analysis<|message|>\" + message.thinking + \"<|end|>\" }}\n            {%- endif %}\n            {{- \"<|start|>assistant to=\" }}\n            {{- \"functions.\" + tool_call.name + \"<|channel|>commentary \" }}\n            {{- (tool_call.content_type if tool_call.content_type is defined else \"json\") + \"<|message|>\" }}\n            {{- tool_call.arguments|tojson }}\n            {{- \"<|call|>\" }}\n            {%- set last_tool_call.name = tool_call.name %}\n        {%- elif loop.last and not add_generation_prompt %}\n            {#- Only render the CoT if the final turn is an assistant turn and add_generation_prompt is false #}\n            {#- This is a situation that should only occur in training, never in inference. #}\n            {%- if \"thinking\" in message %}\n                {{- \"<|start|>assistant<|channel|>analysis<|message|>\" + message.thinking + \"<|end|>\" }}\n            {%- endif %}\n            {#- <|return|> indicates the end of generation, but <|end|> does not #}\n            {#- <|return|> should never be an input to the model, but we include it as the final token #}\n            {#- when training, so the model learns to emit it. #}\n            {{- \"<|start|>assistant<|channel|>final<|message|>\" + message.content + \"<|return|>\" }}\n        {%- else %}\n            {#- CoT is dropped during all previous turns, so we never render it for inference #}\n            {{- \"<|start|>assistant<|channel|>final<|message|>\" + message.content + \"<|end|>\" }}\n            {%- set last_tool_call.name = none %}\n        {%- endif %}\n    {%- elif message.role == 'tool' -%}\n        {%- if last_tool_call.name is none %}\n            {{- raise_exception(\"Message has tool role, but there was no previous assistant message with a tool call!\") }}\n        {%- endif %}\n        {{- \"<|start|>functions.\" + last_tool_call.name }}\n        {{- \" to=assistant<|channel|>commentary<|message|>\" + message.content|tojson + \"<|end|>\" }}\n    {%- elif message.role == 'user' -%}\n        {{- \"<|start|>user<|message|>\" + message.content + \"<|end|>\" }}\n    {%- endif -%}\n{%- endfor -%}\n\n{#- Generation prompt #}\n{%- if add_generation_prompt -%}\n<|start|>assistant\n{%- endif -%}"
+                        },
+                        "stopStrings": []
+                      }
+                    },
+                    {
+                      "key": "llm.prediction.llama.cpuThreads",
+                      "value": 7
+                    },
+                    {
+                      "key": "llm.prediction.contextPrefill",
+                      "value": []
+                    },
+                    {
+                      "key": "llm.prediction.temperature",
+                      "value": 0.8
+                    },
+                    {
+                      "key": "llm.prediction.topKSampling",
+                      "value": 40
+                    },
+                    {
+                      "key": "llm.prediction.topPSampling",
+                      "value": {
+                        "checked": true,
+                        "value": 0.8
+                      }
+                    },
+                    {
+                      "key": "llm.prediction.repeatPenalty",
+                      "value": {
+                        "checked": true,
+                        "value": 1.1
+                      }
+                    },
+                    {
+                      "key": "llm.prediction.minPSampling",
+                      "value": {
+                        "checked": true,
+                        "value": 0.05
+                      }
+                    },
+                    {
+                      "key": "ext.virtualModel.customField.openai.gptOss20b.reasoningEffort",
+                      "value": "medium"
+                    },
+                    {
+                      "key": "llm.prediction.tools",
+                      "value": {
+                        "type": "toolArray",
+                        "tools": [
+                          {
+                            "type": "function",
+                            "function": {
+                              "name": "get_database_schema",
+                              "description": "🔍 Discover what data is available in the MIMIC-IV database.\n\n    **When to use:** Start here when you need to understand what tables exist, or when someone asks about data that might be in multiple tables.\n\n    **What this does:** Shows all available tables so you can identify which ones contain the data you need.\n\n    **Next steps after using this:**\n    - If you see relevant tables, use `get_table_info(table_name)` to explore their structure\n    - Common tables: `patients` (demographics), `admissions` (hospital stays), `icustays` (ICU data), `labevents` (lab results)\n\n    Returns:\n        List of all available tables in the database with current backend info\n    ",
+                              "parameters": {
+                                "type": "object",
+                                "properties": {}
+                              }
+                            }
+                          },
+                          {
+                            "type": "function",
+                            "function": {
+                              "name": "get_table_info",
+                              "description": "📋 Explore a specific table's structure and see sample data.\n\n    **When to use:** After you know which table you need (from `get_database_schema()`), use this to understand the columns and data format.\n\n    **What this does:**\n    - Shows column names, types, and constraints\n    - Displays sample rows so you understand the actual data format\n    - Helps you write accurate SQL queries\n\n    **Pro tip:** Always look at sample data! It shows you the actual values, date formats, and data patterns.\n\n    Args:\n        table_name: Exact table name from the schema (case-sensitive). Can be simple name or fully qualified BigQuery name.\n        show_sample: Whether to include sample rows (default: True, recommended)\n\n    Returns:\n        Complete table structure with sample data to help you write queries\n    ",
+                              "parameters": {
+                                "type": "object",
+                                "properties": {
+                                  "table_name": {
+                                    "title": "Table Name",
+                                    "type": "string"
+                                  },
+                                  "show_sample": {
+                                    "default": true,
+                                    "title": "Show Sample",
+                                    "type": "boolean"
+                                  }
+                                },
+                                "required": [
+                                  "table_name"
+                                ]
+                              }
+                            }
+                          },
+                          {
+                            "type": "function",
+                            "function": {
+                              "name": "execute_mimic_query",
+                              "description": "🚀 Execute SQL queries to analyze MIMIC-IV data.\n\n    **💡 Pro tip:** For best results, explore the database structure first!\n\n    **Recommended workflow (especially for smaller models):**\n    1. **See available tables:** Use `get_database_schema()` to list all tables\n    2. **Examine table structure:** Use `get_table_info('table_name')` to see columns and sample data\n    3. **Write your SQL query:** Use exact table/column names from exploration\n\n    **Why exploration helps:**\n    - Table names vary between backends (SQLite vs BigQuery)\n    - Column names may be unexpected (e.g., age might be 'anchor_age')\n    - Sample data shows actual formats and constraints\n\n    Args:\n        sql_query: Your SQL SELECT query (must be SELECT only)\n\n    Returns:\n        Query results or helpful error messages with next steps\n    ",
+                              "parameters": {
+                                "type": "object",
+                                "properties": {
+                                  "sql_query": {
+                                    "title": "Sql Query",
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "sql_query"
+                                ]
+                              }
+                            }
+                          },
+                          {
+                            "type": "function",
+                            "function": {
+                              "name": "get_icu_stays",
+                              "description": "🏥 Get ICU stay information and length of stay data.\n\n    **⚠️ Note:** This is a convenience function that assumes standard MIMIC-IV table structure.\n    **For reliable queries:** Use `get_database_schema()` → `get_table_info()` → `execute_mimic_query()` workflow.\n\n    **What you'll get:** Patient IDs, admission times, length of stay, and ICU details.\n\n    Args:\n        patient_id: Specific patient ID to query (optional)\n        limit: Maximum number of records to return (default: 10)\n\n    Returns:\n        ICU stay data as formatted text or guidance if table not found\n    ",
+                              "parameters": {
+                                "type": "object",
+                                "properties": {
+                                  "patient_id": {
+                                    "anyOf": [
+                                      {
+                                        "type": "integer"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ],
+                                    "default": null,
+                                    "title": "Patient Id"
+                                  },
+                                  "limit": {
+                                    "default": 10,
+                                    "title": "Limit",
+                                    "type": "integer"
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          {
+                            "type": "function",
+                            "function": {
+                              "name": "get_lab_results",
+                              "description": "🧪 Get laboratory test results quickly.\n\n    **⚠️ Note:** This is a convenience function that assumes standard MIMIC-IV table structure.\n    **For reliable queries:** Use `get_database_schema()` → `get_table_info()` → `execute_mimic_query()` workflow.\n\n    **What you'll get:** Lab values, timestamps, patient IDs, and test details.\n\n    Args:\n        patient_id: Specific patient ID to query (optional)\n        lab_item: Lab item to search for in the value field (optional)\n        limit: Maximum number of records to return (default: 20)\n\n    Returns:\n        Lab results as formatted text or guidance if table not found\n    ",
+                              "parameters": {
+                                "type": "object",
+                                "properties": {
+                                  "patient_id": {
+                                    "anyOf": [
+                                      {
+                                        "type": "integer"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ],
+                                    "default": null,
+                                    "title": "Patient Id"
+                                  },
+                                  "lab_item": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ],
+                                    "default": null,
+                                    "title": "Lab Item"
+                                  },
+                                  "limit": {
+                                    "default": 20,
+                                    "title": "Limit",
+                                    "type": "integer"
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          {
+                            "type": "function",
+                            "function": {
+                              "name": "get_race_distribution",
+                              "description": "📊 Get race distribution from hospital admissions.\n\n    **⚠️ Note:** This is a convenience function that assumes standard MIMIC-IV table structure.\n    **For reliable queries:** Use `get_database_schema()` → `get_table_info()` → `execute_mimic_query()` workflow.\n\n    **What you'll get:** Count of patients by race category, ordered by frequency.\n\n    Args:\n        limit: Maximum number of race categories to return (default: 10)\n\n    Returns:\n        Race distribution as formatted text or guidance if table not found\n    ",
+                              "parameters": {
+                                "type": "object",
+                                "properties": {
+                                  "limit": {
+                                    "default": 10,
+                                    "title": "Limit",
+                                    "type": "integer"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                },
+                "stats": {
+                  "stopReason": "eosFound",
+                  "tokensPerSecond": 36.83218956027396,
+                  "numGpuLayers": -1,
+                  "timeToFirstTokenSec": 0.316,
+                  "totalTimeSec": 11.73,
+                  "promptTokensCount": 3042,
+                  "predictedTokensCount": 432,
+                  "totalTokensCount": 3474
+                }
+              }
+            },
+            {
+              "type": "debugInfoBlock",
+              "stepIdentifier": "1758977724763-0.35371282656459335",
+              "debugInfo": "Conversation naming technique: 'prompt'"
+            }
+          ],
+          "senderInfo": {
+            "senderName": "openai/gpt-oss-20b"
+          }
+        }
+      ],
+      "currentlySelected": 0
+    }
+  ],
+  "usePerChatPredictionConfig": true,
+  "perChatPredictionConfig": {
+    "fields": [
+      {
+        "key": "ext.virtualModel.customField.openai.gptOss20b.reasoningEffort",
+        "value": "medium"
+      },
+      {
+        "key": "llm.prediction.systemPrompt",
+        "value": "💡 **Recommended workflow:**\n        1. `get_database_schema()` ← See available tables\n        2. `get_table_info('table_name')` ← Explore structure\n        3. `execute_mimic_query('SELECT ...')` ← Run your analysis\"\"\"\n\n\nDon't suggest queries to run, but run them and give an answer at the end of your response!"
+      }
+    ]
+  },
+  "clientInput": "",
+  "clientInputFiles": [],
+  "userFilesSizeBytes": 0,
+  "lastUsedModel": {
+    "identifier": "openai/gpt-oss-20b",
+    "indexedModelIdentifier": "openai/gpt-oss-20b",
+    "instanceLoadTimeConfig": {
+      "fields": []
+    },
+    "instanceOperationTimeConfig": {
+      "fields": []
+    }
+  },
+  "notes": [],
+  "plugins": [
+    "mcp/m3"
+  ],
+  "pluginConfigs": {},
+  "disabledPluginTools": [],
+  "looseFiles": []
+}

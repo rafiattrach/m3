@@ -2,25 +2,14 @@
 
 ## Overview
 
-Curated benchmark with **100 examples** from the Reliable Text-to-SQL on Electronic Health Records shared task (Clinical NLP Workshop @ NAACL 2024).
+Benchmark results comparing different models on the EHRSQL dataset with one hundred questions covering various medical queries including cost analysis, temporal measurement differences, medication prescriptions, lab results, patient demographics etc.
 
-**Source**: [ehrsql-2024](https://github.com/glee4810/ehrsql-2024) | **Database**: MIMIC-IV Demo
+**Source**: [ehrsql-2024](https://github.com/glee4810/ehrsql-2024)
 
-## Data Schema
+Each model folder contains:
+- **Model answers** extracted from conversations
+- **Golden truth answers** and SQL queries for comparison
+- **Correct/Incorrect** annotations with detailed notes
+- **Chat conversation links** (Claude.ai shared links or local conversation files)
 
-| Column | Description |
-|--------|-------------|
-| Query | Natural language question about EHR data |
-| Chat Conversation | Link to model interaction |
-| Model Answer | AI-generated response |
-| Golden Truth | Expected correct answer |
-| Golden Truth SQL Query | Ground truth SQL query |
-| Correct/Incorrect | 1 = correct, 0 = incorrect |
-| Incorrect Note | Error analysis when applicable |
-
-## Query Examples
-
-- Patient-specific: Lab values, medications, procedures
-- Temporal: Time-based analysis, trends
-- Aggregate: Population statistics
-- Complex joins: Multi-table EHR relationships
+The dataset includes complex medical questions requiring database queries, with model performance evaluated against ground truth answers through human assessment.

@@ -1,0 +1,1182 @@
+Query,Chat Conversation,Model Answer ,Golden Truth,Golden Truth SQL Query,Correct/Incorrect,Incorrect Note
+"Throughout this year, what are the top five most common drugs prescribed during the same hospital encounter to female patients aged 50s after being diagnosed with epilepsy, unspecified, not intractable, without status epilepticus?",2.conversation.json,"**Top 5 drugs prescribed to female patients aged 50‑59 who were admitted with an unspecified, non‑intractable epilepsy diagnosis (no status epilepticus) – during the same hospital encounter**
+
+| Rank | Drug name               | Prescription count |
+|------|--------------------------|--------------------|
+| 1    | **levetiracetam**       | 3 |
+| 2    | **bag**                 | 3 |
+| 3    | **insulin**             | 2 |
+| 4    | **bisacodyl**           | 2 |
+| 5    | **acetaminophen**       | 2 |
+
+### How the query was built
+
+1. **Patient selection**
+   * Joined `patients` → `admissions` to get demographic info.
+   * Filtered for females (`gender='f'`) and ages between 50‑59 (using the admission‑time age column).
+
+2. **Diagnosis filtering**
+   * Ensured each admission had at least one ICD‑10 code starting with `g40` (unspecified epilepsy, e.g., `icd10|g40909`).
+   * Excluded any admission that also carried an ICD‑10 status‑epilepticus code (`g41…`).
+
+3. **Prescription aggregation**
+   * Joined the filtered admissions to `prescriptions`.
+   * Counted prescriptions per drug name across all qualifying encounters.
+   * Sorted by count descending and limited to the top 5.
+
+4. **Time context**
+   The dataset’s timestamps are already in 2100, matching the “current time” you specified (`2100‑12‑31 23:59:00`). No additional date arithmetic was required because the `age` column is pre‑computed for each admission.
+
+The result shows that levetiracetam and “bag” (likely a bag of a therapeutic substance) were most frequently prescribed, followed by insulin, bisacodyl, and acetaminophen. These prescriptions are all associated with the same hospital encounter in which the patient was diagnosed with unspecified epilepsy without status epilepticus.",0.9% sodium chloride; acetaminophen; acetaminophen iv; aspirin; atorvastatin; bag; bisacodyl; ferrous sulfate (liquid); glucagon; glucose gel; heparin; insulin; lactated ringers; lansoprazole oral disintegrating tab; levetiracetam; metoprolol succinate xl; midazolam; omeprazole; polyethylene glycol; quetiapine fumarate; scopolamine patch; sertraline; sodium chloride 0.9%,"SELECT T3.drug FROM ( SELECT T2.drug, DENSE_RANK() OVER ( ORDER BY COUNT(*) DESC ) AS C1 FROM ( SELECT admissions.subject_id, diagnoses_icd.charttime, admissions.hadm_id FROM diagnoses_icd JOIN admissions ON diagnoses_icd.hadm_id = admissions.hadm_id WHERE diagnoses_icd.icd_code = ( SELECT d_icd_diagnoses.icd_code FROM d_icd_diagnoses WHERE d_icd_diagnoses.long_title = 'epilepsy, unspecified, not intractable, without status epilepticus' ) AND datetime(diagnoses_icd.charttime,'start of year') = datetime(current_time,'start of year','-0 year') ) AS T1 JOIN ( SELECT admissions.subject_id, prescriptions.drug, prescriptions.starttime, admissions.hadm_id FROM prescriptions JOIN admissions ON prescriptions.hadm_id = admissions.hadm_id WHERE admissions.subject_id IN ( SELECT patients.subject_id FROM patients WHERE patients.gender = 'f' ) AND admissions.age BETWEEN 50 AND 59 AND datetime(prescriptions.starttime,'start of year') = datetime(current_time,'start of year','-0 year') ) AS T2 ON T1.subject_id = T2.subject_id WHERE T1.charttime < T2.starttime AND T1.hadm_id = T2.hadm_id GROUP BY T2.drug ) AS T3 WHERE T3.C1 <= 5",1,
+Pull up the IDs of patients who were diagnosed with cataract extraction status.,3.conversation.json,"Patient IDs diagnosed with **cataract extraction status** (ICD‑9 v4561):
+
+- **10025612**
+
+No other patients in the MIMIC‑IV database carry this diagnosis code.",10025612,SELECT DISTINCT admissions.subject_id FROM admissions WHERE admissions.hadm_id IN ( SELECT diagnoses_icd.hadm_id FROM diagnoses_icd WHERE diagnoses_icd.icd_code = ( SELECT d_icd_diagnoses.icd_code FROM d_icd_diagnoses WHERE d_icd_diagnoses.long_title = 'cataract extraction status' ) ),1,
+What is the difference between platelet count last measured on the first hospital visit compared to the first value measured on the first hospital visit for patient 10009628?,4.conversation.json,"**Patient:** 10009628
+**First hospital stay:** hadm_id = 25926192 (admission: 2020‑09‑30 17:08)
+
+| Measurement | Date & time          | Platelet count | Unit |
+|-------------|----------------------|----------------|------|
+| **First value** | 2020‑09‑30 19:30 | 230.0 | k/µL |
+| **Last value (same stay)** | 2020‑10‑07 04:20 | 244.0 | k/µL |
+
+### Difference
+\[
+\text{Last} - \text{First} = 244.0\,k/\mu L - 230.0\,k/\mu L = **14 k/\mu L**
+\]
+
+So the platelet count increased by **14 thousand per microliter** from the first to the last measurement during that admission.",14,SELECT ( SELECT labevents.valuenum FROM labevents WHERE labevents.hadm_id IN ( SELECT admissions.hadm_id FROM admissions WHERE admissions.subject_id = 10009628 AND admissions.dischtime IS NOT NULL ORDER BY admissions.admittime ASC LIMIT 1 ) AND labevents.itemid IN ( SELECT d_labitems.itemid FROM d_labitems WHERE d_labitems.label = 'platelet count' ) ORDER BY labevents.charttime DESC LIMIT 1 ) - ( SELECT labevents.valuenum FROM labevents WHERE labevents.hadm_id IN ( SELECT admissions.hadm_id FROM admissions WHERE admissions.subject_id = 10009628 AND admissions.dischtime IS NOT NULL ORDER BY admissions.admittime ASC LIMIT 1 ) AND labevents.itemid IN ( SELECT d_labitems.itemid FROM d_labitems WHERE d_labitems.label = 'platelet count' ) ORDER BY labevents.charttime ASC LIMIT 1 ),1,
+How many days have passed since patient 10039831's last stay in careunit discharge lounge in this hospital visit?,5.conversation.json,"**Answer**
+
+- The last transfer out of the *discharge lounge* for patient 10039831 ended at **2021‑12‑31 19:36:43** (the time he moved to the surgical ICU).
+- Using the requested “current” timestamp of **2021‑12‑31 23:59:00**, the elapsed time is:
+
+| Start | End | Elapsed |
+|-------|-----|---------|
+| 2021‑12‑31 19:36:43 | 2021‑12‑31 23:59:00 | **4 h 22 m 17 s** |
+
+In days this equals:
+
+\[
+\frac{4\,h\,22\,m\,17\,s}{24\,h} \approx 0.182\;\text{days}
+\]
+
+So, **less than one full day has passed**—effectively **0 days** (rounded to the nearest whole number).",828,"SELECT 1 * ( strftime('%J',current_time) - strftime('%J', transfers.intime) ) FROM transfers WHERE transfers.hadm_id IN ( SELECT admissions.hadm_id FROM admissions WHERE admissions.subject_id = 10039831 AND admissions.dischtime IS NULL ) AND transfers.careunit = 'discharge lounge' ORDER BY transfers.intime DESC LIMIT 1",0,"The provided answer calculated the time difference from the patient's last departure from the discharge lounge (outtime: 2100-12-31 19:36:43) to the current time, yielding approximately 0.18 days. However, the gold query calculates from the patient's last arrival time (intime) at the discharge lounge, which occurred much earlier at 2100-12-31 04:06:40, resulting in 828 days when using current_time as a reference point that appears to represent a different date entirely (not 2100-12-31 23:59:00 as the expert assumed). The primary issue was Ambiguity in the Question or Gold Query - the question asks for days ""since patient's last stay"" which could reasonably be interpreted as either from the start of that stay (intime) or from when it ended (outtime)."
+Count the number of days since patient 10021487's first diagnosis of acute respiratory failure following trauma and surgery on this hospital visit.,6.conversation.json,"**Patient:** 10021487
+**Hospital visit (hadm_id = 28998349)** – admitted on **2100‑12‑07 00:23:00**
+
+| Event | Timestamp |
+|-------|-----------|
+| First diagnosis of acute respiratory failure (ICD‑9 518.51) | 2100‑12‑07 00:23:00 |
+| “Current” reference time | 2100‑12‑31 23:59:00 |
+
+**Time elapsed**
+
+* From 2100‑12‑07 00:23:00 to 2100‑12‑31 23:59:00
+  * 24 full days + 23 h 36 m
+
+Converting the fractional day:
+
+\[
+24\,\text{days} + \frac{23\,\text{h}\,36\,\text{m}}{24\,\text{h}}
+= 24 + 0.9817
+\approx 24.98\;\text{days}
+\]
+
+**Result**
+
+- **≈ 24.98 days** have passed since the first diagnosis of acute respiratory failure for this patient’s hospital visit, which is essentially **24 full days** (rounded down) or **25 days** if rounding to the nearest whole day.",24.983,"SELECT 1 * ( strftime('%J',current_time) - strftime('%J', diagnoses_icd.charttime) ) FROM diagnoses_icd WHERE diagnoses_icd.icd_code = ( SELECT d_icd_diagnoses.icd_code FROM d_icd_diagnoses WHERE d_icd_diagnoses.long_title = 'acute respiratory failure following trauma and surgery' ) AND diagnoses_icd.hadm_id IN ( SELECT admissions.hadm_id FROM admissions WHERE admissions.subject_id = 10021487 AND admissions.dischtime IS NULL ) ORDER BY diagnoses_icd.charttime ASC LIMIT 1",1,
+"What are the five commonly taken specimens for patients who received extirpation of matter from left lower lung lobe, via natural or artificial opening endoscopic previously during the same month since 2100?",7.conversation.json,"**Top 5 specimens taken in the same month as an “extirpation of matter from left lower lung lobe via natural or artificial opening endoscopic” (ICD‑10 J‑code 0BCJ8ZZ)**
+
+| Rank | Specimen type                 | # of records |
+|------|-------------------------------|--------------|
+| 1    | Blood culture                 | **84** |
+| 2    | Sputum                        | **48** |
+| 3    | Urine                         | **33** |
+| 4    | Peritoneal fluid              | **33** |
+| 5    | Bronchoalveolar lavage (BAL)  | **18** |
+
+*How the numbers were derived*
+
+1. The `procedures_icd` table was queried for rows with the ICD‑10 code **icd10|0bcj8zz** (extirpation of matter from left lower lung lobe via natural or artificial opening endoscopic).
+2. For each such procedure, we matched microbiology specimen records (`microbiologyevents`) that occurred in the *same month* (i.e., same `YYYY-MM` portion of the timestamp) and shared the same patient (`subject_id`) and admission (`hadm_id`).
+3. The specimen type (`spec_type_desc`) was then aggregated, sorted by frequency, and the top five were returned.
+
+These specimens represent the most common types collected during or around the time patients underwent this specific lung‑lobectomy procedure in the MIMIC‑IV database.",blood culture; bronchoalveolar lavage; fluid received in blood culture bottles; peritoneal fluid; sputum,"SELECT T3.spec_type_desc FROM ( SELECT T2.spec_type_desc, DENSE_RANK() OVER ( ORDER BY COUNT(*) DESC ) AS C1 FROM ( SELECT admissions.subject_id, procedures_icd.charttime FROM procedures_icd JOIN admissions ON procedures_icd.hadm_id = admissions.hadm_id WHERE procedures_icd.icd_code = ( SELECT d_icd_procedures.icd_code FROM d_icd_procedures WHERE d_icd_procedures.long_title = 'extirpation of matter from left lower lung lobe, via natural or artificial opening endoscopic' ) AND strftime('%Y',procedures_icd.charttime) >= '2100' ) AS T1 JOIN ( SELECT admissions.subject_id, microbiologyevents.spec_type_desc, microbiologyevents.charttime FROM microbiologyevents JOIN admissions ON microbiologyevents.hadm_id = admissions.hadm_id WHERE strftime('%Y',microbiologyevents.charttime) >= '2100' ) AS T2 ON T1.subject_id = T2.subject_id WHERE T1.charttime < T2.charttime AND datetime(T1.charttime,'start of month') = datetime(T2.charttime,'start of month') GROUP BY T2.spec_type_desc ) AS T3 WHERE T3.C1 <= 5",1,
+Retrieve the marital status of patient 10006580 on the last hospital stay.,8.conversation.json,"**Marital status for patient 10006580 on their most recent hospital stay**
+
+| Patient ID | Admission ID (hadm_id) | Admission time | Discharge time | Marital Status |
+|------------|------------------------|-----------------|----------------|----------------|
+| 10006580   | 24159665               | 2020‑08‑19 11:00 | 2020‑08‑24 13:25 | **Married** |
+
+So, the patient’s marital status at the time of their last hospital admission was *married*.",married,SELECT admissions.marital_status FROM admissions WHERE admissions.subject_id = 10006580 AND admissions.dischtime IS NOT NULL ORDER BY admissions.admittime DESC LIMIT 1,1,
+"What was the drug that patient 10004720 prescribed with during the same day after receiving introduction of nutritional substance into upper gi, via natural or artificial opening since 03/2100?",9.conversation.json,"**Patient:** 10004720
+**Procedure (ICD‑10 CPT):** *introduction of nutritional substance into upper GI, via natural or artificial opening* – icd10|3e0g76z
+**Date of procedure in the database:** **2100‑12‑06** (this “2100” year is an offset used by MIMIC‑IV; it represents the real admission date of 2015‑12‑06).
+
+On that same day, the patient’s medication record shows the following prescriptions:
+
+| Prescription ID | Drug (generic)          | Start time (MIMIC offset) |
+|-----------------|------------------------|---------------------------|
+| 1782 / 2478 / 2479 | **docusate sodium** | 2100‑12‑06 20:00:00 |
+| 5057           | **lactated ringers**   | 2100‑12‑06 04:00:00 |
+
+- **Docusate sodium** is a stool softener, often used to prevent constipation during enteral feeding.
+- **Lactated Ringers** is an intravenous fluid; it was administered on the same day and is listed in the prescriptions table because fluids are captured there as “drugs”.
+
+No other medications were initiated for patient 10004720 during that admission on the day of the enteral‑feeding procedure.
+
+*Note:* The timestamps use the 2100‑year offset typical of MIMIC‑IV; the actual calendar dates correspond to 2015‑12‑06 (procedure) and 2015‑12‑06 (medications).",docusate sodium; docusate sodium; docusate sodium; lactated ringers,"SELECT T2.drug FROM ( SELECT procedures_icd.charttime, procedures_icd.hadm_id FROM procedures_icd WHERE procedures_icd.icd_code = ( SELECT d_icd_procedures.icd_code FROM d_icd_procedures WHERE d_icd_procedures.long_title = 'introduction of nutritional substance into upper gi, via natural or artificial opening' ) AND procedures_icd.hadm_id IN (SELECT admissions.hadm_id FROM admissions WHERE admissions.subject_id = 10004720 ) AND strftime('%Y-%m',procedures_icd.charttime) >= '2100-03' ) AS T1 JOIN ( SELECT prescriptions.drug, prescriptions.starttime, prescriptions.hadm_id FROM prescriptions WHERE prescriptions.hadm_id IN (SELECT admissions.hadm_id FROM admissions WHERE admissions.subject_id = 10004720 ) AND strftime('%Y-%m',prescriptions.starttime) >= '2100-03' ) AS T2 ON T1.hadm_id = T2.hadm_id WHERE T1.charttime < T2.starttime AND datetime(T1.charttime,'start of day') = datetime(T2.starttime,'start of day')",1,
+How frequently was the simple excision of other lymphatic structure procedure done throughout this year?,10.conversation.json,"**Simple Excision of Other Lymphatic Structure (ICD‑9 4029)**
+*Frequency in the calendar year 2100*
+
+| Month | Count |
+|-------|-------|
+| July  | 1 |
+
+- **Total for 2100:** **1 procedure**
+- The single occurrence was logged at **2100‑07‑13 14:54:00**.
+
+The count was obtained by querying the `procedures_icd` table for rows where `icd_code = 'icd9|4029'`, restricting to timestamps between 2100‑01‑01 (inclusive) and 2101‑01‑01 (exclusive). The result shows that this procedure was performed only once during the entire year, specifically in July.",1,"SELECT COUNT(*) FROM procedures_icd WHERE procedures_icd.icd_code = ( SELECT d_icd_procedures.icd_code FROM d_icd_procedures WHERE d_icd_procedures.long_title = 'simple excision of other lymphatic structure' ) AND datetime(procedures_icd.charttime,'start of year') = datetime(current_time,'start of year','-0 year')",1,
+How much does patient 10038999 change in mesothelial cells last measured on the last hospital visit compared to the second to last value measured on the last hospital visit?,11.conversation.json,"For patient **10038999** during their last (and only) hospital stay:
+
+| Measurement | Time                | Value (%) |
+|-------------|---------------------|-----------|
+| Mesothelial cells | 2020‑06‑05 08:38 | **2.0 %** |
+| Mesothelial cells | 2020‑06‑02 08:42 | **7.0 %** |
+
+**Change:**
+\( \Delta = 2.0\% - 7.0\% = -5.0\% \)
+
+So the mesothelial cell count decreased by **5 percentage points** from the second‑to‑last to the last measurement during that admission.",-5,SELECT ( SELECT labevents.valuenum FROM labevents WHERE labevents.hadm_id IN ( SELECT admissions.hadm_id FROM admissions WHERE admissions.subject_id = 10038999 AND admissions.dischtime IS NOT NULL ORDER BY admissions.admittime DESC LIMIT 1 ) AND labevents.itemid IN ( SELECT d_labitems.itemid FROM d_labitems WHERE d_labitems.label = 'mesothelial cells' ) ORDER BY labevents.charttime DESC LIMIT 1 ) - ( SELECT labevents.valuenum FROM labevents WHERE labevents.hadm_id IN ( SELECT admissions.hadm_id FROM admissions WHERE admissions.subject_id = 10038999 AND admissions.dischtime IS NOT NULL ORDER BY admissions.admittime DESC LIMIT 1 ) AND labevents.itemid IN ( SELECT d_labitems.itemid FROM d_labitems WHERE d_labitems.label = 'mesothelial cells' ) ORDER BY labevents.charttime DESC LIMIT 1 OFFSET 1 ),1,
+What was the total output for patient 10001217 since 12/02/2100?,12.conversation.json,"**Total fluid output for patient 10001217 (since 12/02/2017)**
+
+| Measurement | Value |
+|-------------|-------|
+| **Sum of all `outputevents` values** | **2,845 mL** |
+
+The calculation was performed by summing the `value` column in the `outputevents` table for that patient where `charttime` is on or after 2017‑12‑02.
+There are nine output records for this patient during that period, and their values (in mL) are:
+
+| row_id | charttime          | itemid | value (mL) |
+|--------|--------------------|--------|------------|
+| 5081   | 2100‑12‑04 19:00:00 | 226560 | 100.0 |
+| 5080   | 2100‑12‑04 22:00:00 | 226560 | 120.0 |
+| 3189   | 2100‑12‑05 00:42:00 | 226560 | 300.0 |
+| 5079   | 2100‑12‑05 04:00:00 | 226560 | 600.0 |
+| 4135   | 2100‑12‑05 08:00:00 | 226560 | 275.0 |
+| 4134   | 2100‑12‑05 08:04:00 | 226571 | 100.0 |
+| 3599   | 2100‑12‑05 10:00:00 | 226560 | 450.0 |
+| 4136   | 2100‑12‑05 14:00:00 | 226560 | 400.0 |
+| 4137   | 2100‑12‑05 18:00:00 | 226560 | 500.0 |
+
+Adding them together gives **2,845 mL** of total output for that patient since the specified date.",2845,"SELECT SUM(outputevents.value) FROM outputevents WHERE outputevents.stay_id IN ( SELECT icustays.stay_id FROM icustays WHERE icustays.hadm_id IN ( SELECT admissions.hadm_id FROM admissions WHERE admissions.subject_id = 10001217 ) ) AND strftime('%Y-%m-%d',outputevents.charttime) >= '2100-12-02'",1,
+Has there been any organism detected during the last rapid respiratory viral screen & culture microbiology test for patient 10007818 since 02/2100?,13.conversation.json,"**Patient:** 10007818
+**Date range considered:** 02/21/2100 to present (latest record in the database)
+
+| Test | Date & Time | Specimen Type | Result (organism) |
+|------|-------------|---------------|-------------------|
+| Blood culture, routine | 2100‑07‑18 04:00:00 | blood | **None detected** |
+
+*No rapid respiratory viral screen test is recorded for this patient in the available MIMIC‑IV data. The most recent microbiology study after the specified date was a routine blood culture that returned no organism.*
+
+**Answer:** No organisms were identified in the last microbiology test performed on patient 10007818 since 02/21/2100.",0,"SELECT COUNT(*)>0 FROM microbiologyevents WHERE microbiologyevents.hadm_id IN ( SELECT admissions.hadm_id FROM admissions WHERE admissions.subject_id = 10007818 ) AND microbiologyevents.spec_type_desc = 'rapid respiratory viral screen & culture' AND microbiologyevents.org_name IS NOT NULL AND strftime('%Y-%m',microbiologyevents.charttime) >= '2100-02' ORDER BY microbiologyevents.charttime DESC LIMIT 1",1,
+Please list the top five most frequent specimens tested.,14.conversation.json,"**Top 5 most frequently collected specimen types (microbiology)**
+
+| Rank | Specimen type (spec_type_desc) | # of tests |
+|------|---------------------------------|------------|
+| 1    | blood culture                   | **222** |
+| 2    | urine                           | **214** |
+| 3    | sputum                          | **210** |
+| 4    | MRSA screen                     | **70** |
+| 5    | stool                           | **43** |
+
+These counts come from the `microbiologyevents` table, which records each specimen‑collection event in MIMIC‑IV. The list reflects the most common specimen types that were tested across all admissions in the database.",blood culture; mrsa screen; sputum; stool; urine,"SELECT T1.spec_type_desc FROM ( SELECT microbiologyevents.spec_type_desc, DENSE_RANK() OVER ( ORDER BY COUNT(*) DESC ) AS C1 FROM microbiologyevents GROUP BY microbiologyevents.spec_type_desc ) AS T1 WHERE T1.C1 <= 5",1,
+"Can you tell me the last care unit patient 10003046 was in during their last hospital visit, according to the transfer record?",15.conversation.json,"For patient **10003046**, the most recent hospital admission (hadm_id = 26048429) ended with a discharge event recorded in the `transfers` table.
+The final transfer preceding that discharge shows the patient moving from the **med/surg** care unit, and no subsequent unit is listed after the discharge.
+
+**Answer:** The last care unit patient 10003046 was in during their final hospital stay was the **medical‑surgical (med/surg) ward**.",med/surg,SELECT transfers.careunit FROM transfers WHERE transfers.hadm_id IN ( SELECT admissions.hadm_id FROM admissions WHERE admissions.subject_id = 10003046 AND admissions.dischtime IS NOT NULL ORDER BY admissions.admittime DESC LIMIT 1 ) AND transfers.careunit IS NOT NULL ORDER BY transfers.intime DESC LIMIT 1,1,
+What is the length of the first hospital stay in days for patient 10016742?,16.conversation.json,"The first (earliest) admission for patient **10016742** began on 07‑22‑2100 at 21:13 and ended on 07‑27‑2100 at 20:20.
+Using the timestamp difference in the MIMIC‑IV `admissions` table, the length of stay is:
+
+\[
+\text{stay} = \text{dischtime} - \text{admittime}
+            \approx 4.96\;\text{days}
+\]
+
+So the patient’s first hospital stay lasted **about 5 days** (specifically 4.96 days).",4.963,"SELECT strftime('%J',admissions.dischtime) - strftime('%J',admissions.admittime) FROM admissions WHERE admissions.subject_id = 10016742 AND admissions.dischtime IS NOT NULL ORDER BY admissions.admittime ASC LIMIT 1",1,
+Which condition was diagnosed for patient 10006580 on the last on the last hospital visit?,17.conversation.json,"**Last hospital admission for patient 10006580**
+
+- **Hospital stay ID:** 24159665
+- **Admission date/time:** 2020‑08‑19 11:00:00
+
+During this visit the following ICD‑9 diagnoses were recorded (in order of appearance, with the first code usually considered the primary diagnosis):
+
+| ICD‑9 code | Condition (long title) |
+|------------|------------------------|
+| **icd9|2749** | *Gout, unspecified* |
+| icd9|71690 | Arthropathy, unspecified, site unspecified |
+| icd9|v5867 | Long‑term (current) use of insulin |
+| icd9|v4586 | Bariatric surgery status |
+| icd9|4019 | Unspecified essential hypertension |
+| icd9|2724 | Other and unspecified hyperlipidemia |
+| icd9|v5866 | Long‑term (current) use of aspirin |
+| icd9|2397 | Neoplasm of unspecified nature of endocrine glands and other parts of nervous system |
+| icd9|25000 | Diabetes mellitus without mention of complication, type II or unspecified type, not stated as uncontrolled |
+| icd9|311 | Depressive disorder, not elsewhere classified |
+
+**Primary diagnosis:** *Gout, unspecified* (icd9|2749).","gout, unspecified",SELECT d_icd_diagnoses.long_title FROM d_icd_diagnoses WHERE d_icd_diagnoses.icd_code IN ( SELECT diagnoses_icd.icd_code FROM diagnoses_icd WHERE diagnoses_icd.hadm_id IN ( SELECT admissions.hadm_id FROM admissions WHERE admissions.subject_id = 10006580 AND admissions.dischtime IS NOT NULL ORDER BY admissions.admittime DESC LIMIT 1 ) ORDER BY diagnoses_icd.charttime DESC LIMIT 1 ),1,
+"For patients who had hemodialysis, what were the most frequent four microbiology tests carried out during the same hospital visit?",18.conversation.json,"**Most frequent microbiology tests performed during the same admission as a hemodialysis procedure**
+
+| Rank | Microbiology test (as recorded in *microbiologyevents.test_name*) | # of occurrences |
+|------|------------------------------------------------------------------|-------------------|
+| 1    | **Blood culture, routine**                                      | 9 |
+| 2    | **MRSA screen**                                                  | 3 |
+| 3    | **Gram stain**                                                   | 1 |
+| 4    | **Respiratory culture**                                          | 1 |
+
+*These counts come from all admissions where a patient had the ICD‑9 procedure code **3995 (hemodialysis)**. The query joined `procedures_icd` and `microbiologyevents` on subject_id and hadm_id, aggregated by test_name, and returned the four tests with the highest frequency.*","blood culture, routine; gram stain; respiratory culture; urine culture","SELECT T3.test_name FROM ( SELECT T2.test_name, DENSE_RANK() OVER ( ORDER BY COUNT(*) DESC ) AS C1 FROM ( SELECT admissions.subject_id, procedures_icd.charttime, admissions.hadm_id FROM procedures_icd JOIN admissions ON procedures_icd.hadm_id = admissions.hadm_id WHERE procedures_icd.icd_code = ( SELECT d_icd_procedures.icd_code FROM d_icd_procedures WHERE d_icd_procedures.long_title = 'hemodialysis' ) ) AS T1 JOIN ( SELECT admissions.subject_id, microbiologyevents.test_name, microbiologyevents.charttime, admissions.hadm_id FROM microbiologyevents JOIN admissions ON microbiologyevents.hadm_id = admissions.hadm_id ) AS T2 ON T1.subject_id = T2.subject_id WHERE T1.charttime < T2.charttime AND T1.hadm_id = T2.hadm_id GROUP BY T2.test_name ) AS T3 WHERE T3.C1 <= 4",0,"Primary issue: Ambiguity in the Question and Gold Query - The question doesn't specify whether it wants tests before, after, or at any time during the same admission as hemodialysis. The gold query makes an assumption about temporal ordering that isn't clearly supported by the question wording. Additionally, with multiple tests having the same frequency (count of 1), there's ambiguity about which specific four tests should be selected when there are ties."
+How many current patients are 30s?,19.conversation.json,"After querying the MIMIC‑IV tables, there are **no patients in the age range 30–39** (the “30s”) who are currently admitted:
+
+| Query | Result |
+|-------|--------|
+| `SELECT COUNT(DISTINCT subject_id) FROM admissions WHERE age BETWEEN 30 AND 39 AND dischtime IS NULL` | 0 |
+| `SELECT COUNT(DISTINCT ic.subject_id) FROM icustays ic JOIN admissions a ON ic.hadm_id = a.hadm_id WHERE ic.outtime IS NULL AND a.age BETWEEN 30 AND 39` | 0 |
+
+The database snapshot contains only 94 patients, with ages ranging from –53 to +16 years (the negative values arise because the synthetic DOBs can be in the future). Since none of these records fall into the 30‑to‑39 age bracket, the count of current patients in their 30s is **zero**.",0,SELECT COUNT( DISTINCT admissions.subject_id ) FROM admissions WHERE admissions.dischtime IS NULL AND admissions.age BETWEEN 30 AND 39,1,
+Has patient 10005866 had any type of diagnosis in this year?,20.conversation.json,"**Answer**
+
+Yes – patient **10005866** had diagnoses recorded during the calendar year 2100 (the only admission for this patient was on 2100‑06‑17).
+
+| # | ICD‑9 Code | Description (generic) | Date |
+|---|------------|------------------------|------|
+| 1 | icd9|30503 | Alcohol abuse, unspecified | 2100‑06‑17 |
+| 2 | icd9|07054 | Viral hepatitis C without mention of sequelae | 2100‑06‑17 |
+| 3 | icd9|5723  | Chronic pancreatitis | 2100‑06‑17 |
+| 4 | icd9|5531  | Chronic constipation | 2100‑06‑17 |
+| 5 | icd9|3051   | Alcohol dependence, unspecified | 2100‑06‑17 |
+| 6 | icd9|78959 | Other specified abdominal pain | 2100‑06‑17 |
+| 7 | icd9|56789 | Unspecified other disease | 2100‑06‑17 |
+| 8 | icd9|5712   | Chronic liver disease, unspecified | 2100‑06‑17 |
+
+- **Total diagnoses**: **8**
+- All recorded on the admission date (2100‑06‑17), well within the year ending 2100‑12‑31 23:59.
+
+Thus, with the current time set to “2100‑12‑31 23:59:00”, patient 10005866 indeed had multiple diagnoses in that year.",1,"SELECT COUNT(*)>0 FROM diagnoses_icd WHERE diagnoses_icd.hadm_id IN ( SELECT admissions.hadm_id FROM admissions WHERE admissions.subject_id = 10005866 ) AND datetime(diagnoses_icd.charttime,'start of year') = datetime(current_time,'start of year','-0 year')",1,
+Calculate the number of times that patient 10004235 had lr input on 12/24/last year.,21.conversation.json,"After querying the MIMIC‑IV database:
+
+* **Patient ID:** 10004235
+* **Date of interest (last year, relative to a current time of “2100‑12‑31 23:59:00”):** 2099‑12‑24
+
+The `labevents` table contains all laboratory results. Using the SQL
+
+```sql
+SELECT COUNT(*) AS lr_input_count
+FROM labevents
+WHERE subject_id = 10004235
+  AND DATE(charttime) = '2099-12-24';
+```
+
+the result is:
+
+| lr_input_count |
+|----------------|
+| 0              |
+
+**Answer:** Patient 10004235 had **zero** laboratory‑result (“lr”) inputs on 12/24 of the preceding year.",0,"SELECT COUNT(*) FROM inputevents WHERE inputevents.stay_id IN ( SELECT icustays.stay_id FROM icustays WHERE icustays.hadm_id IN ( SELECT admissions.hadm_id FROM admissions WHERE admissions.subject_id = 10004235 ) ) AND inputevents.itemid IN ( SELECT d_items.itemid FROM d_items WHERE d_items.label = 'lr' AND d_items.linksto = 'inputevents' ) AND datetime(inputevents.starttime,'start of year') = datetime(current_time,'start of year','-1 year') AND strftime('%m-%d',inputevents.starttime) = '12-24'",1,
+How many medications were prescribed to patient 10022017 since 2100?,22.conversation.json,"**Medications prescribed to patient 10022017 (subject_id = 10022017)**
+
+| Metric | Count |
+|--------|-------|
+| **Total prescription records** | **57** |
+| **Distinct drug names** | **35** |
+
+All of the prescriptions for this patient have `starttime` values in the year **2100**, so every record qualifies when you ask for “since 2100”. If you’d like the breakdown by drug or by admission, just let me know!",57,"SELECT COUNT(*) FROM prescriptions WHERE prescriptions.hadm_id IN( SELECT admissions.hadm_id FROM admissions WHERE admissions.subject_id = 10022017 ) AND strftime('%Y',prescriptions.starttime) >= '2100'",1,
+What diagnosis did patient 10003400 receive the last time since 2100?,23.conversation.json,"**Last recorded diagnosis for patient 10003400 (after the year 2100)**
+
+| ICD‑9 Code | Description |
+|------------|-------------|
+| **icd9|v5861** | *Long‑term (current) use of anticoagulants* |
+
+This was the most recent entry in the `diagnoses_icd` table for that patient, recorded on **2100‑06‑14 02:25:00**.",long-term (current) use of anticoagulants,"SELECT d_icd_diagnoses.long_title FROM d_icd_diagnoses WHERE d_icd_diagnoses.icd_code IN ( SELECT diagnoses_icd.icd_code FROM diagnoses_icd WHERE diagnoses_icd.hadm_id IN ( SELECT admissions.hadm_id FROM admissions WHERE admissions.subject_id = 10003400 ) AND strftime('%Y',diagnoses_icd.charttime) >= '2100' ORDER BY diagnoses_icd.charttime DESC LIMIT 1 )",1,
+How much of a difference is there in patient 10006580's white blood cells second measured on the first hospital visit compared to the first value measured on the first hospital visit?,24.conversation.json,"**White‑blood‑cell count (WBC) – first hospital visit for patient 10006580**
+
+| Measurement | Time (charttime) | Value (k/µL) |
+|-------------|------------------|--------------|
+| 1st WBC     | 2020‑08‑20 04:11 | **9.9** |
+| 2nd WBC     | 2020‑08‑21 06:00 | **7.8** |
+
+**Difference (second – first)**
+\(7.8 \;-\; 9.9 = -2.1\) k/µL
+
+So the second WBC measurement on that admission was **2.1 k/µL lower** than the first one (a drop of about 21 % from 9.9 to 7.8).",-2.1,SELECT ( SELECT labevents.valuenum FROM labevents WHERE labevents.hadm_id IN ( SELECT admissions.hadm_id FROM admissions WHERE admissions.subject_id = 10006580 AND admissions.dischtime IS NOT NULL ORDER BY admissions.admittime ASC LIMIT 1 ) AND labevents.itemid IN ( SELECT d_labitems.itemid FROM d_labitems WHERE d_labitems.label = 'white blood cells' ) ORDER BY labevents.charttime ASC LIMIT 1 OFFSET 1 ) - ( SELECT labevents.valuenum FROM labevents WHERE labevents.hadm_id IN ( SELECT admissions.hadm_id FROM admissions WHERE admissions.subject_id = 10006580 AND admissions.dischtime IS NOT NULL ORDER BY admissions.admittime ASC LIMIT 1 ) AND labevents.itemid IN ( SELECT d_labitems.itemid FROM d_labitems WHERE d_labitems.label = 'white blood cells' ) ORDER BY labevents.charttime ASC LIMIT 1 ),1,
+"What were the top three most frequent microbiology tests that patients were given after being diagnosed with acquired absence of organ, genital organs during the same hospital encounter since 2100?",25.conversation.json,"**Top microbiology tests performed after an “acquired absence of organ, genital organs” diagnosis (ICD‑9 v4577) during the same hospital encounter – data from 2100‑01‑01 onward**
+
+| Rank | Microbiology test name | # encounters |
+|------|------------------------|--------------|
+| 1    | **mrsa screen**        | 1 |
+
+*No other microbiology tests were recorded for these encounters in the MIMIC‑IV dataset.*
+
+---
+
+### How we got this
+
+1. **Identify relevant admissions**
+   - Joined `admissions` with `diagnoses_icd` on `hadm_id`.
+   - Filtered to the ICD‑9 code `icd9|v4577` (acquired absence of organ, genital organs).
+   - Restricted to admissions whose `admittime` is on or after 2100‑01‑01.
+
+2. **Link microbiology events**
+   - Joined the result with `microbiologyevents` on `hadm_id`.
+   - Ensured the test was performed *after* admission time (`charttime >= admittime`) to satisfy “same encounter”.
+
+3. **Aggregate & rank**
+   - Grouped by `test_name`, counted rows, and sorted descending.
+
+The query produced a single row:
+
+```sql
+SELECT M.test_name, COUNT(*) AS cnt
+FROM admissions A
+JOIN diagnoses_icd D ON A.hadm_id = D.hadm_id
+LEFT JOIN microbiologyevents M ON A.hadm_id = M.hadm_id AND M.charttime >= A.admittime
+WHERE D.icd_code = 'icd9|v4577'
+  AND date(A.admittime) >= '2100-01-01'
+GROUP BY M.test_name
+ORDER BY cnt DESC
+LIMIT 3;
+```
+
+Result:
+
+| test_name   | cnt |
+|-------------|-----|
+| mrsa screen | 1   |
+
+Since only one unique test was found, the “top three” list effectively contains just that single entry. If you need further granularity (e.g., by specimen type or organism), let me know and I can expand the query accordingly.",mrsa screen,"SELECT T3.test_name FROM ( SELECT T2.test_name, DENSE_RANK() OVER ( ORDER BY COUNT(*) DESC ) AS C1 FROM ( SELECT admissions.subject_id, diagnoses_icd.charttime, admissions.hadm_id FROM diagnoses_icd JOIN admissions ON diagnoses_icd.hadm_id = admissions.hadm_id WHERE diagnoses_icd.icd_code = ( SELECT d_icd_diagnoses.icd_code FROM d_icd_diagnoses WHERE d_icd_diagnoses.long_title = 'acquired absence of organ, genital organs' ) AND strftime('%Y',diagnoses_icd.charttime) >= '2100' ) AS T1 JOIN ( SELECT admissions.subject_id, microbiologyevents.test_name, microbiologyevents.charttime, admissions.hadm_id FROM microbiologyevents JOIN admissions ON microbiologyevents.hadm_id = admissions.hadm_id WHERE strftime('%Y',microbiologyevents.charttime) >= '2100' ) AS T2 ON T1.subject_id = T2.subject_id WHERE T1.charttime < T2.charttime AND T1.hadm_id = T2.hadm_id GROUP BY T2.test_name ) AS T3 WHERE T3.C1 <= 3",1,
+How much did patient 10038999 weigh at their first measurement on the first hospital encounter?,26.conversation.json,"**Patient 10038999 – First encounter (hadm_id = 27189241)**
+- **First weight record:** 98.8 kg
+- **Timestamp:** 2020‑06‑01 08:00:00 (daily weight)
+
+No earlier admission‑weight entry was found in the MIMIC‑IV database for this patient, so the first recorded weight during that stay is 98.8 kg.",98.8,SELECT chartevents.valuenum FROM chartevents WHERE chartevents.stay_id IN ( SELECT icustays.stay_id FROM icustays WHERE icustays.hadm_id IN ( SELECT admissions.hadm_id FROM admissions WHERE admissions.subject_id = 10038999 AND admissions.dischtime IS NOT NULL ORDER BY admissions.admittime ASC LIMIT 1 ) ) AND chartevents.itemid IN ( SELECT d_items.itemid FROM d_items WHERE d_items.label = 'daily weight' AND d_items.linksto = 'chartevents' ) ORDER BY chartevents.charttime ASC LIMIT 1,1,
+How many prescriptions were ordered for cyanocobalamin in 2100?,27.conversation.json,There were **9** prescriptions for cyanocobalamin ordered in the year 2100.,9,"SELECT COUNT(*) FROM prescriptions WHERE prescriptions.drug = 'cyanocobalamin' AND strftime('%Y',prescriptions.starttime) = '2100'",1,
+How many prescriptions were ordered for acetylcysteine (iv) in 2100?,28.conversation.json,There were **four** acetylcysteine (IV) prescriptions ordered in the year 2100.,4,"SELECT COUNT(*) FROM prescriptions WHERE prescriptions.drug = 'acetylcysteine (iv)' AND strftime('%Y',prescriptions.starttime) = '2100'",1,
+What was the first diagnosis that patient 10021666 received this year?,29.conversation.json,"**First diagnosis for patient 10021666 in the year 2100**
+
+| Date & Time (UTC) | ICD‑9 Code | Diagnosis Description |
+|-------------------|------------|------------------------|
+| **2100‑03‑30 23:47:00** | `icd9|v4986` | *Do Not Resuscitate status* |
+
+- The earliest charted diagnosis for this patient in the year 2100 is a Do‑Not‑Resuscitate (DNR) status, recorded on March 30, 2100 at 23:47.
+- No earlier diagnoses exist for that patient in the 2100 calendar year.",do not resuscitate status,"SELECT d_icd_diagnoses.long_title FROM d_icd_diagnoses WHERE d_icd_diagnoses.icd_code IN ( SELECT diagnoses_icd.icd_code FROM diagnoses_icd WHERE diagnoses_icd.hadm_id IN ( SELECT admissions.hadm_id FROM admissions WHERE admissions.subject_id = 10021666 ) AND datetime(diagnoses_icd.charttime,'start of year') = datetime(current_time,'start of year','-0 year') ORDER BY diagnoses_icd.charttime ASC LIMIT 1 )",1,
+When did patient 10038081 get the first blood (ebv) microbiology test since 16 months ago?,30.conversation.json,"**Answer**
+
+Using the MIMIC‑IV data with the “current” time set to **2020‑12‑31 23:59:00**, the window of interest is from **2099‑08‑31** onward (i.e., 16 months prior).
+For patient **10038081**, the first blood‑based EBV microbiology test in that period occurred on:
+
+- **2100‑10‑01 at 13:08:00**
+
+This is the earliest record where `spec_type_desc` contains “EBV” (blood) and falls within the specified time window.",2100-10-01 13:08:00,"SELECT microbiologyevents.charttime FROM microbiologyevents WHERE microbiologyevents.hadm_id IN ( SELECT admissions.hadm_id FROM admissions WHERE admissions.subject_id = 10038081 ) AND microbiologyevents.spec_type_desc = 'blood (ebv)' AND datetime(microbiologyevents.charttime) >= datetime(current_time,'-16 month') ORDER BY microbiologyevents.charttime ASC LIMIT 1",1,
+When was the last time that patient 10003400 was discharged from the hospital?,31.conversation.json,"The most recent hospital discharge for patient **10003400** occurred on:
+
+- **Date & Time:** June 15, 2100 at 15:05 (3:05 PM)
+
+This was the last entry in the `admissions` table for that subject, with `hadm_id` 26090619.",2100-06-15 15:05:00,"SELECT admissions.dischtime FROM admissions WHERE admissions.subject_id = 10003400 AND datetime(admissions.admittime) >= datetime(current_time,'-1 year') ORDER BY admissions.dischtime DESC LIMIT 1",1,
+Please show me the top three most usual procedures for patients aged 20s since 2100.,32.conversation.json,"**Top 3 most common procedures performed on patients in their 20‑s (age 20–29) since the year 2100**
+
+| Rank | ICD‑9 Procedure Code | Description | # of occurrences |
+|------|---------------------|-------------|------------------|
+| 1 | **icd9|3961** | *Extracorporeal circulation auxiliary to open heart surgery* | 2 |
+| 2 | **icd9|8605** | *Incision with removal of foreign body or device from skin and subcutaneous tissue* | 1 |
+| 3 | **icd9|7915** | *Closed reduction of fracture with internal fixation, femur* | 1 |
+
+### How the result was derived
+1. **Table selection**
+   - `admissions`: to filter by patient age (`age BETWEEN 20 AND 29`) and admission date (`admittime >= '2100-01-01'`).
+   - `procedures_icd`: to get all procedure ICD‑9 codes linked to each admission.
+
+2. **SQL query used**
+
+```sql
+SELECT pi.icd_code, COUNT(*) AS cnt
+FROM procedures_icd pi
+JOIN admissions a ON pi.hadm_id = a.hadm_id
+WHERE a.age BETWEEN 20 AND 29
+  AND a.admittime >= '2100-01-01'
+GROUP BY pi.icd_code
+ORDER BY cnt DESC
+LIMIT 3;
+```
+
+3. **Procedure description lookup**
+   The ICD‑9 codes were mapped to their long titles via the `d_icd_procedures` table.
+
+### Notes
+* The counts reflect the limited sample data present in this instance of the MIMIC‑IV database; real‑world totals may differ.
+* If you want a broader view (e.g., all years or more patients), adjust the date filter (`admittime`) accordingly.","central venous catheter placement with guidance; closed reduction of fracture with internal fixation, femur; extracorporeal circulation auxiliary to open heart surgery; incision with removal of foreign body or device from skin and subcutaneous tissue; injection of anesthetic into spinal canal for analgesia; insertion of catheter into spinal canal for infusion of therapeutic or palliative substances; insertion of intercostal catheter for drainage; open heart valvuloplasty of mitral valve without replacement; other repair of vessel; reopening of recent thoracotomy site; resection of vessel with replacement, thoracic vessels; thoracoscopic decortication of lung","SELECT d_icd_procedures.long_title FROM d_icd_procedures WHERE d_icd_procedures.icd_code IN ( SELECT T1.icd_code FROM ( SELECT procedures_icd.icd_code, DENSE_RANK() OVER ( ORDER BY COUNT(*) DESC ) AS C1 FROM procedures_icd WHERE procedures_icd.hadm_id IN ( SELECT admissions.hadm_id FROM admissions WHERE admissions.age BETWEEN 20 AND 29 ) AND strftime('%Y',procedures_icd.charttime) >= '2100' GROUP BY procedures_icd.icd_code ) AS T1 WHERE T1.C1 <= 3 )",1,
+What is the name of the medication that patient 10036156 received two or more times in their last hospital visit?,33.conversation.json,"For patient **10036156**, the most recent admission (the “last” hospital stay) included several medications that were prescribed at least twice during that stay.
+Based on the prescription records:
+
+| Medication | Number of times prescribed |
+|------------|-----------------------------|
+| **Bag** | 4 |
+| **Neutra‑phos** | 3 |
+| **Pantoprazole** | 2 |
+| **Sodium chloride 0.9 %** | 3 |
+| **Trazodone** | 2 |
+
+So, any of the above medications meet the criterion of being given two or more times in that visit.",bag; neutra-phos; pantoprazole; sodium chloride 0.9%; trazodone,"SELECT T1.drug FROM ( SELECT prescriptions.drug, COUNT( prescriptions.starttime ) AS C1 FROM prescriptions WHERE prescriptions.hadm_id IN ( SELECT admissions.hadm_id FROM admissions WHERE admissions.subject_id = 10036156 AND admissions.dischtime IS NOT NULL ORDER BY admissions.admittime DESC LIMIT 1 ) GROUP BY prescriptions.drug ) AS T1 WHERE T1.C1 >= 2",1,
+How many patients in 2100 received central venous catheter placement with guidance after the reopening of recent thoracotomy site procedure within the same month?,34.conversation.json,"**Result**
+
+Only **one** patient in year 2100 had a central‑venous‑catheter (CVC) placement with guidance that occurred *after* a reopening of a recent thoracotomy site, both procedures happening within the same calendar month.
+
+| Patient ID |
+|------------|
+| 10014729   |
+
+**How we got this**
+
+1. **Identify relevant procedure codes**
+   - Central‑venous catheter placement with guidance: `icd9|3897`
+   - Reopening of recent thoracotomy site: `icd9|3403`
+
+2. **Query logic (SQLite syntax)**
+   ```sql
+   WITH thoracotomy AS (
+       SELECT subject_id, charttime AS thorac_time
+       FROM procedures_icd
+       WHERE icd_code = 'icd9|3403'
+   ),
+   cvc AS (
+       SELECT subject_id, charttime AS cvc_time
+       FROM procedures_icd
+       WHERE icd_code = 'icd9|3897'
+   )
+   SELECT DISTINCT t.subject_id
+   FROM thoracotomy t
+   JOIN cvc c ON t.subject_id = c.subject_id
+   JOIN admissions a ON t.subject_id = a.subject_id
+   WHERE strftime('%Y-%m', t.thorac_time) = strftime('%Y-%m', c.cvc_time)
+     AND c.cvc_time > t.thorac_time
+     AND strftime('%Y', a.admittime) = '2100';
+   ```
+
+3. **Result** – The query returned one distinct `subject_id` (10014729), meaning only that patient satisfied the criteria.
+
+If you need more detail on that patient's admission dates, procedure timestamps, or additional clinical context, let me know!",1,"SELECT COUNT( DISTINCT T1.subject_id ) FROM ( SELECT admissions.subject_id, procedures_icd.charttime FROM procedures_icd JOIN admissions ON procedures_icd.hadm_id = admissions.hadm_id WHERE procedures_icd.icd_code = ( SELECT d_icd_procedures.icd_code FROM d_icd_procedures WHERE d_icd_procedures.long_title = 'reopening of recent thoracotomy site' ) AND strftime('%Y',procedures_icd.charttime) = '2100' ) AS T1 JOIN ( SELECT admissions.subject_id, procedures_icd.charttime FROM procedures_icd JOIN admissions ON procedures_icd.hadm_id = admissions.hadm_id WHERE procedures_icd.icd_code = ( SELECT d_icd_procedures.icd_code FROM d_icd_procedures WHERE d_icd_procedures.long_title = 'central venous catheter placement with guidance' ) AND strftime('%Y',procedures_icd.charttime) = '2100' ) AS T2 ON T1.subject_id = T2.subject_id WHERE T1.charttime < T2.charttime AND datetime(T1.charttime,'start of month') = datetime(T2.charttime,'start of month')",1,
+Show me the top five most frequently prescribed medications since 2100.,35.conversation.json,"**Top 5 most frequently prescribed medications (all records – dates shifted to the 2100‑range)**
+
+| Rank | Medication | Prescription Count |
+|------|------------|--------------------|
+| 1 | **Insulin** | **280** |
+| 2 | **0.9 % Sodium Chloride** | **271** |
+| 3 | **Sodium Chloride 0.9 % Flush** | **264** |
+| 4 | **5 % Dextrose** | **217** |
+| 5 | **Furosemide** | **164** |
+
+*The counts reflect the raw number of prescription entries in the `prescriptions` table. Because MIMIC‑IV shifts all dates into the year 2100 for privacy, “since 2100” effectively means *all* available prescriptions.*",0.9% sodium chloride; 5% dextrose; furosemide; insulin; sodium chloride 0.9%  flush,"SELECT T1.drug FROM ( SELECT prescriptions.drug, DENSE_RANK() OVER ( ORDER BY COUNT(*) DESC ) AS C1 FROM prescriptions WHERE strftime('%Y',prescriptions.starttime) >= '2100' GROUP BY prescriptions.drug ) AS T1 WHERE T1.C1 <= 5",1,
+Calculate the number of patients who stayed in the med/surg this year.,36.conversation.json,"Using the **transfers** table (where `careunit = 'med/surg'`) and filtering for events that occurred during the calendar year 2100, we get:
+
+| Year | Care Unit | Distinct Patients |
+|------|-----------|-------------------|
+| 2100 | med/surg  | **13** |
+
+So, **13 patients stayed in the Med/Surg unit during the year 2100**.",13,"SELECT COUNT( DISTINCT admissions.subject_id ) FROM admissions WHERE admissions.hadm_id IN ( SELECT transfers.hadm_id FROM transfers WHERE transfers.careunit = 'med/surg' AND datetime(transfers.intime,'start of year') = datetime(current_time,'start of year','-0 year') )",1,
+Did patient 10002428 come to the er during the first hospital encounter?,37.conversation.json,"**Patient:** 10002428
+**First (and only) hospital encounter**
+
+| Field | Value |
+|-------|-------|
+| **hadm_id** | 25797028 |
+| **admittime** | 2100‑07‑27 19:15:00 |
+| **dischtime** | 2100‑07‑28 18:37:00 |
+| **admission_type** | eu observation |
+| **admission_location** | emergency room |
+
+The `admission_location` column indicates the patient was admitted from the *emergency department* (ER). Since this is the only admission record for subject 10002428 in MIMIC‑IV, it represents their first—and sole—hospital encounter.
+
+**Answer:** Yes, patient 10002428 came to the ER during their first hospital encounter.",1,SELECT COUNT(*)>0 FROM admissions WHERE admissions.subject_id = 10002428 AND admissions.admission_location = 'emergency room' AND admissions.dischtime IS NOT NULL ORDER BY admissions.admittime ASC LIMIT 1,1,
+How many lactated ringers prescriptions were given out since 2100?,38.conversation.json,There have been **94** Lactated Ringer’s prescriptions issued in the MIMIC‑IV database from the start of the shifted date range (≥ “2100‑01‑01”).,94,"SELECT COUNT(*) FROM prescriptions WHERE prescriptions.drug = 'lactated ringers' AND strftime('%Y',prescriptions.starttime) >= '2100'",1,
+What is the number of times patient 10019172 visited the hospital?,39.conversation.json,Patient **10019172** has been admitted to the hospital **2 times**.,2,SELECT COUNT( DISTINCT admissions.hadm_id ) FROM admissions WHERE admissions.subject_id = 10019172,1,
+What's the diastolic blood pressure change of patient 10022281 last measured on the last ICU visit compared to the first value measured on the last ICU visit?,40.conversation.json,"**Diastolic blood pressure change for patient 10022281**
+
+| ICU stay (last) | First recorded value | Last recorded value | Change |
+|-----------------|----------------------|---------------------|--------|
+| Stay ID 30585761 (2020‑06‑23 04:12–2020‑06‑24 14:55) | 52 mmHg (at 2020‑06‑23 06:00) | 41 mmHg (at 2020‑06‑24 14:00) | **−11 mmHg** |
+
+So, during the last ICU visit, the patient’s diastolic blood pressure decreased by 11 mmHg from its first to its last measurement.",-11,SELECT ( SELECT chartevents.valuenum FROM chartevents WHERE chartevents.stay_id IN ( SELECT icustays.stay_id FROM icustays WHERE icustays.hadm_id IN ( SELECT admissions.hadm_id FROM admissions WHERE admissions.subject_id = 10022281 ) AND icustays.outtime IS NOT NULL ORDER BY icustays.intime DESC LIMIT 1 ) AND chartevents.itemid IN ( SELECT d_items.itemid FROM d_items WHERE d_items.label = 'arterial blood pressure diastolic' AND d_items.linksto = 'chartevents' ) ORDER BY chartevents.charttime DESC LIMIT 1 ) - ( SELECT chartevents.valuenum FROM chartevents WHERE chartevents.stay_id IN ( SELECT icustays.stay_id FROM icustays WHERE icustays.hadm_id IN ( SELECT admissions.hadm_id FROM admissions WHERE admissions.subject_id = 10022281 ) AND icustays.outtime IS NOT NULL ORDER BY icustays.intime DESC LIMIT 1 ) AND chartevents.itemid IN ( SELECT d_items.itemid FROM d_items WHERE d_items.label = 'arterial blood pressure diastolic' AND d_items.linksto = 'chartevents' ) ORDER BY chartevents.charttime ASC LIMIT 1 ),1,
+How many patients were prescribed albuterol 0.083% neb soln within the same hospital visit after they were diagnosed with personal history of malignant neoplasm of prostate in 2100?,41.conversation.json,"**Answer**
+
+Only **one patient** was prescribed *albuterol 0.083 % nebulizer solution* during the same hospital visit after being diagnosed with a personal history of malignant neoplasm of prostate (ICD‑9 code v1046) in 2100.
+
+| Patient ID | Admission ID | Diagnosis time (charttime) | Albuterol start time |
+|------------|--------------|---------------------------|----------------------|
+| **10005348** | 29496232 | 2100‑09‑12 08:30:00 | 2100‑09‑12 18:00:00 |
+
+* The query used the `diagnoses_icd` table to locate admissions containing the code `icd9|v1046`.
+* It joined on `prescriptions` (same `hadm_id`) and filtered for drug name exactly matching `""albuterol 0.083% neb soln""`.
+* Only one distinct subject ID met the condition that the prescription started **after** the diagnosis timestamp.
+
+Thus, **1 patient** in the MIMIC‑IV database satisfies all criteria.",1,"SELECT COUNT( DISTINCT T1.subject_id ) FROM ( SELECT admissions.subject_id, diagnoses_icd.charttime, admissions.hadm_id FROM diagnoses_icd JOIN admissions ON diagnoses_icd.hadm_id = admissions.hadm_id WHERE diagnoses_icd.icd_code = ( SELECT d_icd_diagnoses.icd_code FROM d_icd_diagnoses WHERE d_icd_diagnoses.long_title = 'personal history of malignant neoplasm of prostate' ) AND strftime('%Y',diagnoses_icd.charttime) = '2100' ) AS T1 JOIN ( SELECT admissions.subject_id, prescriptions.starttime, admissions.hadm_id FROM prescriptions JOIN admissions ON prescriptions.hadm_id = admissions.hadm_id WHERE prescriptions.drug = 'albuterol 0.083% neb soln' AND strftime('%Y',prescriptions.starttime) = '2100' ) AS T2 ON T1.subject_id = T2.subject_id WHERE T1.charttime < T2.starttime AND T1.hadm_id = T2.hadm_id",1,
+When was the last instance when patient 10021487's respiratory rate was greater than 17.0 on 12/17/2100?,42.conversation.json,"The most recent record of a respiratory‑rate reading above 17.0 for patient **10021487** on **December 17, 2100** is:
+
+| Date & Time (UTC) | Respiratory Rate |
+|-------------------|------------------|
+| 2100‑12‑17 23:00:00 | 23.0 breaths/min |
+
+This was the last entry for that day where the respiratory rate exceeded 17.0.",2100-12-17 23:00:00,"SELECT chartevents.charttime FROM chartevents WHERE chartevents.stay_id IN ( SELECT icustays.stay_id FROM icustays WHERE icustays.hadm_id IN ( SELECT admissions.hadm_id FROM admissions WHERE admissions.subject_id = 10021487 ) ) AND chartevents.itemid IN ( SELECT d_items.itemid FROM d_items WHERE d_items.label = 'respiratory rate' AND d_items.linksto = 'chartevents' ) AND chartevents.valuenum > 17.0 AND strftime('%Y-%m-%d',chartevents.charttime) = '2100-12-17' ORDER BY chartevents.charttime DESC LIMIT 1",1,
+What's new in patient 10039831's medication list today compared to the list yesterday?,43.conversation.json,"**New medications for patient 10039831 as of “today” (2020‑12‑31 23:59:00) compared with the day before**
+
+| Drug | Dose | Unit | Route | Start Time |
+|------|------|------|-------|------------|
+| **ampicillin‑sulbactam** | 3.0 | g | IV | 2020‑12‑31 20:00 |
+| **0.9 % sodium chloride (mini bag plus)** | 100.0 | mL | IV | 2020‑12‑31 20:00 |
+| **vial** | 1.0 | vial | IV | 2020‑12‑31 21:00 |
+| **pantoprazole** | 40.0 | mg | IV | 2020‑12‑31 21:00 |
+| **sodium chloride 0.9 % flush** | 3.0 | mL | IV | 2020‑12‑31 21:00 |
+| **5 % dextrose** | 250.0 | mL | IV | 2020‑12‑31 21:00 |
+| **insulin** | 0.0 | unit | SC | 2020‑12‑31 23:00 |
+| **glucagon** | 1.0 | mg | IM | 2020‑12‑31 23:00 |
+| **0.9 % sodium chloride** | 500.0 | mL | IV | 2020‑12‑31 23:00 |
+
+*All of the above drugs were **not active** on the previous day (2020‑12‑30 23:59:00) and became active sometime on 2020‑12‑31.*",0.9% sodium chloride; 0.9% sodium chloride (mini bag plus); 5% dextrose; ampicillin-sulbactam; glucagon; insulin; pantoprazole; sodium chloride 0.9%  flush; vial,"SELECT prescriptions.drug FROM prescriptions WHERE prescriptions.hadm_id IN ( SELECT admissions.hadm_id FROM admissions WHERE admissions.subject_id = 10039831 ) AND datetime(prescriptions.starttime,'start of day') = datetime(current_time,'start of day','-0 day') EXCEPT SELECT prescriptions.drug FROM prescriptions WHERE prescriptions.hadm_id IN ( SELECT admissions.hadm_id FROM admissions WHERE admissions.subject_id = 10039831 ) AND datetime(prescriptions.starttime,'start of day') = datetime(current_time,'start of day','-1 day')",1,
+How many people died after being diagnosed with posttraumatic stress disorder within 2 months throughout this year?,44.conversation.json,"**Answer**
+
+- **Number of deaths within 2 months after a PTSD diagnosis (throughout the current year): 0**
+
+**How I arrived at that number**
+
+1. **Identify PTSD codes**
+   - In MIMIC‑IV, PTSD is represented by ICD‑10 code `F43.1` (unspecified PTSD) → stored as `icd10|f4310`.
+   - No ICD‑9 CPT entries for PTSD (`309.81`) exist in the dataset.
+
+2. **Count patients with a PTSD diagnosis**
+   ```sql
+   SELECT COUNT(DISTINCT subject_id) AS num_patients
+   FROM diagnoses_icd
+   WHERE icd_code = 'icd10|f4310';
+   ```
+   Result: `1` patient (subject id 10029291).
+
+3. **Check if that patient died within 2 months of the diagnosis**
+   - Diagnosis timestamp: `2100‑02‑25 01:59:00`.
+   - Patient’s death date (`dod`) is `NULL` → the patient did not die.
+
+4. **Conclusion**
+   With only one PTSD case in the database and no deaths within a two‑month window, the count of such events is zero.
+
+---
+
+> *Note:* If you need to extend this analysis to other mental‑health diagnoses or to a different time horizon, simply adjust the ICD code filter and the date‑difference condition.",0,"SELECT COUNT( DISTINCT T2.subject_id ) FROM ( SELECT T1.subject_id, T1.charttime FROM ( SELECT admissions.subject_id, diagnoses_icd.charttime FROM diagnoses_icd JOIN admissions ON diagnoses_icd.hadm_id = admissions.hadm_id WHERE diagnoses_icd.icd_code = ( SELECT d_icd_diagnoses.icd_code FROM d_icd_diagnoses WHERE d_icd_diagnoses.long_title = 'posttraumatic stress disorder' ) ) AS T1 GROUP BY T1.subject_id HAVING MIN(T1.charttime) = T1.charttime AND datetime(T1.charttime,'start of year') = datetime(current_time,'start of year','-0 year') ) AS T2 JOIN ( SELECT patients.subject_id, admissions.hadm_id, patients.dod FROM admissions join patients ON patients.subject_id = admissions.subject_id WHERE patients.dod IS NOT NULL AND datetime(patients.dod,'start of year') = datetime(current_time,'start of year','-0 year') ) as T3 ON T2.subject_id = T3.subject_id WHERE ( datetime(T3.dod) BETWEEN datetime(T2.charttime) AND datetime(T2.charttime,'+2 month') ) OR ( datetime(T2.charttime) BETWEEN datetime(T3.dod) AND datetime(T3.dod,'+2 month') )",1,
+Provide the ID list of patients who were diagnosed with methicillin susceptible pneumonia due to staphylococcus aureus since 2100.,45.conversation.json,"Patient ID(s) diagnosed with methicillin‑susceptible pneumonia due to Staphylococcus aureus (ICD‑9 48241 / ICD‑10 J15211) since 2100:
+
+- **10021487**",10021487,"SELECT DISTINCT admissions.subject_id FROM admissions WHERE admissions.hadm_id IN ( SELECT diagnoses_icd.hadm_id FROM diagnoses_icd WHERE diagnoses_icd.icd_code = ( SELECT d_icd_diagnoses.icd_code FROM d_icd_diagnoses WHERE d_icd_diagnoses.long_title = 'methicillin susceptible pneumonia due to staphylococcus aureus' ) AND strftime('%Y',diagnoses_icd.charttime) >= '2100' )",1,
+How many individuals are there who are current patients?,46.conversation.json,"**Current patients in the MIMIC‑IV database**
+
+| Metric | Value |
+|--------|-------|
+| Total distinct subjects recorded in the database | **94** |
+| Distinct subjects with an active admission (no discharge time) | **4** |
+
+The number of “current” patients is obtained by counting unique `subject_id` values in the **admissions** table where `dischtime IS NULL`.
+
+```sql
+SELECT COUNT(DISTINCT subject_id) AS current_patients
+FROM admissions
+WHERE dischtime IS NULL;
+```
+
+Result: 4.",4,SELECT COUNT( DISTINCT admissions.subject_id ) FROM admissions WHERE admissions.dischtime is null,1,
+Is systolic blood pressure of patient 10027602 last measured on the last ICU visit greater than the first value measured on the last ICU visit?,47.conversation.json,Yes – the systolic blood pressure recorded at the **end of the patient’s last ICU stay** (137 mmHg) was higher than the first measurement taken during that same stay (127 mmHg).,1,SELECT ( SELECT chartevents.valuenum FROM chartevents WHERE chartevents.stay_id IN ( SELECT icustays.stay_id FROM icustays WHERE icustays.hadm_id IN ( SELECT admissions.hadm_id FROM admissions WHERE admissions.subject_id = 10027602 ) AND icustays.outtime IS NOT NULL ORDER BY icustays.intime DESC LIMIT 1 ) AND chartevents.itemid IN ( SELECT d_items.itemid FROM d_items WHERE d_items.label = 'arterial blood pressure systolic' AND d_items.linksto = 'chartevents' ) ORDER BY chartevents.charttime DESC LIMIT 1 ) > ( SELECT chartevents.valuenum FROM chartevents WHERE chartevents.stay_id IN ( SELECT icustays.stay_id FROM icustays WHERE icustays.hadm_id IN ( SELECT admissions.hadm_id FROM admissions WHERE admissions.subject_id = 10027602 ) AND icustays.outtime IS NOT NULL ORDER BY icustays.intime DESC LIMIT 1 ) AND chartevents.itemid IN ( SELECT d_items.itemid FROM d_items WHERE d_items.label = 'arterial blood pressure systolic' AND d_items.linksto = 'chartevents' ) ORDER BY chartevents.charttime ASC LIMIT 1 ),1,
+"Since 178 days ago, when was the mean blood pressure of patient 10005817, for the last time, observed at less than 76.0?",48.conversation.json,"The latest observation of a **mean arterial pressure** < 76.0 mmHg for patient **10005817**, within the period from 178 days before the set “current” time (2100‑07‑06) up to the current time (2100‑12‑31 23:59), was recorded on:
+
+- **Date & Time:** **2100‑12‑24 14:02:00**
+- **Value:** **64.0 mmHg**
+
+This is the most recent record that satisfies the < 76.0 threshold in that time window.",2100-12-24 14:02:00,"SELECT chartevents.charttime FROM chartevents WHERE chartevents.stay_id IN ( SELECT icustays.stay_id FROM icustays WHERE icustays.hadm_id IN ( SELECT admissions.hadm_id FROM admissions WHERE admissions.subject_id = 10005817 ) ) AND chartevents.itemid IN ( SELECT d_items.itemid FROM d_items WHERE d_items.label = 'arterial blood pressure mean' AND d_items.linksto = 'chartevents' ) AND chartevents.valuenum < 76.0 AND datetime(chartevents.charttime) >= datetime(current_time,'-178 day') ORDER BY chartevents.charttime DESC LIMIT 1",1,
+"Has patient 10006580 had any implantation or replacement of carotid sinus stimulation device, total system procedure in 2100?",49.conversation.json,"Yes – the MIMIC‑IV data show that patient **10006580** underwent an “implantation or replacement of carotid sinus stimulation device, total system” (ICD‑9 procedure code **icd9|3981**) on **August 20, 2100**.",1,"SELECT COUNT(*)>0 FROM procedures_icd WHERE procedures_icd.icd_code = ( SELECT d_icd_procedures.icd_code FROM d_icd_procedures WHERE d_icd_procedures.long_title = 'implantation or replacement of carotid sinus stimulation device, total system' ) AND procedures_icd.hadm_id IN ( SELECT admissions.hadm_id FROM admissions WHERE admissions.subject_id = 10006580 ) AND strftime('%Y',procedures_icd.charttime) = '2100'",1,
+"Give me the top four most frequent diagnoses that patients were diagnosed with in the same month after being diagnosed with body mass index 35.0-35.9, adult this year.",50.conversation.json,"**Top 4 diagnoses occurring in the same calendar month after an obesity diagnosis (ICD‑9 code *278.00*) – adults (≥18 y) in the MIMIC‑IV database**
+
+| Rank | ICD‑9 code | Diagnosis (short title) | # of patients |
+|------|------------|------------------------|---------------|
+| 1 | **4019** | Unspecified essential hypertension | **6** |
+| 2 | **V5861** | Long‑term (current) use of anticoagulants | **4** |
+| 3 | **42731** | Atrial fibrillation | **4** |
+| 4 | **5990** | Urinary tract infection, site not specified | **3** |
+
+### How the result was derived
+
+1. **Obesity proxy** – The MIMIC‑IV database does not store BMI values directly.
+   We used the ICD‑9 diagnosis *278.00* (“obesity”) as a surrogate for patients whose body mass index falls in the 35.0–35.9 range (adult class II obesity).
+
+2. **Adult filter** – Only patients who were ≥18 years old at the time of their first *278.00* admission were kept.
+
+3. **Same‑month window** – For each qualifying patient, all other diagnoses recorded in any admission that occurred in the same calendar month as the first *278.00* admission were collected (the obesity diagnosis itself was excluded).
+
+4. **Frequency count** – The remaining diagnoses were tallied across patients, and the four most common ones were reported.
+
+### Notes
+
+- Because BMI is not directly available, this analysis relies on a diagnostic code that generally corresponds to class II obesity; it may include patients with slightly different BMIs.
+- The counts reflect distinct patient‑admission pairs in which those diagnoses appeared during the month of the first obesity admission. They are not cumulative counts across all admissions or months.
+
+If you need a more precise BMI‑based analysis, the database would have to contain explicit BMI measurements (e.g., in `chartevents` or a dedicated derived table).","atrial fibrillation; autistic disorder, current or active state; long-term (current) use of anticoagulants; personal history of sudden cardiac arrest; postprocedural fever; unspecified essential hypertension","SELECT d_icd_diagnoses.long_title FROM d_icd_diagnoses WHERE d_icd_diagnoses.icd_code IN ( SELECT T3.icd_code FROM ( SELECT T2.icd_code, DENSE_RANK() OVER ( ORDER BY COUNT(*) DESC ) AS C1 FROM ( SELECT admissions.subject_id, diagnoses_icd.charttime FROM diagnoses_icd JOIN admissions ON diagnoses_icd.hadm_id = admissions.hadm_id WHERE diagnoses_icd.icd_code = ( SELECT d_icd_diagnoses.icd_code FROM d_icd_diagnoses WHERE d_icd_diagnoses.long_title = 'body mass index 35.0-35.9, adult' ) AND datetime(diagnoses_icd.charttime,'start of year') = datetime(current_time,'start of year','-0 year') ) AS T1 JOIN ( SELECT admissions.subject_id, diagnoses_icd.icd_code, diagnoses_icd.charttime FROM diagnoses_icd JOIN admissions ON diagnoses_icd.hadm_id = admissions.hadm_id WHERE datetime(diagnoses_icd.charttime,'start of year') = datetime(current_time,'start of year','-0 year') ) AS T2 ON T1.subject_id = T2.subject_id WHERE T1.charttime < T2.charttime AND datetime(T1.charttime,'start of month') = datetime(T2.charttime,'start of month') GROUP BY T2.icd_code ) AS T3 WHERE T3.C1 <= 4 )",0,"Looking at the provided answer versus the gold reference, there was a significant mistake in the analysis approach. The provided answer used ICD-9 code 278.00 (general obesity) as a proxy for BMI 35.0-35.9, explaining that ""BMI data is not directly available in MIMIC-IV."" However, the gold query shows that there is actually a specific ICD diagnosis code for ""body mass index 35.0-35.9, adult"" in the d_icd_diagnoses table. Additionally, the provided answer interpreted ""same month after being diagnosed"" as diagnoses occurring within the same calendar month as the BMI diagnosis, while the gold query correctly implements ""after"" by requiring T1.charttime < T2.charttime (the BMI diagnosis must occur before the subsequent diagnosis). The analysis also used admission times instead of diagnosis chart times, and applied an adult age filter that wasn't present in the gold approach. This led to completely different results - the provided answer found hypertension, anticoagulants, atrial fibrillation, and UTI as top diagnoses, while the gold answer includes autistic disorder, sudden cardiac arrest history, and postprocedural fever among others. The primary issue was a mistake - the analysis failed to properly explore the database schema to find the specific BMI diagnosis code and misinterpreted the temporal relationship required by the question."
+Please list the yearly average volume of stool that was output by patient 10020740 since 03/26/2100.,51.conversation.json,"**Yearly average stool output for patient 10020740 (since 03/26/2100)**
+
+| Year | Avg. Stool Volume (ml) |
+|------|------------------------|
+| 2100 | 100.0 |
+
+The calculation was based on all `outputevents` records with:
+
+- `subject_id = 10020740`
+- `itemid = 226579` (stool output)
+- `charttime ≥ '2100‑03‑26'`
+
+No data exist for other years for this patient, so the single year shown is the only average available.",100,"SELECT AVG(outputevents.value) FROM outputevents WHERE outputevents.stay_id IN ( SELECT icustays.stay_id FROM icustays WHERE icustays.hadm_id IN ( SELECT admissions.hadm_id FROM admissions WHERE admissions.subject_id = 10020740 ) ) AND outputevents.itemid IN ( SELECT d_items.itemid FROM d_items WHERE d_items.label = 'stool' AND d_items.linksto = 'outputevents' ) AND strftime('%Y-%m-%d',outputevents.charttime) >= '2100-03-26' GROUP BY strftime('%Y',outputevents.charttime)",1,
+Is the anion gap level of patient 10003400 measured at 2100-06-15 05:34:00 less than the level measured at 2100-06-14 06:15:00?,52.conversation.json,"Yes – for patient **10003400** the anion‑gap value at **2100‑06‑15 05:34:00** is lower than it was at **2100‑06‑14 06:15:00**.
+
+| Time | ItemID | Anion Gap (meq/L) |
+|------|--------|-------------------|
+| 2100‑06‑14 06:15:00 | 50868 | **12.0** |
+| 2100‑06‑15 05:34:00 | 50868 | **10.0** |
+
+The value dropped by 2 meq/L, so the anion gap at 05:34 on June 15 is indeed less than it was the previous day at 06:15.",1,SELECT ( SELECT labevents.valuenum FROM labevents WHERE labevents.hadm_id IN ( SELECT admissions.hadm_id FROM admissions WHERE admissions.subject_id = 10003400 ) AND labevents.itemid IN ( SELECT d_labitems.itemid FROM d_labitems WHERE d_labitems.label = 'anion gap' ) AND labevents.charttime = '2100-06-15 05:34:00' ) < ( SELECT labevents.valuenum FROM labevents WHERE labevents.hadm_id IN ( SELECT admissions.hadm_id FROM admissions WHERE admissions.subject_id = 10003400 ) AND labevents.itemid IN ( SELECT d_labitems.itemid FROM d_labitems WHERE d_labitems.label = 'anion gap' ) AND labevents.charttime = '2100-06-14 06:15:00' ),1,
+Show me the length of stay in days of patient 10004422's first ICU stay.,53.conversation.json,"**Patient 10004422 – First ICU Stay**
+
+| Field | Value |
+|-------|-------|
+| **ICU unit** | Cardiac Vascular Intensive Care Unit (CVICU) |
+| **Intake time** | 2100‑01‑19 09:44:50 |
+| **Discharge time** | 2100‑01‑25 18:18:46 |
+
+**Length of stay**
+
+- Total elapsed time = **6 days, 8 hours, 33 minutes, and 56 seconds**
+- In decimal form ≈ **6.36 days**
+
+So the patient’s first ICU admission lasted about **six and a half days** (≈ 6.4 days).",6.357,"SELECT strftime('%J', icustays.outtime) - strftime('%J', icustays.intime) FROM icustays WHERE icustays.hadm_id IN ( SELECT admissions.hadm_id FROM admissions WHERE admissions.subject_id = 10004422 ) AND icustays.outtime IS NOT NULL ORDER BY icustays.intime ASC LIMIT 1",1,
+"Among patients who were diagnosed with anemia, unspecified since 2100, what are the top three most commonly prescribed medications that followed during the same hospital visit for patients in their 60 or above?",54.conversation.json,"Top 3 medications prescribed after an “Anemia – unspecified” (ICD‑9 285.9) diagnosis for patients ≥60 years old in the same admission
+
+Rank	Medication (drug name)	# of prescriptions
+1	Insulin	26
+2	0.9 % Sodium Chloride	24
+3	Sodium chloride 0.9 % flush	18
+These counts come from the MIMIC‑IV database by joining prescriptions with diagnoses_icd (filtered for ICD‑9 code 2859) and admissions (age ≥ 60). The query further restricted prescriptions to those started after the charttime of the anemia diagnosis within the same admission.
+
+**Fourth most common medication**
+
+| Rank | Medication (drug name) | # of prescriptions |
+|------|------------------------|---------------------|
+| 4    | **5 % Dextrose**       | 18                  |
+
+This comes directly from the same query set used for the top three—prescriptions linked to an ICD‑9 285.9 “Anemia – unspecified” diagnosis in admissions where patients were aged ≥ 60 and started after the charttime of that diagnosis.",0.9% sodium chloride; 5% dextrose; insulin; sodium chloride 0.9%  flush,"SELECT T3.drug FROM ( SELECT T2.drug, DENSE_RANK() OVER ( ORDER BY COUNT(*) DESC ) AS C1 FROM ( SELECT admissions.subject_id, diagnoses_icd.charttime, admissions.hadm_id FROM diagnoses_icd JOIN admissions ON diagnoses_icd.hadm_id = admissions.hadm_id WHERE diagnoses_icd.icd_code = ( SELECT d_icd_diagnoses.icd_code FROM d_icd_diagnoses WHERE d_icd_diagnoses.long_title = 'anemia, unspecified' ) AND strftime('%Y',diagnoses_icd.charttime) >= '2100' ) AS T1 JOIN ( SELECT admissions.subject_id, prescriptions.drug, prescriptions.starttime, admissions.hadm_id FROM prescriptions JOIN admissions ON prescriptions.hadm_id = admissions.hadm_id WHERE admissions.age >= 60 AND strftime('%Y',prescriptions.starttime) >= '2100' ) AS T2 ON T1.subject_id = T2.subject_id WHERE T1.charttime < T2.starttime AND T1.hadm_id = T2.hadm_id GROUP BY T2.drug ) AS T3 WHERE T3.C1 <= 3",1,
+What was patient 10009628's insurance plan on their last hospital encounter?,55.conversation.json,"Patient **10009628** was admitted on September 30 2100 and discharged on October 8 2100 (hadm_id 25926192).
+During that most recent hospital encounter the *insurance* field in the `admissions` table is listed as:
+
+**Medicaid**
+
+So, their insurance plan at the time of their last admission was Medicaid.",medicaid,SELECT admissions.insurance FROM admissions WHERE admissions.subject_id = 10009628 AND admissions.dischtime IS NOT NULL ORDER BY admissions.admittime DESC LIMIT 1,1,
+How many patients were treated with endoscopic control of gastric or duodenal bleeding in this year?,56.conversation.json,"**Answer**
+
+Only **one** patient was treated with endoscopic control of gastric or duodenal bleeding during the current year (2023‑02‑01 → 2023‑12‑31) as defined by the date you specified.
+
+---
+
+### How we got this number
+
+| Step | Action | Result |
+|------|--------|--------|
+| 1 | **Identify the procedure code** for “endoscopic control of gastric or duodenal bleeding.” | `icd9|4443` (found in `d_icd_procedures`). |
+| 2 | **Select admissions that occurred in the current year** (`2100-01‑01` → `2100-12‑31`). | Filtered on `strftime('%Y', a.admittime) = '2100'`. |
+| 3 | **Join procedures to admissions** and keep only rows with the target procedure code. | `JOIN admissions ON p.hadm_id = a.hadm_id`. |
+| 4 | **Count distinct patients** (`subject_id`). | Result: `1`. |
+
+```sql
+SELECT COUNT(DISTINCT p.subject_id) AS num_patients
+FROM procedures_icd p
+JOIN admissions a ON p.hadm_id = a.hadm_id
+WHERE p.icd_code = 'icd9|4443'
+  AND strftime('%Y', a.admittime) = '2100';
+```
+
+The query returns `1`, meaning only one patient met the criteria in the specified year.
+
+---
+
+**Note:** The database uses dates in the year 2100, so “this year” is interpreted as 2100-01‑01 to 2100-12‑31 based on your instruction.",1,"SELECT COUNT( DISTINCT admissions.subject_id ) FROM admissions WHERE admissions.hadm_id IN ( SELECT procedures_icd.hadm_id FROM procedures_icd WHERE procedures_icd.icd_code = ( SELECT d_icd_procedures.icd_code FROM d_icd_procedures WHERE d_icd_procedures.long_title = 'endoscopic control of gastric or duodenal bleeding' ) AND datetime(procedures_icd.charttime,'start of year') = datetime(current_time,'start of year','-0 year') )",1,
+What was patient 10022281's first output time of foley on 06/23/2100?,57.conversation.json,"The first Foley catheter output for patient 10022281 on **June 23, 2100** occurred at:
+
+**06:23:00**
+
+This is the earliest recorded `charttime` in the `outputevents` table for that patient with itemid 226559 (Foley) on that date.",2100-06-23 06:23:00,"SELECT outputevents.charttime FROM outputevents WHERE outputevents.stay_id IN ( SELECT icustays.stay_id FROM icustays WHERE icustays.hadm_id IN ( SELECT admissions.hadm_id FROM admissions WHERE admissions.subject_id = 10022281 ) ) AND outputevents.itemid IN ( SELECT d_items.itemid FROM d_items WHERE d_items.label = 'foley' AND d_items.linksto = 'outputevents' ) AND strftime('%Y-%m-%d',outputevents.charttime) = '2100-06-23' ORDER BY outputevents.charttime ASC LIMIT 1",1,
+How many people died after being diagnosed with long term (current) use of opiate analgesic during the same month during the last year?,58.conversation.json,"**Answer**
+
+After querying the MIMIC‑IV data for the period **January 1 – December 31, 2100** (the “last year” relative to your specified current time of 2100‑12‑31 23:59:00) and looking for patients who had an ICD‑9 diagnosis indicating long‑term/current use of opioid analgesics (`304.xx` or `305.5x`) **and died in the same calendar month** as that diagnosis, we found:
+
+| Metric | Value |
+|--------|-------|
+| **Number of unique patients meeting both criteria** | **0** |
+
+---
+
+### How the query was constructed
+
+```sql
+SELECT COUNT(DISTINCT d.subject_id) AS num_deaths
+FROM diagnoses_icd d
+JOIN patients p ON d.subject_id = p.subject_id
+WHERE (d.icd_code LIKE '304.%' OR d.icd_code LIKE '305.5%')
+  AND strftime('%Y-%m', d.charttime) = strftime('%Y-%m', p.dod)
+  AND date(p.dod) >= '2100-01-01'
+  AND date(d.charttime) BETWEEN '2100-01-01' AND '2100-12-31';
+```
+
+* **Diagnosis filter** – `304.xx` and `305.5x` capture opioid dependence/abuse codes that imply long‑term/current use.
+* **Month‑matching logic** – `strftime('%Y-%m', …)` extracts the year‑month of both the diagnosis (`charttime`) and death date (`dod`). The comparison ensures the two dates fall in the same calendar month.
+* **Time window** – Both diagnosis and death dates are constrained to the 2100 calendar year.
+
+The query returned a single row with `num_deaths = 0`, indicating that, within this dataset and under these criteria, no patient died during the same month as their long‑term opioid use diagnosis in the specified period.",0,"SELECT COUNT( DISTINCT T2.subject_id ) FROM ( SELECT T1.subject_id, T1.charttime FROM ( SELECT admissions.subject_id, diagnoses_icd.charttime FROM diagnoses_icd JOIN admissions ON diagnoses_icd.hadm_id = admissions.hadm_id WHERE diagnoses_icd.icd_code = ( SELECT d_icd_diagnoses.icd_code FROM d_icd_diagnoses WHERE d_icd_diagnoses.long_title = 'long term (current) use of opiate analgesic' ) ) AS T1 GROUP BY T1.subject_id HAVING MIN(T1.charttime) = T1.charttime AND datetime(T1.charttime,'start of year') = datetime(current_time,'start of year','-1 year') ) AS T2 JOIN ( SELECT patients.subject_id, admissions.hadm_id, patients.dod FROM admissions join patients ON patients.subject_id = admissions.subject_id WHERE patients.dod IS NOT NULL AND datetime(patients.dod,'start of year') = datetime(current_time,'start of year','-1 year') ) as T3 ON T2.subject_id = T3.subject_id WHERE datetime(T2.charttime,'start of month') = datetime(T3.dod,'start of month')",1,
+What was the first measurement of patient 10013049's height since 25 months ago?,59.conversation.json,"**First height measurement for patient 10013049 (since 25 months before “current” = 2100‑12‑31 23:59:00)**
+
+| Measurement | Value | Unit | Timestamp |
+|-------------|-------|------|-----------|
+| Height | 183.0 | cm | 2100‑06‑23 09:33:00 |
+
+The earliest recorded height after the cutoff date (2098‑11‑30 23:59:00) was taken on **June 23, 2100 at 09:33 UTC**, with a value of **183.0 cm**.",183,"SELECT chartevents.valuenum FROM chartevents WHERE chartevents.stay_id IN ( SELECT icustays.stay_id FROM icustays WHERE icustays.hadm_id IN ( SELECT admissions.hadm_id FROM admissions WHERE admissions.subject_id = 10013049 ) ) AND chartevents.itemid IN ( SELECT d_items.itemid FROM d_items WHERE d_items.label = 'height (cm)' AND d_items.linksto = 'chartevents' ) AND datetime(chartevents.charttime) >= datetime(current_time,'-25 month') ORDER BY chartevents.charttime ASC LIMIT 1",1,
+List the top three most frequent lab tests that patients were given in the same hospital visit after being diagnosed with dysphonia in 2100.,60.conversation.json,"**Top 3 most frequent laboratory tests given during the same hospital visit after a dysphonia diagnosis in 2100**
+
+| Rank | Lab Test (label) | Count of occurrences |
+|------|------------------|----------------------|
+| 1    | **Glucose**      | 9 |
+| 2    | **Urea nitrogen**| 8 |
+| 3    | **Sodium**        | 8 |
+
+*These counts were derived by joining the `diagnoses_icd` table (for dysphonia ICD‑9 code *78442*) with the `labevents` and `d_labitems` tables, filtering for chart times in the year 2100, and considering only lab events that occurred **after** the diagnosis time within the same admission.*","anion gap; bicarbonate; calcium, total; chloride; cortisol; creatinine; glucose; hematocrit; hemoglobin; magnesium; mch; mchc; mcv; phosphate; platelet count; rdw; red blood cells; sodium; urea nitrogen; white blood cells","SELECT d_labitems.label FROM d_labitems WHERE d_labitems.itemid IN ( SELECT T3.itemid FROM ( SELECT T2.itemid, DENSE_RANK() OVER ( ORDER BY COUNT(*) DESC ) AS C1 FROM ( SELECT admissions.subject_id, diagnoses_icd.charttime, admissions.hadm_id FROM diagnoses_icd JOIN admissions ON diagnoses_icd.hadm_id = admissions.hadm_id WHERE diagnoses_icd.icd_code = ( SELECT d_icd_diagnoses.icd_code FROM d_icd_diagnoses WHERE d_icd_diagnoses.long_title = 'dysphonia' ) AND strftime('%Y',diagnoses_icd.charttime) = '2100' ) AS T1 JOIN ( SELECT admissions.subject_id, labevents.itemid, labevents.charttime, admissions.hadm_id FROM labevents JOIN admissions ON labevents.hadm_id = admissions.hadm_id WHERE strftime('%Y',labevents.charttime) = '2100' ) AS T2 ON T1.subject_id = T2.subject_id WHERE T1.charttime < T2.charttime AND T1.hadm_id = T2.hadm_id GROUP BY T2.itemid ) AS T3 WHERE T3.C1 <= 3 )",1,
+What was patient 10018081's first procedure time since 1 year ago?,61.conversation.json,"Patient 10018081’s earliest recorded procedure within the last year (using a “current” date of **2100‑12‑31 23:59:00**) was logged at:
+
+**2100‑12‑28 00:00:00**
+
+This is the minimum `charttime` value for that patient in the `procedures_icd` table between 2099‑12‑31 23:59:00 and 2100‑12‑31 23:59:00.",2100-12-28 00:00:00,"SELECT procedures_icd.charttime FROM procedures_icd WHERE procedures_icd.hadm_id IN ( SELECT admissions.hadm_id FROM admissions WHERE admissions.subject_id = 10018081 ) AND datetime(procedures_icd.charttime) >= datetime(current_time,'-1 year') ORDER BY procedures_icd.charttime ASC LIMIT 1",1,
+When did patient 10020786 receive the last magnesium test in their last hospital encounter?,62.conversation.json,"**Answer**
+
+Patient **10020786** had their most recent magnesium laboratory test during their last hospital stay on:
+
+```
+July 4, 2100 at 06:35 (UTC)
+```
+
+This was the final magnesium measurement recorded in the period from admission (07/01 12:45) to discharge (07/05 17:20).
+
+*Note:* The “current time” for this query was set to **2100‑12‑31 23:59:00** as requested.",2100-07-04 06:35:00,SELECT labevents.charttime FROM labevents WHERE labevents.itemid IN ( SELECT d_labitems.itemid FROM d_labitems WHERE d_labitems.label = 'magnesium' ) AND labevents.hadm_id IN ( SELECT admissions.hadm_id FROM admissions WHERE admissions.subject_id = 10020786 AND admissions.dischtime IS NOT NULL ORDER BY admissions.admittime DESC LIMIT 1 ) ORDER BY labevents.charttime DESC LIMIT 1,1,
+When was the last mrsa screen microbiology test given to patient 10015272 in the last hospital encounter?,63.conversation.json,"**Patient:** 10015272
+**Last hospital encounter (admission):** 27993466 – admitted on *2100‑06‑21 18:36:00*.
+
+**Most recent MRSA screen microbiology test during that stay:**
+- **Date & time:** *2100‑06‑21 22:35:00*
+- **Table entry:** `microbiologyevents` (subject_id = 10015272, hadm_id = 27993466, test_name = “mrsa screen”).
+
+So the last MRSA screening performed for this patient in their most recent admission occurred on **June 21, 2100 at 22:35 UTC**.",2100-06-21 22:35:00,SELECT microbiologyevents.charttime FROM microbiologyevents WHERE microbiologyevents.hadm_id IN ( SELECT admissions.hadm_id FROM admissions WHERE admissions.subject_id = 10015272 AND admissions.dischtime IS NOT NULL ORDER BY admissions.admittime DESC LIMIT 1 ) AND microbiologyevents.spec_type_desc = 'mrsa screen' ORDER BY microbiologyevents.charttime DESC LIMIT 1,1,
+"Among patients in their 30s since 2100, what are the top three prescribed drugs?",64.conversation.json,"**Top‑3 drugs prescribed to patients who were in their 30s during/after 2100**
+
+| Rank | Drug (as stored in *prescriptions.drug*) | # of prescriptions |
+|------|-------------------------------------------|---------------------|
+| 1 | **“0.9% sodium chloride”** | **19** |
+| 2 | **“bag”** | **9** |
+| 3 | **“metoprolol tartrate”** | **7** |
+
+These counts come from a direct aggregation of the `prescriptions` table joined to patient demographics, filtered for:
+
+* prescriptions starting on or after January 1 2100 (`starttime ≥ '2100-01-01'`);
+* patients whose age at that start time (year difference between `starttime` and their date‑of‑birth) was **30–39**.
+
+The query used was:
+
+```sql
+SELECT pres.drug,
+       COUNT(*) AS cnt
+FROM prescriptions pres
+JOIN patients pat ON pres.subject_id = pat.subject_id
+WHERE date(pres.starttime) >= '2100-01-01'
+  AND (strftime('%Y', pres.starttime) - strftime('%Y', pat.dob)) BETWEEN 30 AND 39
+GROUP BY pres.drug
+ORDER BY cnt DESC
+LIMIT 3;
+```
+
+These three medications were the most frequently recorded prescriptions for that age group in the time window specified.",0.9% sodium chloride; bag; diazepam; famotidine; metoprolol tartrate,"SELECT T1.drug FROM ( SELECT prescriptions.drug, DENSE_RANK() OVER ( ORDER BY COUNT(*) DESC ) AS C1 FROM prescriptions WHERE prescriptions.hadm_id IN ( SELECT admissions.hadm_id FROM admissions WHERE admissions.age BETWEEN 30 AND 39 ) AND strftime('%Y',prescriptions.starttime) >= '2100' GROUP BY prescriptions.drug ) AS T1 WHERE T1.C1 <= 3",1,
+What was the last time patient 10037975 got the stool microbiology test?,65.conversation.json,"**Last stool‑microbiology test for patient 10037975**
+
+| Date & Time | Test(s) Recorded |
+|-------------|------------------|
+| **2100‑02‑11 11:03:00** | • *Clostridioides difficile* PCR<br>• Campylobacter culture<br>• Ova + parasites<br>• Fecal culture (including “fecal culture – r/o vibrio”) |
+
+All of these stool‑related microbiology tests were entered at the same timestamp. The next microbiology event for this patient was a blood culture on 2100‑02‑12, so the February 11 entry is the most recent stool‑microbiology test in the database.",2100-02-11 11:03:00,SELECT microbiologyevents.charttime FROM microbiologyevents WHERE microbiologyevents.hadm_id IN ( SELECT admissions.hadm_id FROM admissions WHERE admissions.subject_id = 10037975 ) AND microbiologyevents.spec_type_desc = 'stool' ORDER BY microbiologyevents.charttime DESC LIMIT 1,1,
+Was the calculated total co2 level of patient 10038933 last measured on the first hospital visit less than the second to last measurement on the first hospital visit?,66.conversation.json,"**Answer:**
+No – the last “calculated total CO₂” value on the first hospital visit for patient **10038933** was **26.0 mmol/L**, which is *not* less than the second‑to‑last measurement (also 26.0 mmol/L). The two values were identical, so the last value did not fall below the previous one.",0,SELECT ( SELECT labevents.valuenum FROM labevents WHERE labevents.hadm_id IN ( SELECT admissions.hadm_id FROM admissions WHERE admissions.subject_id = 10038933 AND admissions.dischtime IS NOT NULL ORDER BY admissions.admittime ASC LIMIT 1 ) AND labevents.itemid IN ( SELECT d_labitems.itemid FROM d_labitems WHERE d_labitems.label = 'calculated total co2' ) ORDER BY labevents.charttime DESC LIMIT 1 ) < ( SELECT labevents.valuenum FROM labevents WHERE labevents.hadm_id IN ( SELECT admissions.hadm_id FROM admissions WHERE admissions.subject_id = 10038933 AND admissions.dischtime IS NOT NULL ORDER BY admissions.admittime ASC LIMIT 1 ) AND labevents.itemid IN ( SELECT d_labitems.itemid FROM d_labitems WHERE d_labitems.label = 'calculated total co2' ) ORDER BY labevents.charttime DESC LIMIT 1 OFFSET 1 ),1,
+Tell me the number of times a open heart valvuloplasty of mitral valve without replacement took place in the previous year.,67.conversation.json,"There were **0** open‑heart valvuloplasty procedures of the mitral valve performed without replacement in the year preceding “2100‑12‑31 23:59:00” (i.e., from 2099‑01‑01 to 2099‑12‑31).",0,"SELECT COUNT(*) FROM procedures_icd WHERE procedures_icd.icd_code = ( SELECT d_icd_procedures.icd_code FROM d_icd_procedures WHERE d_icd_procedures.long_title = 'open heart valvuloplasty of mitral valve without replacement' ) AND datetime(procedures_icd.charttime,'start of year') = datetime(current_time,'start of year','-1 year')",1,
+What are the top five most frequent output events since 1 year ago?,68.conversation.json,"**Top 5 most frequent output events (last year, relative to the “current” time of 2100‑12‑31)**
+
+| Rank | Item ID | Label (from `d_items`)          | Frequency |
+|------|---------|---------------------------------|-----------|
+| 1    | 226559  | foley                           | 3,842     |
+| 2    | 226588  | chest tube #1                   |   394     |
+| 3    | 226560  | void                            |   254     |
+| 4    | 226606  | cerebral ventricular #1         |   200     |
+| 5    | 227510  | tf residual                     |   170     |
+
+These counts come from the `outputevents` table filtered to events between **2099‑12‑31 00:00:00** and **2100‑12‑31 23:59:00**, grouped by `itemid`, then joined with `d_items` to retrieve human‑readable labels.",cerebral ventricular #1; chest tube #1; foley; tf residual; void,"SELECT d_items.label FROM d_items WHERE d_items.itemid IN ( SELECT T1.itemid FROM ( SELECT outputevents.itemid, DENSE_RANK() OVER ( ORDER BY COUNT(*) DESC ) AS C1 FROM outputevents WHERE datetime(outputevents.charttime) >= datetime(current_time,'-1 year') GROUP BY outputevents.itemid ) AS T1 WHERE T1.C1 <= 5 )",1,
+"What was the last value of a lab test of calcium, urine in 12/this year for patient 10021487?",69.conversation.json,"**Last calcium (urine) lab value for patient 10021487 in December 2100**
+
+| Date & Time          | Value | Units |
+|----------------------|-------|-------|
+| 21‑Dec‑2100 09:04:00 | **15.2** | mg/dl |
+
+This is the most recent record between 01‑Dec‑2100 and 31‑Dec‑2100 for that patient.",15.2,"SELECT labevents.valuenum FROM labevents WHERE labevents.hadm_id IN ( SELECT admissions.hadm_id FROM admissions WHERE admissions.subject_id = 10021487 ) AND labevents.itemid IN ( SELECT d_labitems.itemid FROM d_labitems WHERE d_labitems.label = 'calcium, urine' ) AND datetime(labevents.charttime,'start of year') = datetime(current_time,'start of year','-0 year') AND strftime('%m',labevents.charttime) = '12' ORDER BY labevents.charttime DESC LIMIT 1",1,
+Calculate the patients who received a serology/blood microbiology test since 2100.,70.conversation.json,"**Patients who received a serology / blood microbiology test since January 1, 2100**
+
+| Period | Test type | # of distinct patients |
+|--------|-----------|------------------------|
+| ≥ 2100‑01‑01 (current time set to 2100‑12‑31 23:59:00) | Blood microbiology (specimen_type = “blood”) | **40** |
+
+The count was obtained by querying the `microbiologyevents` table for records with a `charttime` on or after 2023‑01‑01 and a `spec_type_desc` containing “blood”, then taking the distinct `subject_id`s.",8,"SELECT COUNT( DISTINCT admissions.subject_id ) FROM admissions WHERE admissions.hadm_id IN ( SELECT microbiologyevents.hadm_id FROM microbiologyevents WHERE microbiologyevents.spec_type_desc = 'serology/blood' AND strftime('%Y',microbiologyevents.charttime) >= '2100' )",0,"Looking at the provided answer versus the gold reference, the key difference is in how the specimen type was interpreted. The provided answer searched for spec_type_desc LIKE '%blood%' which found 40 patients, while the gold query specifically looked for spec_type_desc = 'serology/blood' which would return 8 patients. The provided approach captured any blood-related specimens (likely including blood cultures and other blood tests), whereas the gold query searched for the exact specimen type string 'serology/blood'. This represents ambiguity in the question - the phrase ""serology/blood microbiology test"" could reasonably be interpreted as either (1) any blood-related microbiology test, or (2) a specific specimen type literally labeled 'serology/blood' in the database. Without knowing the exact specimen type values in the database schema, the broader interpretation of blood-related tests was a reasonable approach, though it differed from the narrower gold standard that expected an exact match to 'serology/blood'."
+"Compared to yesterday, what is new in the prescription of patient 10039831 today?",71.conversation.json,"**New prescriptions for patient 10039831 on “today” (2100‑12‑31) compared with the day before**
+
+| # | Drug name | Dose value | Unit | Route | Start time |
+|---|-----------|------------|------|-------|-------------|
+| 1 | insulin | 0.0 | unit | sc | 23:00 UTC |
+| 2 | vial | 1.0 | vial | iv | 21:00 UTC |
+| 3 | glucagon | 1.0 | mg | im | 23:00 UTC |
+| 4 | ampicillin‑sulbactam | 3.0 | g | iv | 20:00 UTC |
+| 5 | pantoprazole | 40.0 | mg | iv | 21:00 UTC |
+| 6 | 0.9 % sodium chloride (mini bag plus) | 100.0 | ml | iv | 20:00 UTC |
+| 7 | sodium chloride 0.9 % flush | 3.0 | ml | iv | 21:00 UTC |
+| 8 | 5 % dextrose | 250.0 | ml | iv | 21:00 UTC |
+| 9 | 0.9 % sodium chloride | 500.0 | ml | iv | 23:00 UTC |
+
+**How we got this list**
+
+1. **Set the reference time** to `2100‑12‑31 23:59:00` (as requested).
+2. Queried the `prescriptions` table for all rows belonging to subject 10039831 where the prescription start date is *today* (`DATE(starttime) = '2100-12-31'`).
+3. Excluded any drug that was already prescribed on *yesterday* (`DATE(starttime) = '2100-12-30'`) by using a `NOT IN` sub‑query on the drug name.
+
+The resulting rows represent drugs newly introduced today that were **not** present in the patient’s prescription list from the previous day. If you need further breakdown (e.g., grouping by route or dose), let me know!",0.9% sodium chloride; 0.9% sodium chloride (mini bag plus); 5% dextrose; ampicillin-sulbactam; glucagon; insulin; pantoprazole; sodium chloride 0.9%  flush; vial,"SELECT prescriptions.drug FROM prescriptions WHERE prescriptions.hadm_id IN ( SELECT admissions.hadm_id FROM admissions WHERE admissions.subject_id = 10039831 ) AND datetime(prescriptions.starttime,'start of day') = datetime(current_time,'start of day','-0 day') EXCEPT SELECT prescriptions.drug FROM prescriptions WHERE prescriptions.hadm_id IN ( SELECT admissions.hadm_id FROM admissions WHERE admissions.subject_id = 10039831 ) AND datetime(prescriptions.starttime,'start of day') = datetime(current_time,'start of day','-1 day')",1,
+What was the organism found in patient 10027602's first mini-bal microbiology test?,72.conversation.json,"The first mini‑BAL microbiology test (the earliest “mini-bal” record) for patient **10027602** was performed on 2100‑12‑02 14:50 UTC.
+In that set of tests, the respiratory culture identified **Staphylococcus aureus** (coagulase‑positive). Thus, the organism found in the patient’s first mini‑BAL microbiology test was:
+
+**Staphylococcus aureus**",staph aureus coag +,SELECT microbiologyevents.org_name FROM microbiologyevents WHERE microbiologyevents.hadm_id IN ( SELECT admissions.hadm_id FROM admissions WHERE admissions.subject_id = 10027602 ) AND microbiologyevents.spec_type_desc = 'mini-bal' AND microbiologyevents.org_name IS NOT NULL ORDER BY microbiologyevents.charttime ASC LIMIT 1,1,
+What were the four most frequently performed lab tests since 1 year ago?,73.conversation.json,"**Four most frequently performed lab tests in the last year (from 2099‑12‑31 to 2100‑12‑31)**
+
+| Rank | Lab test (itemid) | Count |
+|------|-------------------|-------|
+| 1 | Chloride – **50902** | 1,004 |
+| 2 | Sodium – **50983**   | 1,001 |
+| 3 | Hematocrit – **51221** | 982 |
+| 4 | Creatinine – **50912** | 959 |
+
+These counts were derived from the `labevents` table (joined to `d_labitems` for readable labels) with a filter on `charttime` between **2099‑12‑31 00:00:00** and **2100‑12‑31 23:59:59**, using the current time set to “2100‑12‑31 23:59:00” as requested.",chloride; creatinine; hematocrit; sodium,"SELECT d_labitems.label FROM d_labitems WHERE d_labitems.itemid IN ( SELECT T1.itemid FROM ( SELECT labevents.itemid, DENSE_RANK() OVER ( ORDER BY COUNT(*) DESC ) AS C1 FROM labevents WHERE datetime(labevents.charttime) >= datetime(current_time,'-1 year') GROUP BY labevents.itemid ) AS T1 WHERE T1.C1 <= 4 )",1,
+What are the three commonly ordered medications for patients aged 60 or above?,74.conversation.json,"**Three medications most frequently ordered for patients aged 60 or older (as of 2100‑12‑31 23:59:00)**
+
+| Rank | Medication |
+|------|------------|
+| 1    | **0.9 % sodium chloride** |
+| 2    | **sodium chloride 0.9 % flush** |
+| 3    | **insulin** |
+
+These were identified by joining the `prescriptions` table with patient ages (calculated from DOB against the fixed date “2100‑12‑31 23:59:00”) and selecting the top three drugs by prescription count for patients whose age was ≥60.",0.9% sodium chloride; insulin; sodium chloride 0.9%  flush,"SELECT T1.drug FROM ( SELECT prescriptions.drug, DENSE_RANK() OVER ( ORDER BY COUNT(*) DESC ) AS C1 FROM prescriptions WHERE prescriptions.hadm_id IN ( SELECT admissions.hadm_id FROM admissions WHERE admissions.age >= 60 ) GROUP BY prescriptions.drug ) AS T1 WHERE T1.C1 <= 3",1,
+What's the total amount of d5 1/2ns that patient 10038933 received on 09/26/this year?,75.conversation.json,"For patient **10038933** on **09 26 (2021)**, the ICU chart shows two administrations of D5 ½ NS:
+
+| Time | Amount |
+|------|--------|
+| 11:12 AM | 1 000 mL |
+| 9:03 PM  | 1 000 mL |
+
+**Total administered:** **2 000 mL** (≈ 2 liters).",2000,"SELECT SUM(inputevents.totalamount) FROM inputevents WHERE inputevents.stay_id IN ( SELECT icustays.stay_id FROM icustays WHERE icustays.hadm_id IN ( SELECT admissions.hadm_id FROM admissions WHERE admissions.subject_id = 10038933 ) ) AND inputevents.itemid IN ( SELECT d_items.itemid FROM d_items WHERE d_items.label = 'd5 1/2ns' AND d_items.linksto = 'inputevents' ) AND datetime(inputevents.starttime,'start of year') = datetime(current_time,'start of year','-0 year') AND strftime('%m-%d',inputevents.starttime) = '09-26'",1,
+"So, what was the maximum 25-oh vitamin d value of patient 10029484 since 11/2100?",76.conversation.json,"The highest recorded **25‑hydroxyvitamin D** value for patient 10029484 since November 21, 2000 was:
+
+- **33.0 ng/mL**
+
+(Obtained from the `labevents` table where `itemid = 50853`, which corresponds to “25‑oh vitamin d”.)",33,"SELECT MAX(labevents.valuenum) FROM labevents WHERE labevents.hadm_id IN ( SELECT admissions.hadm_id FROM admissions WHERE admissions.subject_id = 10029484 ) AND labevents.itemid IN ( SELECT d_labitems.itemid FROM d_labitems WHERE d_labitems.label = '25-oh vitamin d' ) AND strftime('%Y-%m',labevents.charttime) >= '2100-11'",1,
+"How many people received a introduction of nutritional substance into upper gi, via natural or artificial opening procedure within the same month after they had been diagnosed with postprocedural pneumothorax since 2100?",77.conversation.json,"**Result**
+
+After querying the MIMIC‑IV database for patients who
+
+1. were diagnosed with *post‑procedural (iatrogenic) pneumothorax* (`ICD‑9 5121`), and
+2. received an **introduction of a nutritional substance into the upper gastrointestinal tract** via a natural or artificial opening procedure (PEG, naso‑gastric tube, Sengstaken tube – ICD‑9 codes 4311, 4319, 9606, 9607) **within the same calendar month** as that diagnosis,
+
+the query returned **no records**. Therefore:
+
+> **Number of patients meeting all criteria: 0**
+
+---
+
+### How the search was performed
+
+| Step | SQL snippet | Explanation |
+|------|-------------|-------------|
+| 1 | `SELECT COUNT(*) FROM diagnoses_icd WHERE icd_code='icd9|5121';` | Confirmed only one diagnosis of iatrogenic pneumothorax in the data. |
+| 2 | Joined that admission to `procedures_icd`, filtering for feeding‑tube codes and ensuring `charttime` ≥ diagnosis time **and** same month (`strftime('%Y-%m',…)`). | This ensures the procedure occurred after the diagnosis but within the same month. |
+| 3 | Returned distinct `subject_id`. | Gives unique patients; result was empty. |
+
+Because there are no admissions where both conditions co‑occur, the answer is zero.
+
+---
+
+### Caveats & Next Steps
+
+* **Coding Variability** – If other ICD‑9/10 codes were used for post‑procedural pneumothorax or feeding‑tube placement in your dataset, expanding the code list may yield matches.
+* **Temporal Granularity** – The query uses calendar month boundaries. A stricter 30‑day window (e.g., `date(p.charttime) <= date(d.charttime,'+30 days')`) would produce the same result here but could be useful for other analyses.
+* **Data Availability** – MIMIC‑IV covers admissions from 2008–2019; any events outside this range are not represented.
+
+Feel free to adjust the code list or time window if you suspect additional relevant codes.",1,"SELECT COUNT( DISTINCT T1.subject_id ) FROM ( SELECT admissions.subject_id, diagnoses_icd.charttime FROM diagnoses_icd JOIN admissions ON diagnoses_icd.hadm_id = admissions.hadm_id WHERE diagnoses_icd.icd_code = ( SELECT d_icd_diagnoses.icd_code FROM d_icd_diagnoses WHERE d_icd_diagnoses.long_title = 'postprocedural pneumothorax' ) AND strftime('%Y',diagnoses_icd.charttime) >= '2100' ) AS T1 JOIN ( SELECT admissions.subject_id, procedures_icd.charttime FROM procedures_icd JOIN admissions ON procedures_icd.hadm_id = admissions.hadm_id WHERE procedures_icd.icd_code = ( SELECT d_icd_procedures.icd_code FROM d_icd_procedures WHERE d_icd_procedures.long_title = 'introduction of nutritional substance into upper gi, via natural or artificial opening' ) AND strftime('%Y',procedures_icd.charttime) >= '2100' ) AS T2 ON T1.subject_id = T2.subject_id WHERE T1.charttime < T2.charttime AND datetime(T1.charttime,'start of month') = datetime(T2.charttime,'start of month')",0,"The provided answer arrived at 0 patients while the gold standard indicates 1 patient. The key difference lies in the interpretation of the exact ICD code matching strategy. The provided answer searched for a specific ICD-9 code ('icd9|5121' for iatrogenic pneumothorax) and specific procedure codes, finding only one diagnosis case but no matching procedures. However, the gold query uses a more flexible approach by searching the d_icd_diagnoses and d_icd_procedures tables for exact string matches to ""postprocedural pneumothorax"" and ""introduction of nutritional substance into upper gi, via natural or artificial opening"" respectively, then using those discovered codes in the main query. This suggests there may be different ICD codes in the database that match these exact long title descriptions, which the provided answer's hardcoded code approach missed. This appears to be primarily a mistake but also an issue of Ambiguity in the Question or Gold Query. The question doesn't specify which ICD coding system to use or provide the exact procedure terminology, leaving room for interpretation about how to identify the relevant diagnostic and procedure codes. The gold query's approach of matching exact long titles assumes these specific phrases exist verbatim in the database, while the provided answer made reasonable assumptions about likely ICD codes for these conditions.
+"
+How much of a difference is there in patient 10035185's mean blood pressure last measured on the first ICU visit compared to the second to last value measured on the first ICU visit?,78.conversation.json,"**Patient:** 10035185
+**ICU stay:** first visit (icustay_id = 39084876)
+**Vital sign queried:** Mean arterial pressure (MAP, itemid 220052)
+
+| Measurement order | Charttime           | MAP (mmHg) |
+|-------------------|---------------------|------------|
+| 2nd‑to‑last       | 2020‑05‑19 08:00:00 | **81.0**   |
+| Last              | 2020‑05‑19 09:00:00 | **72.0**   |
+
+**Difference**
+
+\[
+\text{Last} - \text{2nd‑to‑last} = 72.0 \;-\; 81.0 = -9.0 \text{ mmHg}
+\]
+
+So, the mean blood pressure dropped by **9 mmHg** from the second‑to‑last to the last measurement during that ICU stay.",-9,SELECT ( SELECT chartevents.valuenum FROM chartevents WHERE chartevents.stay_id IN ( SELECT icustays.stay_id FROM icustays WHERE icustays.hadm_id IN ( SELECT admissions.hadm_id FROM admissions WHERE admissions.subject_id = 10035185 ) AND icustays.outtime IS NOT NULL ORDER BY icustays.intime ASC LIMIT 1 ) AND chartevents.itemid IN ( SELECT d_items.itemid FROM d_items WHERE d_items.label = 'arterial blood pressure mean' AND d_items.linksto = 'chartevents' ) ORDER BY chartevents.charttime DESC LIMIT 1 ) - ( SELECT chartevents.valuenum FROM chartevents WHERE chartevents.stay_id IN ( SELECT icustays.stay_id FROM icustays WHERE icustays.hadm_id IN ( SELECT admissions.hadm_id FROM admissions WHERE admissions.subject_id = 10035185 ) AND icustays.outtime IS NOT NULL ORDER BY icustays.intime ASC LIMIT 1 ) AND chartevents.itemid IN ( SELECT d_items.itemid FROM d_items WHERE d_items.label = 'arterial blood pressure mean' AND d_items.linksto = 'chartevents' ) ORDER BY chartevents.charttime DESC LIMIT 1 OFFSET 1 ),1,
+"How many patients underwent single internal mammary-coronary artery bypass during the same month after the diagnosis with arthropathy, unspecified, lower leg, in 2100?",79.conversation.json,"Only **one** patient met the criteria – they received a diagnosis of “arthropathy, unspecified, lower leg” (ICD‑9 71696) and had a single internal mammary‑coronary artery bypass (ICD‑9 3615) performed later that same month in 2100.",1,"SELECT COUNT( DISTINCT T1.subject_id ) FROM ( SELECT admissions.subject_id, diagnoses_icd.charttime FROM diagnoses_icd JOIN admissions ON diagnoses_icd.hadm_id = admissions.hadm_id WHERE diagnoses_icd.icd_code = ( SELECT d_icd_diagnoses.icd_code FROM d_icd_diagnoses WHERE d_icd_diagnoses.long_title = 'arthropathy, unspecified, lower leg' ) AND strftime('%Y',diagnoses_icd.charttime) = '2100' ) AS T1 JOIN ( SELECT admissions.subject_id, procedures_icd.charttime FROM procedures_icd JOIN admissions ON procedures_icd.hadm_id = admissions.hadm_id WHERE procedures_icd.icd_code = ( SELECT d_icd_procedures.icd_code FROM d_icd_procedures WHERE d_icd_procedures.long_title = 'single internal mammary-coronary artery bypass' ) AND strftime('%Y',procedures_icd.charttime) = '2100' ) AS T2 ON T1.subject_id = T2.subject_id WHERE T1.charttime < T2.charttime AND datetime(T1.charttime,'start of month') = datetime(T2.charttime,'start of month')",1,
+How many patients in 2100 underwent radical excision of other lymph nodes within the same hospital visit after reopening of recent thoracotomy site?,80.conversation.json,"**Answer**
+
+Only **1 patient** in 2100 underwent a radical excision of other lymph nodes during the same hospital visit *after* the reopening of a recent thoracotomy site.
+
+---
+
+### How we got that number
+
+| Step | What was done |
+|------|---------------|
+| 1. Identify procedures | From `d_icd_procedures` we found:<br>• **icd9 | 4059** – “radical excision of other lymph nodes”<br>• **icd9 | 3403** – “reopening of recent thoracotomy site”. |
+| 2. Pull admissions in 2100 | Queried `admissions` for all stays with `admittime` between `2100‑01‑01` and `2101‑01‑01`. |
+| 3. Join procedures to admissions | Joined on `hadm_id` (the admission identifier). |
+| 4. Require both codes in the same stay | Grouped by `hadm_id` and used conditional aggregation: <br>```sql
+HAVING SUM(CASE WHEN icd_code='icd9|4059' THEN 1 ELSE 0 END) > 0
+   AND SUM(CASE WHEN icd_code='icd9|3403' THEN 1 ELSE 0 END) > 0
+```
+| 5. Count distinct patients | `COUNT(DISTINCT subject_id)` returned **1**. |
+| 6. Verify order (optional) | The procedure with `icd9|3403` occurred on 2020‑10‑03 and the lymph‑node excision (`icd9|4059`) on 2020‑10‑09 for the same admission, satisfying “after reopening”. |
+
+---
+
+### Quick SQL that produced the result
+
+```sql
+SELECT COUNT(DISTINCT a.subject_id) AS num_patients
+FROM admissions AS a
+JOIN procedures_icd AS p ON a.hadm_id = p.hadm_id
+WHERE a.admittime >= '2100-01-01' AND a.admittime < '2101-01-01'
+GROUP BY a.hadm_id, a.subject_id
+HAVING SUM(CASE WHEN p.icd_code='icd9|4059' THEN 1 ELSE 0 END) > 0
+   AND SUM(CASE WHEN p.icd_code='icd9|3403' THEN 1 ELSE 0 END) > 0;
+```
+
+**Result:** `num_patients = 1`.
+
+Feel free to ask if you need more details (e.g., the specific admission ID, dates, or patient demographics).",1,"SELECT COUNT( DISTINCT T1.subject_id ) FROM ( SELECT admissions.subject_id, procedures_icd.charttime, admissions.hadm_id FROM procedures_icd JOIN admissions ON procedures_icd.hadm_id = admissions.hadm_id WHERE procedures_icd.icd_code = ( SELECT d_icd_procedures.icd_code FROM d_icd_procedures WHERE d_icd_procedures.long_title = 'reopening of recent thoracotomy site' ) AND strftime('%Y',procedures_icd.charttime) = '2100' ) AS T1 JOIN ( SELECT admissions.subject_id, procedures_icd.charttime, admissions.hadm_id FROM procedures_icd JOIN admissions ON procedures_icd.hadm_id = admissions.hadm_id WHERE procedures_icd.icd_code = ( SELECT d_icd_procedures.icd_code FROM d_icd_procedures WHERE d_icd_procedures.long_title = 'radical excision of other lymph nodes' ) AND strftime('%Y',procedures_icd.charttime) = '2100' ) AS T2 ON T1.subject_id = T2.subject_id WHERE T1.charttime < T2.charttime AND T1.hadm_id = T2.hadm_id",1,
+Was the SaO2 of patient 10021487 ever greater than 97.0 on 12/12/2100?,81.conversation.json,"**Answer**
+
+Yes – patient **10021487** had oxygen saturation (SaO₂) values above 97.0 on December 12, 2100.
+
+- The maximum SaO₂ recorded that day was **100.0 %**.
+- There were **12 separate readings** with SaO₂ > 97.0 on that date.
+
+So the answer to your question is *yes*.",1,"SELECT COUNT(*)>0 FROM chartevents WHERE chartevents.stay_id IN ( SELECT icustays.stay_id FROM icustays WHERE icustays.hadm_id IN ( SELECT admissions.hadm_id FROM admissions WHERE admissions.subject_id = 10021487 ) ) AND chartevents.itemid IN ( SELECT d_items.itemid FROM d_items WHERE d_items.label = 'o2 saturation pulseoxymetry' AND d_items.linksto = 'chartevents' ) AND chartevents.valuenum > 97.0 AND strftime('%Y-%m-%d',chartevents.charttime) = '2100-12-12'",1,
+How many people received a prescription for dextromethorphan-guaifenesin (sugar free) throughout this year?,82.conversation.json,"**Answer**
+
+Only **one unique patient** received a prescription for *dextromethorphan‑guaifenesin (sugar free)* during the year 2100.
+
+| Patient ID | Drug                                 | Prescription Start |
+|------------|--------------------------------------|--------------------|
+| 10027445   | dextromethorphan-guaifenesin (sugar free) | 2100‑08‑17 11:00:00 |
+
+**Explanation**
+
+- The query searched the `prescriptions` table for any drug name containing “dextromethorphan-guaifenesin”.
+- It limited results to prescriptions whose `starttime` fell within **January 1, 2100 – December 31, 2100**.
+- Counting distinct `subject_id`s returned a single patient.",1,"SELECT COUNT( DISTINCT admissions.subject_id ) FROM admissions WHERE admissions.hadm_id IN ( SELECT prescriptions.hadm_id FROM prescriptions WHERE prescriptions.drug = 'dextromethorphan-guaifenesin (sugar free)' AND datetime(prescriptions.starttime,'start of year') = datetime(current_time,'start of year','-0 year') )",1,
+How many patients were treated with closed [percutaneous] [needle] biopsy of kidney since 2100?,83.conversation.json,"**Answer**
+
+Only **one** unique patient received a closed percutaneous needle biopsy of the kidney in the MIMIC‑IV cohort after the year 2100.
+
+- The procedure is coded as **icd10|0b538zz** (Renal Biopsy, Percutaneous).
+- In the `procedures_icd` table this code appears once for patient ID **10021312**, on 21 Aug 2100 at 17:35 UTC.",1,"SELECT COUNT( DISTINCT admissions.subject_id ) FROM admissions WHERE admissions.hadm_id IN ( SELECT procedures_icd.hadm_id FROM procedures_icd WHERE procedures_icd.icd_code = ( SELECT d_icd_procedures.icd_code FROM d_icd_procedures WHERE d_icd_procedures.long_title = 'closed [percutaneous] [needle] biopsy of kidney' ) AND strftime('%Y',procedures_icd.charttime) >= '2100' )",1,
+"For patients who had bypass coronary artery, one artery from left internal mammary with autologous arterial tissue, open approach, what were the most frequent four microbiology tests carried out within 2 months?",84.conversation.json,"**Most frequent microbiology tests performed within ± 60 days of a single‑LIMA coronary artery bypass graft (ICD‑9 3615) in the MIMIC‑IV cohort**
+
+| Rank | Microbiology test name | # of occurrences |
+|------|------------------------|------------------|
+| 1 | **MRSA screen** | **5** |
+| 2 | **Urine culture** | **4** |
+| 3 | **C. difficile PCR** | **1** |
+
+> *No fourth distinct test was recorded within the two‑month window for patients who underwent this specific procedure.*
+
+### How we derived it
+
+1. **Identify the procedure of interest**
+   - ICD‑9 code `icd9|3615` = “single internal mammary‑coronary artery bypass” (i.e., one LIMA graft, open approach).
+
+2. **Join with microbiology data**
+   - Linked `procedures_icd` and `microbiologyevents` on patient (`subject_id`) and admission (`hadm_id`).
+
+3. **Time filter**
+   - Included only microbiology records where `charttime` fell between the procedure time and 60 days afterward:
+     ```sql
+     m.charttime >= p.charttime
+     AND m.charttime <= date(p.charttime, '+60 days')
+     ```
+
+4. **Aggregation**
+   - Counted occurrences of each distinct `test_name`, sorted descending, limited to top 4.
+
+The query returned only three unique test names; the third (C. difficile PCR) had a single occurrence, and no fourth distinct test met the criteria within the specified timeframe.",mrsa screen,"SELECT T3.test_name FROM ( SELECT T2.test_name, DENSE_RANK() OVER ( ORDER BY COUNT(*) DESC ) AS C1 FROM ( SELECT admissions.subject_id, procedures_icd.charttime FROM procedures_icd JOIN admissions ON procedures_icd.hadm_id = admissions.hadm_id WHERE procedures_icd.icd_code = ( SELECT d_icd_procedures.icd_code FROM d_icd_procedures WHERE d_icd_procedures.long_title = 'bypass coronary artery, one artery from left internal mammary with autologous arterial tissue, open approach' ) ) AS T1 JOIN ( SELECT admissions.subject_id, microbiologyevents.test_name, microbiologyevents.charttime FROM microbiologyevents JOIN admissions ON microbiologyevents.hadm_id = admissions.hadm_id ) AS T2 ON T1.subject_id = T2.subject_id WHERE T1.charttime < T2.charttime AND datetime(T2.charttime) BETWEEN datetime(T1.charttime) AND datetime(T1.charttime,'+2 month') GROUP BY T2.test_name ) AS T3 WHERE T3.C1 <= 4",1,
+Pull up the IDs of patients who were diagnosed with chronic systolic heart failure in this year.,85.conversation.json,"**Patients Diagnosed with Chronic Systolic Heart Failure (ICD‑9 code 428.22) in the MIMIC‑IV dataset for year 2100**
+
+| Subject ID |
+|------------|
+| 10021666   |
+| 10021938   |
+| 10023117   |
+
+**Summary**
+
+- **Number of unique patients:** 3
+- **Diagnosis code used:** `icd9|42822` (ICD‑9‑CM for *chronic left ventricular failure*, i.e., chronic systolic heart failure)
+
+These IDs were extracted directly from the `diagnoses_icd` table where the `icd_code` matched `icd9|42822`. No other patients in the dataset had this specific chronic systolic heart failure diagnosis.",10021666; 10021938; 10023117,"SELECT DISTINCT admissions.subject_id FROM admissions WHERE admissions.hadm_id IN ( SELECT diagnoses_icd.hadm_id FROM diagnoses_icd WHERE diagnoses_icd.icd_code = ( SELECT d_icd_diagnoses.icd_code FROM d_icd_diagnoses WHERE d_icd_diagnoses.long_title = 'chronic systolic heart failure' ) AND datetime(diagnoses_icd.charttime,'start of year') = datetime(current_time,'start of year','-0 year') )",1,
+What was the name of the drug which was prescribed to patient 10018501 within the same hospital visit after having received alcohol detoxification in 08/2100?,86.conversation.json,"**Drugs prescribed to patient 10018501 during the same 08‑2010 hospital stay *after* the alcohol‑detoxification event (ICD‑9 9462 on 11 Aug 2100):**
+
+| Prescription start time | Drug name / regimen |
+|--------------------------|---------------------|
+| 12 Aug 2100 01:00 | **Phenobarbital – ICU alcohol withdrawal (initial load/rescue dose)** |
+| 11 Aug 2100 02:00 | **Haloperidol** |
+| 11 Aug 2100 08:00 | **Omeprazole** |
+| 11 Aug 2100 08:00 | **Phenobarbital alcohol withdrawal dose taper (days 2‑7)** |
+| 13 Aug 2100 02:00 | **Docusate sodium (liquid)** |
+| 13 Aug 2100 08:00 | **Phenobarbital alcohol withdrawal dose taper (days 2‑7)** |
+| 15 Aug 2100 08:00 | **Phenobarbital alcohol withdrawal dose taper (days 2‑7)** |
+| 15 Aug 2100 15:00 | **Sarna lotion** |
+| 16 Aug 2100 08:00 | **Phenobarbital alcohol withdrawal dose taper (days 2‑7)** |
+| 11 Aug 2100 17:00 | **Latanoprost 0.005% ophthalmic solution** |
+
+> *All of the above prescriptions were initiated after the detoxification procedure on 11 Aug 2010 and fall within the same admission (hadm_id = 28479513).*
+
+The most prominent drug for alcohol withdrawal was **phenobarbital**, administered in several tapering regimens as well as an initial ICU rescue dose. Other medications included antipsychotic haloperidol, proton‑pump inhibitor omeprazole, laxative docusate sodium, skin lotion (sarna), and ophthalmic latanoprost.",docusate sodium (liquid); haloperidol; latanoprost 0.005% ophth. soln.; omeprazole; phenobarbital - icu alcohol withdrawal (initial load / rescue dose); phenobarbital alcohol withdrawal dose taper (days 2-7); phenobarbital alcohol withdrawal dose taper (days 2-7); phenobarbital alcohol withdrawal dose taper (days 2-7); phenobarbital alcohol withdrawal dose taper (days 2-7); sarna lotion,"SELECT T2.drug FROM ( SELECT procedures_icd.charttime, procedures_icd.hadm_id FROM procedures_icd WHERE procedures_icd.icd_code = ( SELECT d_icd_procedures.icd_code FROM d_icd_procedures WHERE d_icd_procedures.long_title = 'alcohol detoxification' ) AND procedures_icd.hadm_id IN (SELECT admissions.hadm_id FROM admissions WHERE admissions.subject_id = 10018501 ) AND strftime('%Y-%m',procedures_icd.charttime) = '2100-08' ) AS T1 JOIN ( SELECT prescriptions.drug, prescriptions.starttime, prescriptions.hadm_id FROM prescriptions WHERE prescriptions.hadm_id IN (SELECT admissions.hadm_id FROM admissions WHERE admissions.subject_id = 10018501 ) AND strftime('%Y-%m',prescriptions.starttime) = '2100-08' ) AS T2 ON T1.hadm_id = T2.hadm_id WHERE T1.charttime < T2.starttime",1,
+How much is the total hospital cost of patient 10020187 during the stay in 2100?,87.conversation.json,"The total hospital cost for patient **10020187** during the year 2100 is:
+
+| Year | Subject ID | Total Cost (USD) |
+|------|------------|------------------|
+| 2100 | 10020187   | **$2,371.19** |
+
+This figure was obtained by summing all entries in the `cost` table that belong to patient 10020187 and whose `chargetime` falls within 1‑Jan‑2100 to 31‑Dec‑2100.",2371.19,"SELECT SUM(cost.cost) FROM cost WHERE cost.hadm_id IN ( SELECT admissions.hadm_id FROM admissions WHERE admissions.subject_id = 10020187 ) AND strftime('%Y',cost.chargetime) = '2100'",1,
+"On their first hospital visit, what was the age of patient 10022880?",88.conversation.json,"For patient **10022880**, the very first admission recorded in the MIMIC‑IV database shows an age of **66 years** at the time of that initial hospital visit.",66,SELECT admissions.age FROM admissions WHERE admissions.subject_id = 10022880 AND admissions.dischtime IS NOT NULL ORDER BY admissions.admittime ASC LIMIT 1,1,
+Is patient 10027602's free calcium second measured on the last hospital visit less than the value first measured on the last hospital visit?,89.conversation.json,"**Answer:**
+No – the second free‑calcium measurement on patient 10027602’s last hospital visit was **higher**, not lower, than the first one.
+
+| Measurement order | Charttime          | ItemID | Free Calcium (mg/dL) |
+|-------------------|--------------------|--------|-----------------------|
+| 1st (first)       | 2020‑11‑23 16:25   | 50808  | **1.06**              |
+| 2nd (second)      | 2020‑11‑24 05:36   | 50808  | **1.11**              |
+
+The values were taken from the *labevents* table for the most recent admission (`hadm_id = 28166872`). The second measurement (1.11 mg/dL) is greater than the first (1.06 mg/dL), so it is not less than the first value.",0,SELECT ( SELECT labevents.valuenum FROM labevents WHERE labevents.hadm_id IN ( SELECT admissions.hadm_id FROM admissions WHERE admissions.subject_id = 10027602 AND admissions.dischtime IS NOT NULL ORDER BY admissions.admittime DESC LIMIT 1 ) AND labevents.itemid IN ( SELECT d_labitems.itemid FROM d_labitems WHERE d_labitems.label = 'free calcium' ) ORDER BY labevents.charttime ASC LIMIT 1 OFFSET 1 ) < ( SELECT labevents.valuenum FROM labevents WHERE labevents.hadm_id IN ( SELECT admissions.hadm_id FROM admissions WHERE admissions.subject_id = 10027602 AND admissions.dischtime IS NOT NULL ORDER BY admissions.admittime DESC LIMIT 1 ) AND labevents.itemid IN ( SELECT d_labitems.itemid FROM d_labitems WHERE d_labitems.label = 'free calcium' ) ORDER BY labevents.charttime ASC LIMIT 1 ),1,
+How many times was patient 10020786 admitted to the hospital since 2100?,90.conversation.json,Patient **10020786** was admitted to the hospital **once** since the year 2100.,1,"SELECT COUNT( DISTINCT admissions.hadm_id ) FROM admissions WHERE admissions.subject_id = 10020786 AND strftime('%Y',admissions.admittime) >= '2100'",1,
+Provide me with the five most common diagnoses.,91.conversation.json,"Here are the **five most common diagnoses** recorded in MIMIC‑IV (based on ICD‑9/10 codes mapped to their long titles):
+
+| Rank | Diagnosis (long title) | Count |
+|------|------------------------|-------|
+| 1 | Unspecified essential hypertension | 42 |
+| 2 | Other and unspecified hyperlipidemia | 29 |
+| 3 | Diabetes mellitus without mention of complication, type II or unspecified type, not stated as uncontrolled | 23 |
+| 4 | Tobacco use disorder | 19 |
+| 5 | Atrial fibrillation | 19 |
+
+These counts come from a join between the `diagnoses_icd` table (which stores ICD codes per admission) and the `d_icd_diagnoses` lookup table that provides the human‑readable diagnosis description. The query used was:
+
+```sql
+SELECT d.long_title AS diagnosis, COUNT(*) AS cnt
+FROM diagnoses_icd di
+JOIN d_icd_diagnoses d ON di.icd_code = d.icd_code
+GROUP BY d.long_title
+ORDER BY cnt DESC
+LIMIT 5;
+```
+
+Let me know if you’d like the same information for a specific patient cohort or filtered by admission type!","atrial fibrillation; coronary atherosclerosis of native coronary artery; diabetes mellitus without mention of complication, type ii or unspecified type, not stated as uncontrolled; other and unspecified hyperlipidemia; tobacco use disorder; unspecified essential hypertension","SELECT d_icd_diagnoses.long_title FROM d_icd_diagnoses WHERE d_icd_diagnoses.icd_code IN ( SELECT T1.icd_code FROM ( SELECT diagnoses_icd.icd_code, DENSE_RANK() OVER ( ORDER BY COUNT(*) DESC ) AS C1 FROM diagnoses_icd GROUP BY diagnoses_icd.icd_code ) AS T1 WHERE T1.C1 <= 5 )",1,
+What is the difference between mchc second measured on the last hospital visit compared to the first value measured on the last hospital visit for patient 10007928?,92.conversation.json,"**MCHC measurements for patient 10007928 on their most recent admission (hadm_id 20338077)**
+
+| Order | Time of measurement | MCHC value |
+|-------|---------------------|------------|
+| 1st   | 2020‑04‑13 04:25:00 | **34.1** |
+| 2nd   | 2020‑04‑13 12:06:00 | **34.2** |
+
+The second measurement is higher by:
+
+\[
+34.2 \;-\; 34.1 \;=\; **0.1**
+\]
+
+So, the difference between the second and first MCHC values on that admission is **+0.1 (units as recorded in the database)**.",0.1,SELECT ( SELECT labevents.valuenum FROM labevents WHERE labevents.hadm_id IN ( SELECT admissions.hadm_id FROM admissions WHERE admissions.subject_id = 10007928 AND admissions.dischtime IS NOT NULL ORDER BY admissions.admittime DESC LIMIT 1 ) AND labevents.itemid IN ( SELECT d_labitems.itemid FROM d_labitems WHERE d_labitems.label = 'mchc' ) ORDER BY labevents.charttime ASC LIMIT 1 OFFSET 1 ) - ( SELECT labevents.valuenum FROM labevents WHERE labevents.hadm_id IN ( SELECT admissions.hadm_id FROM admissions WHERE admissions.subject_id = 10007928 AND admissions.dischtime IS NOT NULL ORDER BY admissions.admittime DESC LIMIT 1 ) AND labevents.itemid IN ( SELECT d_labitems.itemid FROM d_labitems WHERE d_labitems.label = 'mchc' ) ORDER BY labevents.charttime ASC LIMIT 1 ),1,
+Calculate the number of patients who were prescribed senna.,93.conversation.json,"The query shows that **17 distinct patients** in the MIMIC‑IV database were prescribed a medication containing “senna” (e.g., senna, Senna, etc.).",17,SELECT COUNT( DISTINCT admissions.subject_id ) FROM admissions WHERE admissions.hadm_id IN ( SELECT prescriptions.hadm_id FROM prescriptions WHERE prescriptions.drug = 'senna' ),1,
+Has patient 10037928 received a diagnosis in 2100?,94.conversation.json,Yes – patient **10037928** has at least one diagnosis record dated in the year 2100.,1,"SELECT COUNT(*)>0 FROM diagnoses_icd WHERE diagnoses_icd.hadm_id IN ( SELECT admissions.hadm_id FROM admissions WHERE admissions.subject_id = 10037928 ) AND strftime('%Y',diagnoses_icd.charttime) = '2100'",1,
+What is the number of times patient 10014729 visited the hospital in 2100?,95.conversation.json,Patient 10014729 had **two** separate admissions (hospital visits) recorded in the year 2100.,2,"SELECT COUNT( DISTINCT admissions.hadm_id ) FROM admissions WHERE admissions.subject_id = 10014729 AND strftime('%Y',admissions.admittime) = '2100'",1,
+How many current patients are there aged 60 or above?,96.conversation.json,"**Answer**
+
+There is **one (1)** patient who meets both criteria:
+
+| `hadm_id` | `subject_id` | Date of Birth (`dob`) | Discharge time (`dischtime`) |
+|-----------|--------------|-----------------------|-----------------------------|
+| 21 027 282 | 10 018 081 | 2021‑07‑25 00:00:00   | *NULL* (still admitted) |
+
+- **Age calculation** – Using the reference date “2100‑12‑31”, the patient’s age is
+  \[
+  \frac{julianday('2100‑12‑31') - julianday('2021‑07‑25')}{365.25} \approx 79\,\text{years}
+  \]
+  which is ≥ 60 years.
+- **Current status** – The `dischtime` field is NULL, meaning the stay has not yet ended in the MIMIC‑IV dataset; thus the patient is considered “currently” admitted as of any future reference date (including the artificial time “2100‑12‑31 23:59:00”).
+
+No other admissions satisfy both conditions. Therefore:
+
+**Number of current patients aged 60 or older:** **1**.",1,SELECT COUNT( DISTINCT admissions.subject_id ) FROM admissions WHERE admissions.dischtime IS NULL AND admissions.age >= 60,1,
+What was the name of the specimen test that patient 10021666 was given for the first time since 03/2100?,97.conversation.json,"The first specimen test given to patient **10021666** after 03/21/00 was recorded as:
+
+**`pt`**
+
+(From the `labevents` table, itemid 51274 – label “pt”.)",mrsa screen,"SELECT microbiologyevents.spec_type_desc FROM microbiologyevents WHERE microbiologyevents.hadm_id IN ( SELECT admissions.hadm_id FROM admissions WHERE admissions.subject_id = 10021666 ) AND strftime('%Y-%m',microbiologyevents.charttime) >= '2100-03' ORDER BY microbiologyevents.charttime ASC LIMIT 1",0,"The provided answer incorrectly identified the specimen test as ""pt"" from the labevents table, while the correct answer should have been ""mrsa screen"" from the microbiologyevents table. The key mistake was misinterpreting what constitutes a ""specimen test"" - the analysis focused on laboratory test results (like platelet counts or prothrombin time) rather than specimen collection and processing procedures. The correct query reveals that specimen tests are tracked in the microbiologyevents table under the spec_type_desc field, which contains descriptions like ""mrsa screen"" that represent actual specimen collection and analysis procedures. Additionally, the provided solution used labevents data and joined with d_labitems to get test labels, completely missing that specimen-specific information resides in a different table structure. This represents a Mistake in understanding the database schema and the medical distinction between lab test results and specimen collection procedures."
+How many medications were ordered for patient 10021118 since 10/2100?,98.conversation.json,"For patient **10021118**, there were **65** medication orders in the `prescriptions` table that started on or after **October 21, 2020**.",65,"SELECT COUNT(*) FROM prescriptions WHERE prescriptions.hadm_id IN( SELECT admissions.hadm_id FROM admissions WHERE admissions.subject_id = 10021118 ) AND strftime('%Y-%m',prescriptions.starttime) >= '2100-10'",1,
+Can you show me the top four most frequent lab tests given?,99.conversation.json,"**Top 4 most frequently recorded laboratory tests in the MIMIC‑IV database**
+
+| Rank | Lab test | Number of times it was recorded |
+|------|----------|---------------------------------|
+| 1 | **Glucose** | 1,113 |
+| 2 | **Chloride** | 1,004 |
+| 3 | **Sodium** | 1,001 |
+| 4 | **Hemoglobin** | 985 |
+
+*These counts come from a direct query that joined the `labevents` table (lab result records) with the `d_labitems` lookup table to map each `itemid` to its label. The results are sorted by how many rows exist for each test in the dataset.*",chloride; creatinine; hematocrit; sodium,"SELECT d_labitems.label FROM d_labitems WHERE d_labitems.itemid IN ( SELECT T1.itemid FROM ( SELECT labevents.itemid, DENSE_RANK() OVER ( ORDER BY COUNT(*) DESC ) AS C1 FROM labevents GROUP BY labevents.itemid ) AS T1 WHERE T1.C1 <= 4 )",0,"The provided answer identified glucose, chloride, sodium, and hemoglobin as the top four most frequent lab tests, while the reference answer lists chloride, creatinine, hematocrit, and sodium. The discrepancy appears to stem from Ambiguity in the Question or Gold Query. The provided answer used a straightforward approach counting total occurrences of each test (COUNT(le.row_id)), while the gold query uses DENSE_RANK() OVER (ORDER BY COUNT(*) DESC) with a condition <= 4, which handles ties differently and may group multiple tests at the same rank. Additionally, the gold query's use of DENSE_RANK() suggests it's designed to handle scenarios where multiple lab tests have identical frequencies, potentially returning more than four results if there are ties at rank 4. The question itself doesn't specify how to handle ties or whether to count total test instances versus unique test types, creating ambiguity in the interpretation that could reasonably justify either approach."
+What is the total or cell saver intake amount that patient 10009628 received on 10/02/this year?,100.conversation.json,"Patient 10009628 received a **cell‑saver (intake) volume of 500 mL** on October 2, 2100 (the only recorded entry for that date in the `inputevents` table).",500,"SELECT SUM(inputevents.totalamount) FROM inputevents WHERE inputevents.stay_id IN ( SELECT icustays.stay_id FROM icustays WHERE icustays.hadm_id IN ( SELECT admissions.hadm_id FROM admissions WHERE admissions.subject_id = 10009628 ) ) AND inputevents.itemid IN ( SELECT d_items.itemid FROM d_items WHERE d_items.label = 'or cell saver intake' AND d_items.linksto = 'inputevents' ) AND datetime(inputevents.starttime,'start of year') = datetime(current_time,'start of year','-0 year') AND strftime('%m-%d',inputevents.starttime) = '10-02'",1,
+Has patient 10018423 received any lab testing in 2100?,101.conversation.json,"Yes – patient **10018423** had several laboratory measurements taken during the year 2100.
+
+A quick query of the `labevents` table shows entries for this subject in that year:
+
+| row_id | subject_id | hadm_id  | itemid | charttime           | valuenum | valueuom |
+|--------|------------|----------|--------|---------------------|----------|----------|
+| 3318   | 10018423   | 29366372 | 50808  | 2100‑05‑21 21:04:00 | 1.03     | mmol/l   |
+| 3319   | 10018423   | 29366372 | 50809  | 2100‑05‑21 21:04:00 | 125.00   | mg/dl    |
+| 3320   | 10018423   | 29366372 | 50817  | 2100‑05‑21 21:04:00 | 98.00    | %        |
+| …      | …          | …        | …      | …                   | …        | …        |
+
+(Only the first few rows are shown; the full result set contains many more entries from May 21–24, 2100.)
+
+Thus, patient 10018423 received multiple lab tests during that year.",1,"SELECT COUNT(*)>0 FROM labevents WHERE labevents.hadm_id IN ( SELECT admissions.hadm_id FROM admissions WHERE admissions.subject_id = 10018423 ) AND strftime('%Y',labevents.charttime) = '2100'",1,
