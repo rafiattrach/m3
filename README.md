@@ -41,7 +41,40 @@ source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install m3-mcp
 ```
 
-#### Option B: Install from Source
+#### Option B: Docker
+
+```bash
+# Clone repo first
+git clone https://github.com/rafiattrach/m3.git && cd m3
+
+# SQLite (demo DB)
+docker build -t m3:lite --target lite .
+docker run -d --name m3-server m3:lite tail -f /dev/null
+
+# BigQuery (full dataset - requires GCP credentials)
+docker build -t m3:bigquery --target bigquery .
+docker run -d --name m3-server \
+  -e M3_BACKEND=bigquery \
+  -e M3_PROJECT_ID=YOUR_PROJECT_ID \
+  -v $HOME/.config/gcloud:/root/.config/gcloud:ro \
+  m3:bigquery tail -f /dev/null
+```
+
+**MCP client config** (Claude Desktop, LM Studio, etc.):
+```json
+{
+  "mcpServers": {
+    "m3": {
+      "command": "docker",
+      "args": ["exec", "-i", "m3-server", "python", "-m", "m3.mcp_server"]
+    }
+  }
+}
+```
+
+Stop container: `docker stop m3-server && docker rm m3-server`
+
+#### Option C: Install from Source
 
 #### Using standard `pip`
 **Step 1: Clone and Navigate**

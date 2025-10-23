@@ -1,0 +1,16 @@
+.git
+__pycache__
+*.pyc
+.venv
+.env
+webapp/
+benchmarks/
+coverage.xml
+.pytest_cache/
+dist/
+build/
+*.egg-info
+# Keep only the demo DB
+m3_data/**
+!m3_data/databases/
+!m3_data/databases/mimic_iv_demo.db
