@@ -51,7 +51,7 @@ const Header = () => {
               padding: 0
             }}
           >
-            m3
+            <img src={process.env.PUBLIC_URL + '/m3_logo_transparent.png'} alt="M3" style={{ height: '100px', width: 'auto', marginTop: '15px' }} />
           </button>
         </div>
         <ul className="nav-links">

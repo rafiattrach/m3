@@ -1,5 +1,9 @@
 # M3: MIMIC-IV + MCP + Models 🏥🤖
 
+<div align="center">
+  <img src="webapp/public/m3_logo_transparent.png" alt="M3 Logo" width="300"/>
+</div>
+
 > **Query MIMIC-IV medical data using natural language through MCP clients**
 
 <a href="https://www.python.org/downloads/"><img alt="Python" src="https://img.shields.io/badge/Python-3.10+-blue?logo=python&logoColor=white"></a>
