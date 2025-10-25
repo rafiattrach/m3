@@ -64,7 +64,8 @@ dev = [
 
 [project.scripts]
 m3 = "m3.cli:app"
-m3-mcp-server = "m3.mcp_server:main"
+m3-mcp = "m3.mcp_server:main"  # Primary entry point for simplicity (enables `uvx m3-mcp`)
+m3-mcp-server = "m3.mcp_server:main"  # Kept for backwards compatibility
 
 [project.urls]
 Homepage = "https://github.com/rafiattrach/m3"
