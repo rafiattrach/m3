@@ -232,7 +232,7 @@ def config_cmd(
         typer.Option(
             "--backend",
             "-b",
-            help="Backend to use (sqlite or bigquery). Default: sqlite",
+            help="Backend to use (sqlite, duckdb, or bigquery). Default: sqlite",
         ),
     ] = "sqlite",
     db_path: Annotated[
@@ -240,7 +240,7 @@ def config_cmd(
         typer.Option(
             "--db-path",
             "-p",
-            help="Path to SQLite database (for sqlite backend)",
+            help="Path to SQLite database (for sqlite or duckdb backend)",
         ),
     ] = None,
     project_id: Annotated[
@@ -314,29 +314,22 @@ def config_cmd(
         raise typer.Exit(code=1)
 
     # Validate backend-specific arguments
+    # sqlite: db_path allowed, project_id not allowed
     if backend == "sqlite" and project_id:
-        typer.secho(
-            "❌ Error: --project-id can only be used with --backend bigquery",
-            fg=typer.colors.RED,
-            err=True,
-        )
+        typer.secho("❌ Error: --project-id can only be used with --backend bigquery", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1)
 
+    # duckdb: db_path allowed, project_id not allowed
+    if backend == "duckdb" and project_id:
+        typer.secho("❌ Error: --project-id can only be used with --backend bigquery", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1)
+
+    # bigquery: requires project_id, db_path not allowed
     if backend == "bigquery" and db_path:
-        typer.secho(
-            "❌ Error: --db-path can only be used with --backend sqlite",
-            fg=typer.colors.RED,
-            err=True,
-        )
+        typer.secho("❌ Error: --db-path can only be used with --backend sqlite or duckdb", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1)
-
-    # Require project_id for BigQuery backend
     if backend == "bigquery" and not project_id:
-        typer.secho(
-            "❌ Error: --project-id is required when using --backend bigquery",
-            fg=typer.colors.RED,
-            err=True,
-        )
+        typer.secho("❌ Error: --project-id is required when using --backend bigquery", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1)
 
     if client == "claude":
@@ -357,7 +350,7 @@ def config_cmd(
         if backend != "sqlite":
             cmd.extend(["--backend", backend])
 
-        if backend == "sqlite" and db_path:
+        if backend in ("sqlite", "duckdb") and db_path:
             cmd.extend(["--db-path", db_path])
         elif backend == "bigquery" and project_id:
             cmd.extend(["--project-id", project_id])
@@ -413,7 +406,7 @@ def config_cmd(
         if working_directory:
             cmd.extend(["--working-directory", working_directory])
 
-        if backend == "sqlite" and db_path:
+        if backend in ("sqlite", "duckdb") and db_path:
             cmd.extend(["--db-path", db_path])
         elif backend == "bigquery" and project_id:
             cmd.extend(["--project-id", project_id])
