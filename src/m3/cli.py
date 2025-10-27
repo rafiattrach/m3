@@ -15,7 +15,7 @@ from m3.config import (
     get_default_database_path,
     logger,
 )
-from m3.data_io import initialize_dataset
+from m3.data_io import initialize_dataset, build_duckdb_from_existing_raw, verify_table_rowcount
 
 app = typer.Typer(
     name="m3",
@@ -86,6 +86,10 @@ def dataset_init_cmd(
             help="Custom path for the SQLite DB. Uses a default if not set.",
         ),
     ] = None,
+    engine: Annotated[
+        str,
+        typer.Option("--engine", "-e", help="Engine to use (sqlite or duckdb). Default: sqlite"),
+    ] = "sqlite",
 ):
     """
     Download a supported dataset (e.g., 'mimic-iv-demo') and load it into a local SQLite
@@ -126,7 +130,7 @@ def dataset_init_cmd(
     final_db_path = (
         Path(db_path_str).resolve()
         if db_path_str
-        else get_default_database_path(dataset_key)
+        else get_default_database_path(dataset_key, engine)
     )
     if not final_db_path:
         typer.secho(
@@ -146,9 +150,16 @@ def dataset_init_cmd(
     typer.echo(f"Target database path: {final_db_path}")
     typer.echo(f"Raw files will be stored at: {raw_files_storage_path.resolve()}")
 
-    initialization_successful = initialize_dataset(
-        dataset_name=dataset_key, db_target_path=final_db_path
-    )
+
+    if engine == "sqlite": # Default
+        initialization_successful = initialize_dataset(
+            dataset_name=dataset_key, db_target_path=final_db_path
+        )
+    else: # duckdb
+        typer.echo("Converting existing CSVs to Parquet and creating DuckDB views...")
+        initialization_successful = build_duckdb_from_existing_raw(
+            dataset_name=dataset_key, db_target_path=final_db_path
+        )
 
     if not initialization_successful:
         typer.secho(
@@ -187,53 +198,16 @@ def dataset_init_cmd(
         return
 
     try:
-        conn = sqlite3.connect(final_db_path)
-        cursor = conn.cursor()
-        # A simple count query is usually safe and informative.
-        query = f"SELECT COUNT(*) FROM {verification_table_name};"
-        logger.debug(f"Executing verification query: '{query}' on {final_db_path}")
-        cursor.execute(query)
-        count_result = cursor.fetchone()
-        conn.close()
-
-        if count_result is None:
-            raise sqlite3.Error(
-                f"Query on table '{verification_table_name}' returned no result (None)."
-            )
-
-        record_count = count_result[0]
+        record_count = verify_table_rowcount(engine, final_db_path, verification_table_name)
         typer.secho(
-            (
-                f"Database verification successful: Found {record_count} records in "
-                f"table '{verification_table_name}'."
-            ),
+            f"Database verification successful: Found {record_count} records in table '{verification_table_name}'.",
             fg=typer.colors.GREEN,
         )
         typer.secho(
-            (
-                f"Dataset '{dataset_name}' ready at {final_db_path}. "
-                f"Raw files at {raw_files_storage_path.resolve()}."
-            ),
+            f"Dataset '{dataset_name}' ready at {final_db_path}. Raw files at {raw_files_storage_path.resolve()}.",
             fg=typer.colors.BRIGHT_GREEN,
         )
-    except sqlite3.Error as e:
-        logger.error(
-            (
-                f"SQLite error during verification query on table "
-                f"'{verification_table_name}': {e}"
-            ),
-            exc_info=True,
-        )
-        typer.secho(
-            (
-                f"Error verifying table '{verification_table_name}': {e}. "
-                f"The database was created at {final_db_path}, but the test query "
-                "failed. The data might be incomplete or corrupted."
-            ),
-            fg=typer.colors.RED,
-            err=True,
-        )
-    except Exception as e:  # Catch any other unexpected errors
+    except Exception as e:
         logger.error(
             f"Unexpected error during database verification: {e}", exc_info=True
         )

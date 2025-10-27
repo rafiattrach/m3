@@ -1,5 +1,6 @@
 import logging
 from pathlib import Path
+from typing import Literal
 
 APP_NAME = "m3"
 
@@ -46,6 +47,7 @@ SUPPORTED_DATASETS = {
         "file_listing_url": "https://physionet.org/files/mimic-iv-demo/2.2/",
         "subdirectories_to_scan": ["hosp", "icu"],
         "default_db_filename": "mimic_iv_demo.db",
+        "default_duckdb_filename": "mimic_iv_demo.duckdb",
         "primary_verification_table": "hosp_admissions",  # Table name in SQLite DB
     },
     # add other datasets here...
@@ -60,19 +62,25 @@ def get_dataset_config(dataset_name: str) -> dict | None:
     return SUPPORTED_DATASETS.get(dataset_name.lower())
 
 
-def get_default_database_path(dataset_name: str) -> Path | None:
+def get_default_database_path(dataset_name: str, engine: Literal["sqlite", "duckdb"] = "sqlite") -> Path | None:
     """
-    Return the default SQLite DB path for a given dataset,
+    Return the default local DB path for a given dataset and engine,
     under <project_root>/m3_data/databases/.
     """
     cfg = get_dataset_config(dataset_name)
-    if cfg and "default_db_filename" in cfg:
-        DEFAULT_DATABASES_DIR.mkdir(parents=True, exist_ok=True)
-        return DEFAULT_DATABASES_DIR / cfg["default_db_filename"]
 
-    logger.warning(f"Missing default_db_filename for dataset: {dataset_name}")
-    return None
+    if not cfg:
+        logger.warning(f"Unknown dataset, cannot determine default DB path: {dataset_name}")
+        return None
 
+    DEFAULT_DATABASES_DIR.mkdir(parents=True, exist_ok=True)
+
+    db_fname = cfg.get("default_db_filename") if engine == "sqlite" else cfg.get("default_duckdb_filename")
+    if not db_fname:
+        logger.warning(f"Missing default filename for dataset: {dataset_name}")
+        return None
+        
+    return DEFAULT_DATABASES_DIR / db_fname
 
 def get_dataset_raw_files_path(dataset_name: str) -> Path | None:
     """

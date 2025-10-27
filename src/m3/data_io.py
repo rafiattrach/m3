@@ -1,10 +1,11 @@
 from pathlib import Path
 from urllib.parse import urljoin, urlparse
-
+from typing import Literal
 import polars as pl
 import requests
 import typer
 from bs4 import BeautifulSoup
+import duckdb
 
 from m3.config import get_dataset_config, get_dataset_raw_files_path, logger
 
@@ -332,3 +333,114 @@ def initialize_dataset(dataset_name: str, db_target_path: Path) -> bool:
         f"Database at: {db_target_path}"
     )
     return True
+
+
+########################################################
+# DuckDB functions
+########################################################
+
+def _csv_to_parquet_all(src_root: Path, parquet_root: Path) -> bool:
+    """
+    Convert all CSV files in the source directory to Parquet files.
+    """
+    parquet_paths: list[Path] = []
+    for csv_gz in src_root.rglob("*.csv.gz"):
+        rel = csv_gz.relative_to(src_root)
+        out = parquet_root / rel.with_suffix("").with_suffix(".parquet")
+        out.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            df = pl.read_csv(
+                source=str(csv_gz),
+                infer_schema_length=None,
+                try_parse_dates=True,
+                ignore_errors=False,
+                null_values=["", "NULL", "null", "\\N", "NA"],
+            )
+            df.write_parquet(str(out))
+            parquet_paths.append(out)
+        except Exception as e:
+            logger.error(f"Parquet conversion failed for {csv_gz}: {e}")
+            return False
+    logger.info(f"Converted {len(parquet_paths)} files to Parquet under {parquet_root}")
+    return True
+
+def _create_duckdb_with_views(db_path: Path, parquet_root: Path) -> bool:
+    """
+    Create a DuckDB database from existing Parquet files and create views for each table.
+    """
+    con = duckdb.connect(str(db_path))
+    try:
+        for pq in parquet_root.rglob("*.parquet"):
+            rel = pq.relative_to(parquet_root)
+            parts = [p.lower() for p in rel.parts]
+            table = (
+                "_".join(parts)
+                .replace(".parquet", "")
+                .replace("-", "_")
+                .replace(".", "_")
+            )
+            sql = (
+                f"CREATE OR REPLACE VIEW {table} "
+                f"AS SELECT * FROM read_parquet('{pq.as_posix()}');"
+            )
+            con.execute(sql)
+        con.commit()
+        return True
+    finally:
+        con.close()
+
+def build_duckdb_from_existing_raw(dataset_name: str, db_target_path: Path) -> bool:
+    """
+    Build a DuckDB database from existing raw CSVs (no downloads).
+    - Converts CSVs under m3_data/raw_files/<dataset>/ to Parquet
+    - Creates views in DuckDB that point to those Parquet files
+    """
+    raw_files_root_dir = get_dataset_raw_files_path(dataset_name)
+    if not raw_files_root_dir or not raw_files_root_dir.exists():
+        logger.error(
+            f"Raw files directory not found for dataset '{dataset_name}'. "
+            "Run 'm3 init mimic-iv-demo' first for the demo, or place full data under "
+            f"{(raw_files_root_dir or Path()).resolve()}."
+        )
+        return False
+
+    parquet_root = raw_files_root_dir.parent / "parquet" / dataset_name
+    parquet_root.mkdir(parents=True, exist_ok=True)
+
+    if not _csv_to_parquet_all(raw_files_root_dir, parquet_root):
+        return False
+
+    return _create_duckdb_with_views(db_target_path, parquet_root)
+
+
+########################################################
+# Verification functions
+########################################################
+
+def verify_table_rowcount(
+    engine: Literal["sqlite", "duckdb"],
+    db_path: Path,
+    table_name: str,
+) -> int:
+    if engine == "sqlite":
+        import sqlite3
+        conn = sqlite3.connect(db_path)
+        try:
+            cur = conn.cursor()
+            cur.execute(f"SELECT COUNT(*) FROM {table_name}")
+            row = cur.fetchone()
+            if row is None:
+                raise sqlite3.Error("No result")
+            return int(row[0])
+        finally:
+            conn.close()
+    else:  # duckdb
+        import duckdb
+        con = duckdb.connect(str(db_path))
+        try:
+            row = con.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()
+            if row is None:
+                raise RuntimeError("No result")
+            return int(row[0])
+        finally:
+            con.close()
