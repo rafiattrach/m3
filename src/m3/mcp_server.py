@@ -1,14 +1,12 @@
 """
 M3 MCP Server - MIMIC-IV + MCP + Models
-Provides MCP tools for querying MIMIC-IV data via SQLite or BigQuery.
+Provides MCP tools for querying MIMIC-IV data via DuckDB (local) or BigQuery.
 """
 
 import os
-import sqlite3
-import duckdb
 from pathlib import Path
 
-import pandas as pd
+import duckdb
 import sqlparse
 from fastmcp import FastMCP
 
@@ -138,22 +136,11 @@ def _init_backend():
     # Initialize OAuth2 authentication
     init_oauth2()
 
-    _backend = os.getenv("M3_BACKEND", "sqlite")
+    _backend = os.getenv("M3_BACKEND", "duckdb")
 
-    if _backend == "sqlite":
+    if _backend == "duckdb":
         _db_path = os.getenv("M3_DB_PATH")
         if not _db_path:
-            # Use default database path
-            _db_path = get_default_database_path("mimic-iv-demo")
-
-        # Ensure the database exists
-        if not Path(_db_path).exists():
-            raise FileNotFoundError(f"SQLite database not found: {_db_path}")
-
-    elif _backend == "duckdb":
-        _db_path = os.getenv("M3_DB_PATH")
-        if not _db_path:
-            from m3.config import get_default_database_path
             path = get_default_database_path("mimic-iv-demo", engine="duckdb")
             _db_path = str(path) if path else None
         if not _db_path or not Path(_db_path).exists():
@@ -185,9 +172,7 @@ _init_backend()
 
 def _get_backend_info() -> str:
     """Get current backend information for display in responses."""
-    if _backend == "sqlite":
-        return f"🔧 **Current Backend:** SQLite (local database)\n📁 **Database Path:** {_db_path}\n"
-    elif _backend == "duckdb":
+    if _backend == "duckdb":
         return f"🔧 **Current Backend:** DuckDB (local database)\n📁 **Database Path:** {_db_path}\n"
     else:
         return f"🔧 **Current Backend:** BigQuery (cloud database)\n☁️ **Project ID:** {_project_id}\n"
@@ -199,31 +184,6 @@ def _get_backend_info() -> str:
 # These functions perform the actual database operations
 # and are called by the MCP tools. This prevents MCP tools
 # from calling other MCP tools, which violates the MCP protocol.
-
-
-def _execute_sqlite_query(sql_query: str) -> str:
-    """Execute SQLite query - internal function."""
-    try:
-        conn = sqlite3.connect(_db_path)
-        try:
-            df = pd.read_sql_query(sql_query, conn)
-
-            if df.empty:
-                return "No results found"
-
-            # Limit output size
-            if len(df) > 50:
-                result = df.head(50).to_string(index=False)
-                result += f"\n... ({len(df)} total rows, showing first 50)"
-            else:
-                result = df.to_string(index=False)
-
-            return result
-        finally:
-            conn.close()
-    except Exception as e:
-        # Re-raise the exception so the calling function can handle it with enhanced guidance
-        raise e
 
 
 def _execute_duckdb_query(sql_query: str) -> str:
@@ -291,9 +251,7 @@ def _execute_query_internal(sql_query: str) -> str:
         return f"❌ **Security Error:** {message}\n\n💡 **Tip:** Only SELECT statements are allowed for data analysis."
 
     try:
-        if _backend == "sqlite":
-            return _execute_sqlite_query(sql_query)
-        elif _backend == "duckdb":
+        if _backend == "duckdb":
             return _execute_duckdb_query(sql_query)
         else:  # bigquery
             return _execute_bigquery_query(sql_query)
@@ -390,12 +348,7 @@ def get_database_schema() -> str:
     Returns:
         List of all available tables in the database with current backend info
     """
-    if _backend == "sqlite":
-        query = "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
-        result = _execute_query_internal(query)
-        return f"{_get_backend_info()}\n📋 **Available Tables:**\n{result}"
-
-    elif _backend == "duckdb":
+    if _backend == "duckdb":
         query = """
         SELECT table_name
         FROM information_schema.tables
@@ -405,8 +358,7 @@ def get_database_schema() -> str:
         result = _execute_query_internal(query)
         return f"{_get_backend_info()}\n📋 **Available Tables:**\n{result}"
 
-
-    else:  # bigquery
+    elif _backend == "bigquery":
         # Show fully qualified table names that are ready to copy-paste into queries
         query = """
         SELECT CONCAT('`physionet-data.mimiciv_3_1_hosp.', table_name, '`') as query_ready_table_name
@@ -443,12 +395,11 @@ def get_table_info(table_name: str, show_sample: bool = True) -> str:
     """
     backend_info = _get_backend_info()
 
-    if _backend in ["sqlite", "duckdb"]:
+    if _backend == "duckdb":
         # Get column information
         pragma_query = f"PRAGMA table_info('{table_name}')"
-        execute_query_fn = _execute_sqlite_query if _backend == "sqlite" else _execute_duckdb_query
         try:
-            result = execute_query_fn(pragma_query)
+            result = _execute_duckdb_query(pragma_query)
             if "error" in result.lower():
                 return f"{backend_info}❌ Table '{table_name}' not found. Use get_database_schema() to see available tables."
 
@@ -456,7 +407,7 @@ def get_table_info(table_name: str, show_sample: bool = True) -> str:
 
             if show_sample:
                 sample_query = f"SELECT * FROM '{table_name}' LIMIT 3"
-                sample_result = execute_query_fn(sample_query)
+                sample_result = _execute_duckdb_query(sample_query)
                 info_result += (
                     f"\n\n📊 **Sample Data (first 3 rows):**\n{sample_result}"
                 )
@@ -600,7 +551,7 @@ def get_icu_stays(patient_id: int | None = None, limit: int = 10) -> str:
         return "Error: Invalid limit. Must be a positive integer between 1 and 10000."
 
     # Try common ICU table names based on backend
-    if _backend == "sqlite" or _backend == "duckdb":
+    if _backend == "duckdb":
         icustays_table = "icu_icustays"
     else:  # bigquery
         icustays_table = "`physionet-data.mimiciv_3_1_icu.icustays`"
@@ -650,7 +601,7 @@ def get_lab_results(
         return "Error: Invalid limit. Must be a positive integer between 1 and 10000."
 
     # Try common lab table names based on backend
-    if _backend == "sqlite" or _backend == "duckdb":
+    if _backend == "duckdb":
         labevents_table = "hosp_labevents"
     else:  # bigquery
         labevents_table = "`physionet-data.mimiciv_3_1_hosp.labevents`"
@@ -705,7 +656,7 @@ def get_race_distribution(limit: int = 10) -> str:
         return "Error: Invalid limit. Must be a positive integer between 1 and 10000."
 
     # Try common admissions table names based on backend
-    if _backend == "sqlite" or _backend == "duckdb":
+    if _backend == "duckdb":
         admissions_table = "hosp_admissions"
     else:  # bigquery
         admissions_table = "`physionet-data.mimiciv_3_1_hosp.admissions`"

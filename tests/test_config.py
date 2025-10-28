@@ -2,7 +2,7 @@ from pathlib import Path
 
 from m3.config import (
     get_dataset_config,
-    get_dataset_raw_files_path,
+    get_dataset_parquet_root,
     get_default_database_path,
 )
 
@@ -10,7 +10,7 @@ from m3.config import (
 def test_get_dataset_config_known():
     cfg = get_dataset_config("mimic-iv-demo")
     assert isinstance(cfg, dict)
-    assert cfg.get("default_db_filename") == "mimic_iv_demo.db"
+    assert cfg.get("default_duckdb_filename") == "mimic_iv_demo.duckdb"
 
 
 def test_get_dataset_config_unknown():
@@ -22,9 +22,9 @@ def test_default_paths(tmp_path, monkeypatch):
     import m3.config as cfg_mod
 
     monkeypatch.setattr(cfg_mod, "DEFAULT_DATABASES_DIR", tmp_path / "dbs")
-    monkeypatch.setattr(cfg_mod, "DEFAULT_RAW_FILES_DIR", tmp_path / "raw")
-    db_path = get_default_database_path("mimic-iv-demo")
-    raw_path = get_dataset_raw_files_path("mimic-iv-demo")
+    monkeypatch.setattr(cfg_mod, "DEFAULT_PARQUET_DIR", tmp_path / "parquet")
+    db_path = get_default_database_path("mimic-iv-demo", engine="duckdb")
+    raw_path = get_dataset_parquet_root("mimic-iv-demo")
     # They should be Path objects and exist
     assert isinstance(db_path, Path)
     assert db_path.parent.exists()
@@ -35,6 +35,6 @@ def test_default_paths(tmp_path, monkeypatch):
 def test_raw_path_includes_dataset_name(tmp_path, monkeypatch):
     import m3.config as cfg_mod
 
-    monkeypatch.setattr(cfg_mod, "DEFAULT_RAW_FILES_DIR", tmp_path / "raw")
-    raw_path = get_dataset_raw_files_path("mimic-iv-demo")
+    monkeypatch.setattr(cfg_mod, "DEFAULT_PARQUET_DIR", tmp_path / "parquet")
+    raw_path = get_dataset_parquet_root("mimic-iv-demo")
     assert "mimic-iv-demo" in str(raw_path)

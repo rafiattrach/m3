@@ -1,5 +1,4 @@
 import logging
-import sqlite3
 import subprocess
 import sys
 from pathlib import Path
@@ -10,12 +9,21 @@ import typer
 from m3 import __version__
 from m3.config import (
     SUPPORTED_DATASETS,
+    detect_available_local_datasets,
+    get_active_dataset,
     get_dataset_config,
-    get_dataset_raw_files_path,
+    get_dataset_parquet_root,
     get_default_database_path,
     logger,
+    set_active_dataset,
 )
-from m3.data_io import initialize_dataset, build_duckdb_from_existing_raw, verify_table_rowcount
+from m3.data_io import (
+    compute_parquet_dir_size,
+    convert_csv_to_parquet,
+    download_dataset,
+    initialize_duckdb_from_parquet,
+    verify_table_rowcount,
+)
 
 app = typer.Typer(
     name="m3",
@@ -72,7 +80,7 @@ def dataset_init_cmd(
         str,
         typer.Argument(
             help=(
-                "Dataset to initialize. Default: 'mimic-iv-demo'. "
+                "Dataset to initialize (local). Default: 'mimic-iv-demo'. "
                 f"Supported: {', '.join(SUPPORTED_DATASETS.keys())}"
             ),
             metavar="DATASET_NAME",
@@ -83,20 +91,15 @@ def dataset_init_cmd(
         typer.Option(
             "--db-path",
             "-p",
-            help="Custom path for the SQLite DB. Uses a default if not set.",
+            help="Custom path for the DuckDB file. Uses a default if not set.",
         ),
     ] = None,
-    engine: Annotated[
-        str,
-        typer.Option("--engine", "-e", help="Engine to use (sqlite or duckdb). Default: sqlite"),
-    ] = "sqlite",
 ):
     """
-    Download a supported dataset (e.g., 'mimic-iv-demo') and load it into a local SQLite
+    Initialize a local dataset by creating DuckDB views over existing Parquet files.
 
-    Raw downloaded files are stored in a `m3_data/raw_files/<dataset_name>/` subdirectory
-    and are **not** deleted after processing.
-    The SQLite database is stored in `m3_data/databases/` or path specified by `--db-path`.
+    - Parquet must already exist under /Users/hannesill/Developer/m3/m3_data/parquet/<dataset_name>/
+    - DuckDB file will be at /Users/hannesill/Developer/m3/m3_data/databases/<dataset>.duckdb
     """
     logger.info(f"CLI 'init' called for dataset: '{dataset_name}'")
 
@@ -116,21 +119,10 @@ def dataset_init_cmd(
         )
         raise typer.Exit(code=1)
 
-    # Currently, only mimic-iv-demo is fully wired up as an example.
-    # This check can be removed or adapted as more datasets are supported.
-    if dataset_key != "mimic-iv-demo":
-        typer.secho(
-            (
-                f"Warning: While '{dataset_name}' is configured, only 'mimic-iv-demo' "
-                "is fully implemented for initialization in this version."
-            ),
-            fg=typer.colors.YELLOW,
-        )
-
     final_db_path = (
         Path(db_path_str).resolve()
         if db_path_str
-        else get_default_database_path(dataset_key, engine)
+        else get_default_database_path(dataset_key, "duckdb")
     )
     if not final_db_path:
         typer.secho(
@@ -142,24 +134,22 @@ def dataset_init_cmd(
 
     # Ensure parent directory for the database exists
     final_db_path.parent.mkdir(parents=True, exist_ok=True)
-
-    raw_files_storage_path = get_dataset_raw_files_path(
-        dataset_key
-    )  # Will be created if doesn't exist
+    parquet_root = get_dataset_parquet_root(dataset_key)
     typer.echo(f"Initializing dataset: '{dataset_name}'")
-    typer.echo(f"Target database path: {final_db_path}")
-    typer.echo(f"Raw files will be stored at: {raw_files_storage_path.resolve()}")
+    typer.echo(f"DuckDB path: {final_db_path}")
+    typer.echo(f"Parquet root: {parquet_root}")
 
+    if not parquet_root or not parquet_root.exists():
+        typer.secho(
+            f"Parquet directory not found at {parquet_root}.\n",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        raise typer.Exit(code=1)
 
-    if engine == "sqlite": # Default
-        initialization_successful = initialize_dataset(
-            dataset_name=dataset_key, db_target_path=final_db_path
-        )
-    else: # duckdb
-        typer.echo("Converting existing CSVs to Parquet and creating DuckDB views...")
-        initialization_successful = build_duckdb_from_existing_raw(
-            dataset_name=dataset_key, db_target_path=final_db_path
-        )
+    initialization_successful = initialize_duckdb_from_parquet(
+        dataset_name=dataset_key, db_target_path=final_db_path
+    )
 
     if not initialization_successful:
         typer.secho(
@@ -177,7 +167,7 @@ def dataset_init_cmd(
         "Verifying database integrity..."
     )
 
-    # Basic verification by querying a known table
+    # Basic verification by querying a known table (fast check)
     verification_table_name = dataset_config.get("primary_verification_table")
     if not verification_table_name:
         logger.warning(
@@ -187,7 +177,7 @@ def dataset_init_cmd(
         typer.secho(
             (
                 f"Dataset '{dataset_name}' initialized to {final_db_path}. "
-                f"Raw files at {raw_files_storage_path.resolve()}."
+                f"Parquet at {parquet_root}."
             ),
             fg=typer.colors.GREEN,
         )
@@ -198,13 +188,13 @@ def dataset_init_cmd(
         return
 
     try:
-        record_count = verify_table_rowcount(engine, final_db_path, verification_table_name)
+        record_count = verify_table_rowcount(final_db_path, verification_table_name)
         typer.secho(
             f"Database verification successful: Found {record_count} records in table '{verification_table_name}'.",
             fg=typer.colors.GREEN,
         )
         typer.secho(
-            f"Dataset '{dataset_name}' ready at {final_db_path}. Raw files at {raw_files_storage_path.resolve()}.",
+            f"Dataset '{dataset_name}' ready at {final_db_path}. Parquet at {parquet_root}.",
             fg=typer.colors.BRIGHT_GREEN,
         )
     except Exception as e:
@@ -216,6 +206,69 @@ def dataset_init_cmd(
             fg=typer.colors.RED,
             err=True,
         )
+    # Set active dataset to match init target
+    if dataset_key == "mimic-iv-demo":
+        set_active_dataset("demo")
+    elif dataset_key == "mimic-iv-full":
+        set_active_dataset("full")
+
+
+@app.command("use")
+def use_cmd(
+    target: Annotated[
+        str,
+        typer.Argument(help="Select active dataset: demo | full | bigquery", metavar="TARGET"),
+    ]
+):
+    """Set the active dataset selection for the project."""
+    target = target.lower()
+    if target not in ("demo", "full", "bigquery"):
+        typer.secho("Target must be one of: demo, full, bigquery", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1)
+
+    if target in ("demo", "full"):
+        availability = detect_available_local_datasets()[target]
+        if not availability["parquet_present"]:
+            typer.secho(
+                f"Parquet directory missing at {availability['parquet_root']}. Cannot activate '{target}'.",
+                fg=typer.colors.RED,
+                err=True,
+            )
+            raise typer.Exit(code=1)
+
+    set_active_dataset(target)
+    typer.secho(f"Active dataset set to '{target}'.", fg=typer.colors.GREEN)
+
+
+@app.command("status")
+def status_cmd():
+    """Show active dataset, local DB path, Parquet presence, quick counts and sizes."""
+    active = get_active_dataset() or "(unset)"
+    typer.echo(f"Active dataset: {active}")
+
+    availability = detect_available_local_datasets()
+
+    for label in ("demo", "full"):
+        info = availability[label]
+        typer.echo(
+            f"{label}: parquet_present={info['parquet_present']} db_present={info['db_present']}\n  parquet_root={info['parquet_root']}\n  db_path={info['db_path']}"
+        )
+        if info["parquet_present"]:
+            try:
+                size_bytes = compute_parquet_dir_size(Path(info["parquet_root"]))
+                typer.echo(f"  parquet_size_bytes={size_bytes}")
+            except Exception:
+                typer.echo("  parquet_size_bytes=(skipped)")
+
+        # Try a quick rowcount on the verification table if db present
+        ds_name = "mimic-iv-demo" if label == "demo" else "mimic-iv-full"
+        cfg = get_dataset_config(ds_name)
+        if info["db_present"] and cfg:
+            try:
+                count = verify_table_rowcount(Path(info["db_path"]), cfg["primary_verification_table"])
+                typer.echo(f"  {cfg['primary_verification_table']}_rowcount={count}")
+            except Exception:
+                typer.echo("  rowcount=(skipped)")
 
 
 @app.command("config")
@@ -232,15 +285,15 @@ def config_cmd(
         typer.Option(
             "--backend",
             "-b",
-            help="Backend to use (sqlite, duckdb, or bigquery). Default: sqlite",
+            help="Backend to use (duckdb or bigquery). Default: duckdb",
         ),
-    ] = "sqlite",
+    ] = "duckdb",
     db_path: Annotated[
         str | None,
         typer.Option(
             "--db-path",
             "-p",
-            help="Path to SQLite database (for sqlite or duckdb backend)",
+            help="Path to DuckDB database (for duckdb backend)",
         ),
     ] = None,
     project_id: Annotated[
@@ -314,11 +367,6 @@ def config_cmd(
         raise typer.Exit(code=1)
 
     # Validate backend-specific arguments
-    # sqlite: db_path allowed, project_id not allowed
-    if backend == "sqlite" and project_id:
-        typer.secho("❌ Error: --project-id can only be used with --backend bigquery", fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=1)
-
     # duckdb: db_path allowed, project_id not allowed
     if backend == "duckdb" and project_id:
         typer.secho("❌ Error: --project-id can only be used with --backend bigquery", fg=typer.colors.RED, err=True)
@@ -326,7 +374,7 @@ def config_cmd(
 
     # bigquery: requires project_id, db_path not allowed
     if backend == "bigquery" and db_path:
-        typer.secho("❌ Error: --db-path can only be used with --backend sqlite or duckdb", fg=typer.colors.RED, err=True)
+        typer.secho("❌ Error: --db-path can only be used with --backend duckdb", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1)
     if backend == "bigquery" and not project_id:
         typer.secho("❌ Error: --project-id is required when using --backend bigquery", fg=typer.colors.RED, err=True)
@@ -347,10 +395,10 @@ def config_cmd(
         # Build command arguments
         cmd = [sys.executable, str(script_path)]
 
-        if backend != "sqlite":
+        if backend != "duckdb":
             cmd.extend(["--backend", backend])
 
-        if backend in ("sqlite", "duckdb") and db_path:
+        if backend == "duckdb" and db_path:
             cmd.extend(["--db-path", db_path])
         elif backend == "bigquery" and project_id:
             cmd.extend(["--project-id", project_id])
@@ -394,7 +442,7 @@ def config_cmd(
         if quick:
             cmd.append("--quick")
 
-        if backend != "sqlite":
+        if backend != "duckdb":
             cmd.extend(["--backend", backend])
 
         if server_name != "m3":
@@ -406,7 +454,7 @@ def config_cmd(
         if working_directory:
             cmd.extend(["--working-directory", working_directory])
 
-        if backend in ("sqlite", "duckdb") and db_path:
+        if backend == "duckdb" and db_path:
             cmd.extend(["--db-path", db_path])
         elif backend == "bigquery" and project_id:
             cmd.extend(["--project-id", project_id])
@@ -439,6 +487,159 @@ def config_cmd(
                 err=True,
             )
             raise typer.Exit(code=1)
+
+
+@app.command("download")
+def download_cmd(
+    dataset: Annotated[
+        str,
+        typer.Argument(
+            help=(
+                "Dataset to download (currently only supports 'mimic-iv-demo'). "
+                f"Configured: {', '.join(SUPPORTED_DATASETS.keys())}"
+            ),
+            metavar="DATASET_NAME",
+        ),
+    ],
+    output: Annotated[
+        str | None,
+        typer.Option(
+            "--output",
+            "-o",
+            help=(
+                "Directory to store downloaded files. Default: <project_root>/m3_data/raw_files/<dataset>/"
+            ),
+        ),
+    ] = None,
+):
+    """
+    Download public dataset files (demo only in this version).
+
+    - For 'mimic-iv-demo', downloads CSV.gz files under hosp/ and icu/ subdirectories.
+    - Files are saved to the output directory, preserving the original structure.
+    - This command does not convert CSV to Parquet.
+    """
+    dataset_key = dataset.lower()
+    if dataset_key != "mimic-iv-demo":
+        typer.secho(
+            "Currently only 'mimic-iv-demo' is supported by 'm3 download'.",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        raise typer.Exit(code=1)
+
+    cfg = get_dataset_config(dataset_key)
+    if not cfg or not cfg.get("file_listing_url"):
+        typer.secho(
+            f"Dataset '{dataset}' is not configured for download.",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        raise typer.Exit(code=1)
+
+    # Default output: <project_root>/m3_data/raw_files/<dataset>/
+    if output:
+        out_dir = Path(output).resolve()
+    else:
+        # Build from the parquet root: <root>/m3_data/parquet/<dataset> -> <root>/m3_data/raw_files/<dataset>
+        pq = get_dataset_parquet_root(dataset_key)
+        out_dir = pq.parent.parent / "raw_files" / dataset_key
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    typer.echo(f"Downloading dataset: '{dataset}'")
+    typer.echo(f"Listing URL: {cfg.get('file_listing_url')}")
+    typer.echo(f"Output directory: {out_dir}")
+
+    ok = download_dataset(dataset_key, out_dir)
+    if not ok:
+        typer.secho(
+            "Download failed. Please check logs for details.",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        raise typer.Exit(code=1)
+
+    typer.secho("✅ Download complete.", fg=typer.colors.GREEN)
+    typer.secho(
+        "Next step: Run 'm3 convert' to convert the downloaded CSV files to Parquet.",
+        fg=typer.colors.YELLOW,
+    )
+
+
+@app.command("convert")
+def convert_cmd(
+    dataset: Annotated[
+        str,
+        typer.Argument(
+            help=(
+                "Dataset to convert (csv.gz → parquet). Expected CSVs under raw_files/<dataset>."
+            ),
+            metavar="DATASET_NAME",
+        ),
+    ],
+    src: Annotated[
+        str | None,
+        typer.Option(
+            "--src",
+            "-s",
+            help="Root directory containing CSV.gz files (default: <project_root>/m3_data/raw_files/<dataset>)",
+        ),
+    ] = None,
+    dst: Annotated[
+        str | None,
+        typer.Option(
+            "--dst",
+            "-d",
+            help="Destination Parquet root (default: <project_root>/m3_data/parquet/<dataset>)",
+        ),
+    ] = None,
+):
+    """
+    Convert all CSV.gz files for a dataset to Parquet, mirroring structure (hosp/, icu/).
+    Uses DuckDB streaming COPY for low memory usage.
+    """
+    dataset_key = dataset.lower()
+    cfg = get_dataset_config(dataset_key)
+    if not cfg:
+        typer.secho(
+            f"Unsupported dataset: {dataset}",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        raise typer.Exit(code=1)
+
+    # Defaults
+    pq_root_default = get_dataset_parquet_root(dataset_key)
+    # raw_files default relative to project root
+    if pq_root_default is None:
+        typer.secho("Could not determine dataset directories.", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1)
+
+    if src:
+        csv_root = Path(src).resolve()
+    else:
+        csv_root = pq_root_default.parent.parent / "raw_files" / dataset_key
+
+    if dst:
+        parquet_root = Path(dst).resolve()
+    else:
+        parquet_root = pq_root_default
+
+    typer.echo(f"Converting dataset: '{dataset}'")
+    typer.echo(f"CSV root: {csv_root}")
+    typer.echo(f"Parquet destination: {parquet_root}")
+
+    ok = convert_csv_to_parquet(dataset_key, csv_root, parquet_root)
+    if not ok:
+        typer.secho(
+            "Conversion failed. Please check logs for details.",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        raise typer.Exit(code=1)
+
+    typer.secho("✅ Conversion complete.", fg=typer.colors.GREEN)
 
 
 if __name__ == "__main__":

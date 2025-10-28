@@ -16,11 +16,11 @@ Transform medical data analysis with AI! Ask questions about MIMIC-IV data in pl
 
 ## Features
 
-- **Natural Language Queries**: Ask questions about MIMIC-IV data in plain English
-- **Local SQLite**: Fast queries on demo database (free, no setup)
-- **BigQuery Support**: Access full MIMIC-IV dataset on Google Cloud
-- **Enterprise Security**: OAuth2 authentication with JWT tokens and rate limiting
-- **SQL Injection Protection**: Read-only queries with comprehensive validation
+- 🔍 **Natural Language Queries**: Ask questions about MIMIC-IV data in plain English
+- 🏠 **Local DuckDB + Parquet**: Fast local queries for demo and full dataset using Parquet files with DuckDB views
+- ☁️ **BigQuery Support**: Access full MIMIC-IV dataset on Google Cloud
+- 🔒 **Enterprise Security**: OAuth2 authentication with JWT tokens and rate limiting
+- 🛡️ **SQL Injection Protection**: Read-only queries with comprehensive validation
 
 ## 🚀 Quick Start
 
@@ -47,7 +47,7 @@ uv --version
 
 ### BigQuery Setup (Optional - Full Dataset)
 
-**Skip this if using SQLite demo database.**
+**Skip this if using DuckDB demo database.**
 
 1. **Install Google Cloud SDK:**
    - macOS: `brew install google-cloud-sdk`
@@ -69,7 +69,7 @@ Paste one of the following into your MCP client config, then restart your client
 <tr>
 <td width="50%">
 
-**SQLite (Demo Database)**
+**DuckDB (Demo Database)**
 
 Free, local, no setup required.
 
@@ -80,7 +80,7 @@ Free, local, no setup required.
       "command": "uvx",
       "args": ["m3-mcp"],
       "env": {
-        "M3_BACKEND": "sqlite"
+        "M3_BACKEND": "duckdb"
       }
     }
   }
@@ -126,13 +126,13 @@ Requires GCP credentials and PhysioNet access.
 
 ## Backend Comparison
 
-| Feature | SQLite (Demo) | BigQuery (Full) |
-|---------|---------------|-----------------|
-| **Cost** | Free | BigQuery usage fees |
-| **Setup** | Zero config | GCP credentials required |
-| **Data Size** | 100 patients, 275 admissions | 365k patients, 546k admissions |
-| **Speed** | Fast (local) | Network latency |
-| **Use Case** | Learning, development | Research, production |
+| Feature | DuckDB (Demo) | DuckDB (Full) | BigQuery (Full) |
+|---------|---------------|---------------|-----------------|
+| **Cost** | Free | Free | BigQuery usage fees |
+| **Setup** | Zero config | Manual Download | GCP credentials required |
+| **Data Size** | 100 patients, 275 admissions | 365k patients, 546k admissions | 365k patients, 546k admissions |
+| **Speed** | Fast (local) | Fast (local) | Network latency |
+| **Use Case** | Learning, development | Research (local) | Research, production |
 
 ---
 
@@ -146,7 +146,7 @@ Requires GCP credentials and PhysioNet access.
 <tr>
 <td width="50%">
 
-**SQLite:**
+**DuckDB (Local):**
 ```bash
 git clone https://github.com/rafiattrach/m3.git && cd m3
 docker build -t m3:lite --target lite .
@@ -205,7 +205,7 @@ pip install m3-mcp
     "m3": {
       "command": "m3-mcp-server",
       "env": {
-        "M3_BACKEND": "sqlite"
+        "M3_BACKEND": "duckdb"
       }
     }
   }
@@ -233,14 +233,160 @@ pre-commit install
       "args": ["-m", "m3.mcp_server"],
       "cwd": "/path/to/m3",
       "env": {
-        "M3_BACKEND": "sqlite"
+        "M3_BACKEND": "duckdb"
       }
     }
   }
 }
 ```
 
-## Advanced Configuration
+#### Using `UV` (Recommended)
+Assuming you have [UV](https://docs.astral.sh/uv/getting-started/installation/) installed.
+
+**Step 1: Clone and Navigate**
+```bash
+# Clone the repository
+git clone https://github.com/rafiattrach/m3.git
+cd m3
+```
+
+**Step 2: Create `UV` Virtual Environment**
+```bash
+# Create virtual environment
+uv venv
+```
+
+**Step 3: Install M3**
+```bash
+uv sync
+# Do not forget to use `uv run` to any subsequent commands to ensure you're using the `uv` virtual environment
+```
+
+### 🗄️ Database Configuration
+
+After installation, choose your data source:
+
+#### Option A: Local Demo (DuckDB + Parquet)
+
+**Perfect for learning and development - completely free!**
+
+1. **Download demo CSVs**:
+   ```bash
+   m3 download mimic-iv-demo
+   ```
+2. **Convert CSV to Parquet**:
+   ```bash
+   m3 convert mimic-iv-demo
+   ```
+3. **Create DuckDB views over Parquet**:
+   ```bash
+   m3 init mimic-iv-demo
+   ```
+
+4. **Setup MCP Client**:
+   ```bash
+   m3 config
+   ```
+
+   *Alternative: For Claude Desktop specifically:*
+   ```bash
+   m3 config claude --backend duckdb --db-path /Users/you/path/to/m3_data/databases/mimic_iv_demo.duckdb
+   ```
+
+5. **Restart your MCP client** and ask:
+
+   - "What tools do you have for MIMIC-IV data?"
+   - "Show me patient demographics from the ICU"
+
+#### Option B: Local Full Dataset (DuckDB + Parquet)
+
+**Run the entire MIMIC-IV dataset locally with DuckDB views over Parquet.**
+
+1. **Acquire CSVs** (requires PhysioNet credentials):
+   - Download the official MIMIC-IV CSVs from PhysioNet and place them under:
+     - `/Users/you/path/to/m3/m3_data/raw_files/mimic-iv-full/hosp/`
+     - `/Users/you/path/to/m3/m3_data/raw_files/mimic-iv-full/icu/`
+   - Note: `m3 download` currently supports the demo only. Use your browser or `wget` to obtain the full dataset.
+
+2. **Convert CSV → Parquet** (streaming via DuckDB):
+   ```bash
+   m3 convert mimic-iv-full
+   ```
+   - Default destination: `/Users/you/path/to/m3/m3_data/parquet/mimic-iv-full/`
+   - Performance knobs (optional):
+     ```bash
+     export M3_CONVERT_MAX_WORKERS=6   # number of parallel files (default=4)
+     export M3_DUCKDB_MEM=4GB          # DuckDB memory limit per worker (default=3GB)
+     export M3_DUCKDB_THREADS=4        # DuckDB threads per worker (default=2)
+     ```
+     Pay attention to your system specifications, especially if you have enough memory.
+
+3. **Create DuckDB views over Parquet**:
+   ```bash
+   m3 init mimic-iv-full
+   ```
+   - Database path: `/Users/you/path/to/m3/m3_data/databases/mimic_iv_full.duckdb`
+
+4. **Select dataset and verify**:
+   ```bash
+   m3 use full
+   m3 status
+   ```
+   - Status prints active dataset, local DB path, Parquet presence, quick row counts and total Parquet size.
+
+5. **Configure MCP client** (uses the full local DB):
+   ```bash
+   m3 config
+   # or
+   m3 config claude --backend duckdb --db-path /Users/you/path/to/m3/m3_data/databases/mimic_iv_full.duckdb
+   ```
+
+#### Option C: BigQuery (Full Dataset)
+
+**For researchers needing complete MIMIC-IV data**
+
+##### Prerequisites
+- Google Cloud account and project with billing enabled
+- Access to MIMIC-IV on BigQuery (requires PhysioNet credentialing)
+
+##### Setup Steps
+
+1. **Install Google Cloud CLI**:
+
+   **macOS (with Homebrew):**
+   ```bash
+   brew install google-cloud-sdk
+   ```
+
+   **Windows:** Download from https://cloud.google.com/sdk/docs/install
+
+   **Linux:**
+   ```bash
+   curl https://sdk.cloud.google.com | bash
+   ```
+
+2. **Authenticate**:
+   ```bash
+   gcloud auth application-default login
+   ```
+   *This will open your browser - choose the Google account that has access to your BigQuery project with MIMIC-IV data.*
+
+3. **Setup MCP Client for BigQuery**:
+   ```bash
+   m3 config
+   ```
+
+   *Alternative: For Claude Desktop specifically:*
+   ```bash
+   m3 config claude --backend bigquery --project-id YOUR_PROJECT_ID
+   ```
+
+4. **Test BigQuery Access** - Restart your MCP client and ask:
+   ```
+   Use the get_race_distribution function to show me the top 5 races in MIMIC-IV admissions.
+   ```
+
+## 🔧 Advanced Configuration
 
 Need to configure other MCP clients or customize settings? Use these commands:
 
@@ -255,8 +401,8 @@ Generates configuration for any MCP client with step-by-step guidance.
 # Quick universal config with defaults
 m3 config --quick
 
-# Universal config with custom database
-m3 config --quick --backend sqlite --db-path /path/to/database.db
+# Universal config with custom DuckDB database
+m3 config --quick --backend duckdb --db-path /path/to/database.duckdb
 
 # Save config to file for other MCP clients
 m3 config --output my_config.json
@@ -291,7 +437,21 @@ m3 config  # Choose OAuth2 option during setup
 
 ---
 
-## Available MCP Tools
+## Backend Details
+
+**DuckDB Backend (Local)**
+- ✅ **Free**: No cloud costs
+- ✅ **Fast**: Local queries over Parquet
+- ✅ **Easy**: No authentication needed
+- ❌ **Big download size**: Manual download for the full dataset required
+
+**BigQuery Backend**
+- ✅ **Complete**: Full MIMIC-IV dataset (~500k admissions)
+- ✅ **Scalable**: Google Cloud infrastructure
+- ✅ **Current**: Latest MIMIC-IV version (3.1)
+- ❌ **Costs**: BigQuery usage fees apply
+
+## 🛠️ Available MCP Tools
 
 When your MCP client processes questions, it uses these tools automatically:
 
@@ -323,13 +483,22 @@ Try asking your MCP client these questions:
 - `Prompt:` *What tables are available in the database?*
 - `Prompt:` *What tools do you have for MIMIC-IV data?*
 
-## Troubleshooting
+## 🎩 Pro Tips
+
+- Do you want to pre-approve the usage of all tools in Claude Desktop? Use the prompt below and then select **Always Allow**
+  - `Prompt:` *Can you please call all your tools in a logical sequence?*
+
+## 🔍 Troubleshooting
 
 ### Common Issues
 
-**SQLite "Database not found" errors:**
+**Local "Parquet not found" or view errors:**
 ```bash
-# Re-download demo database
+# 1) Download CSVs (demo only in current version)
+m3 download mimic-iv-demo
+# 2) Convert CSV → Parquet
+m3 convert mimic-iv-demo
+# 3) Create/refresh views
 m3 init mimic-iv-demo
 ```
 
@@ -409,11 +578,11 @@ m3-mcp-server
 
 ## Roadmap
 
-- **Local Full Dataset**: Complete MIMIC-IV locally (no cloud costs)
-- **Advanced Tools**: More specialized medical data functions
-- **Visualization**: Built-in plotting and charting tools
-- **Enhanced Security**: Role-based access control, audit logging
-- **Multi-tenant Support**: Organization-level data isolation
+- 🏠 **Complete Local Full Dataset**: Complete the support for `mimic-iv-full` (Download CLI)
+- 🔧 **Advanced Tools**: More specialized medical data functions
+- 📊 **Visualization**: Built-in plotting and charting tools
+- 🔐 **Enhanced Security**: Role-based access control, audit logging
+- 🌐 **Multi-tenant Support**: Organization-level data isolation
 
 ## Contributing
 

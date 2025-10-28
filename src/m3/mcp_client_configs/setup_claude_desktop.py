@@ -60,7 +60,7 @@ def get_python_path():
 
 
 def create_mcp_config(
-    backend="sqlite",
+    backend="duckdb",
     db_path=None,
     project_id=None,
     oauth2_enabled=False,
@@ -82,7 +82,7 @@ def create_mcp_config(
     }
 
     # Add backend-specific environment variables
-    if backend in ("sqlite", "duckdb") and db_path:
+    if backend == "duckdb" and db_path:
         config["mcpServers"]["m3"]["env"]["M3_DB_PATH"] = db_path
     elif backend == "bigquery" and project_id:
         config["mcpServers"]["m3"]["env"]["M3_PROJECT_ID"] = project_id
@@ -116,7 +116,7 @@ def create_mcp_config(
 
 
 def setup_claude_desktop(
-    backend="sqlite",
+    backend="duckdb",
     db_path=None,
     project_id=None,
     oauth2_enabled=False,
@@ -162,10 +162,7 @@ def setup_claude_desktop(
         print(f"📁 Config file: {claude_config_path}")
         print(f"🔧 Backend: {backend}")
 
-        if backend == "sqlite":
-            db_path_display = db_path or "default (m3_data/databases/mimic_iv_demo.db)"
-            print(f"💾 Database: {db_path_display}")
-        elif backend == "duckdb":
+        if backend == "duckdb":
             db_path_display = db_path or "default (m3_data/databases/mimic_iv_demo.duckdb)"
             print(f"💾 Database: {db_path_display}")
         elif backend == "bigquery":
@@ -207,12 +204,12 @@ def main():
     )
     parser.add_argument(
         "--backend",
-        choices=["sqlite", "duckdb", "bigquery"],
-        default="sqlite",
-        help="Backend to use (default: sqlite)",
+        choices=["duckdb", "bigquery"],
+        default="duckdb",
+        help="Backend to use (default: duckdb)",
     )
     parser.add_argument(
-        "--db-path", help="Path to SQLite or DuckDB database (for sqlite or duckdb backend)"
+        "--db-path", help="Path to DuckDB database (for duckdb backend)"
     )
     parser.add_argument(
         "--project-id", help="Google Cloud project ID (for bigquery backend)"
@@ -233,12 +230,12 @@ def main():
     args = parser.parse_args()
 
     # Validate backend-specific arguments
-    if args.backend in ("sqlite", "duckdb") and args.project_id:
+    if args.backend in ("duckdb",) and args.project_id:
         print("❌ Error: --project-id can only be used with --backend bigquery")
         exit(1)
 
     if args.backend == "bigquery" and args.db_path:
-        print("❌ Error: --db-path can only be used with --backend sqlite or duckdb")
+        print("❌ Error: --db-path can only be used with --backend duckdb")
         exit(1)
 
     # Require project_id for BigQuery backend

@@ -1,17 +1,25 @@
+import os
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import timedelta
 from pathlib import Path
 from urllib.parse import urljoin, urlparse
-from typing import Literal
-import polars as pl
+
+import duckdb
 import requests
 import typer
 from bs4 import BeautifulSoup
-import duckdb
-import time
-from datetime import timedelta
-from concurrent.futures import ThreadPoolExecutor, as_completed
-import os
 
-from m3.config import get_dataset_config, get_dataset_raw_files_path, logger
+from m3.config import (
+    get_dataset_config,
+    get_dataset_parquet_root,
+    get_default_database_path,
+    logger,
+)
+
+########################################################
+# Download functionality
+########################################################
 
 COMMON_USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -181,166 +189,29 @@ def _download_dataset_files(
     return downloaded_count == len(unique_files_to_process)
 
 
-def _load_csv_with_robust_parsing(csv_file_path: Path, table_name: str) -> pl.DataFrame:
+def download_dataset(dataset_name: str, output_root: Path) -> bool:
     """
-    Load a CSV file with proper type inference by scanning the entire file.
+    Public wrapper to download a supported dataset's CSV files.
+    - Currently intended for 'mimic-iv-demo' (public demo); extendable for others.
+    - Downloads into output_root preserving subdirectory structure (e.g., hosp/, icu/).
     """
-    df = pl.read_csv(
-        source=csv_file_path,
-        infer_schema_length=None,  # Scan entire file for proper type inference
-        try_parse_dates=True,
-        ignore_errors=False,
-        null_values=["", "NULL", "null", "\\N", "NA"],
-    )
-
-    # Log empty columns (this is normal, not an error)
-    if df.height > 0:
-        empty_columns = [col for col in df.columns if df[col].is_null().all()]
-        if empty_columns:
-            logger.info(
-                f"  Table '{table_name}': Found {len(empty_columns)} empty column(s): "
-                f"{', '.join(empty_columns[:5])}"
-                + (
-                    f" (and {len(empty_columns) - 5} more)"
-                    if len(empty_columns) > 5
-                    else ""
-                )
-            )
-
-    return df
-
-
-def _etl_csv_collection_to_sqlite(csv_source_dir: Path, db_target_path: Path) -> bool:
-    """Loads all .csv.gz files from a directory structure into an SQLite database."""
-    db_target_path.parent.mkdir(parents=True, exist_ok=True)
-    # Polars uses this format for SQLite connections
-    db_connection_uri = f"sqlite:///{db_target_path.resolve()}"
-    logger.info(
-        f"Starting ETL: loading CSVs from '{csv_source_dir}' to SQLite DB "
-        f"at '{db_target_path}'"
-    )
-
-    csv_file_paths = list(csv_source_dir.rglob("*.csv.gz"))
-    if not csv_file_paths:
+    cfg = get_dataset_config(dataset_name)
+    if not cfg:
+        logger.error(f"Unsupported dataset: {dataset_name}")
+        return False
+    if not cfg.get("file_listing_url"):
         logger.error(
-            "ETL Error: No .csv.gz files found (recursively) in source directory: "
-            f"{csv_source_dir}"
+            f"Dataset '{dataset_name}' does not have a configured listing URL. "
+            "This version only supports public demo download."
         )
         return False
 
-    successfully_loaded_count = 0
-    files_with_errors = []
-    logger.info(f"Found {len(csv_file_paths)} .csv.gz files for ETL process.")
-
-    for i, csv_file_path in enumerate(csv_file_paths):
-        # Generate table name from file path relative to the source directory
-        # e.g., source_dir/hosp/admissions.csv.gz -> hosp_admissions
-        relative_path = csv_file_path.relative_to(csv_source_dir)
-        table_name_parts = [part.lower() for part in relative_path.parts]
-        table_name = (
-            "_".join(table_name_parts)
-            .replace(".csv.gz", "")
-            .replace("-", "_")
-            .replace(".", "_")
-        )
-
-        logger.info(
-            f"[{i + 1}/{len(csv_file_paths)}] ETL: Processing '{relative_path}' "
-            f"into SQLite table '{table_name}'..."
-        )
-
-        try:
-            # Use the robust parsing function
-            df = _load_csv_with_robust_parsing(csv_file_path, table_name)
-
-            df.write_database(
-                table_name=table_name,
-                connection=db_connection_uri,
-                if_table_exists="replace",  # Overwrite table if it exists
-                engine="sqlalchemy",  # Recommended engine for Polars with SQLite
-            )
-            logger.info(
-                f"  Successfully loaded '{relative_path}' into table '{table_name}' "
-                f"({df.height} rows, {df.width} columns)."
-            )
-            successfully_loaded_count += 1
-
-        except Exception as e:
-            err_msg = (
-                f"Unexpected error during ETL for '{relative_path}' "
-                f"(target table '{table_name}'): {e}"
-            )
-            logger.error(err_msg, exc_info=True)
-            files_with_errors.append(f"{relative_path}: {e!s}")
-            # Continue to process other files even if one fails
-
-    if files_with_errors:
-        logger.warning(
-            "ETL completed with errors during processing for "
-            f"{len(files_with_errors)} file(s):"
-        )
-        for detail in files_with_errors:
-            logger.warning(f"  - {detail}")
-
-    # Strict success: all found files must be loaded without Polars/DB errors.
-    if successfully_loaded_count == len(csv_file_paths):
-        logger.info(
-            f"All {len(csv_file_paths)} CSV files successfully processed & loaded into "
-            f"{db_target_path}."
-        )
-        return True
-    elif successfully_loaded_count > 0:
-        logger.warning(
-            f"Partially completed ETL: Loaded {successfully_loaded_count} out of "
-            f"{len(csv_file_paths)} files. Some files encountered errors during "
-            "their individual processing and were not loaded."
-        )
-        return False
-    else:  # No files were successfully loaded
-        logger.error(
-            "ETL process failed: No CSV files were successfully loaded into the "
-            f"database from {csv_source_dir}."
-        )
-        return False
-
-
-def initialize_dataset(dataset_name: str, db_target_path: Path) -> bool:
-    """Initializes a dataset: downloads files and loads them into a database."""
-    dataset_config = get_dataset_config(dataset_name)
-    if not dataset_config:
-        logger.error(f"Configuration for dataset '{dataset_name}' not found.")
-        return False
-
-    raw_files_root_dir = get_dataset_raw_files_path(dataset_name)
-    raw_files_root_dir.mkdir(parents=True, exist_ok=True)
-
-    logger.info(f"Starting initialization for dataset: {dataset_name}")
-    download_ok = _download_dataset_files(
-        dataset_name, dataset_config, raw_files_root_dir
-    )
-
-    if not download_ok:
-        logger.error(
-            f"Download phase failed for dataset '{dataset_name}'. ETL skipped."
-        )
-        return False
-
-    logger.info(f"Download phase complete for '{dataset_name}'. Starting ETL phase.")
-    etl_ok = _etl_csv_collection_to_sqlite(raw_files_root_dir, db_target_path)
-
-    if not etl_ok:
-        logger.error(f"ETL phase failed for dataset '{dataset_name}'.")
-        return False
-
-    logger.info(
-        f"Dataset '{dataset_name}' successfully initialized. "
-        f"Database at: {db_target_path}"
-    )
-    return True
+    output_root.mkdir(parents=True, exist_ok=True)
+    return _download_dataset_files(dataset_name, cfg, output_root)
 
 
 ########################################################
-# DuckDB functions
+# CSV to Parquet conversion
 ########################################################
 
 def _csv_to_parquet_all(src_root: Path, parquet_root: Path) -> bool:
@@ -395,32 +266,28 @@ def _csv_to_parquet_all(src_root: Path, parquet_root: Path) -> bool:
             con.close()
 
     start_time = time.time()
-    cpu_cnt = os.cpu_count() or 4
-    # Increase default to 2 for better throughput
     max_workers = max(1, int(os.environ.get("M3_CONVERT_MAX_WORKERS", "4")))
-    
+
     total_files = len(csv_files)
     completed = 0
-    
+
     with ThreadPoolExecutor(max_workers=max_workers) as ex:
         futures = {ex.submit(_convert_one, f): f for f in csv_files}
-        
-        # Manual progress tracking for better time estimates
+
         logger.info(f"Converting {total_files} CSV files to Parquet using {max_workers} workers...")
-        
+
         for fut in as_completed(futures):
             try:
-                result_path, file_time = fut.result()
+                result_path, _ = fut.result()
                 if result_path is not None:
                     parquet_paths.append(result_path)
                     completed += 1
-                    
-                    # Log elapsed time
+
                     elapsed = time.time() - start_time
                     logger.info(
                         f"Progress: {completed}/{total_files} files "
                         f"({100*completed/total_files:.1f}%) - "
-                        f"Elapsed: {str(timedelta(seconds=int(elapsed)))} - "
+                        f"Elapsed: {timedelta(seconds=int(elapsed))!s}"
                     )
             except Exception as e:
                 csv_file = futures[fut]
@@ -430,17 +297,59 @@ def _csv_to_parquet_all(src_root: Path, parquet_root: Path) -> bool:
 
     elapsed_time = time.time() - start_time
     logger.info(
-        f"✓ Converted {len(parquet_paths)} files to Parquet under {parquet_root} "
-        f"in {str(timedelta(seconds=int(elapsed_time)))}"
+        f"\u2713 Converted {len(parquet_paths)} files to Parquet under {parquet_root} "
+        f"in {timedelta(seconds=int(elapsed_time))!s}"
     )
     return True
+
+
+def convert_csv_to_parquet(dataset_name: str, csv_root: Path, parquet_root: Path) -> bool:
+    """
+    Public wrapper to convert CSV.gz files to Parquet for a dataset.
+    - csv_root: root folder containing hosp/ and icu/ CSV.gz files
+    - parquet_root: destination root for Parquet files mirroring structure
+    """
+    if not csv_root.exists():
+        logger.error(f"CSV root not found: {csv_root}")
+        return False
+    parquet_root.mkdir(parents=True, exist_ok=True)
+    return _csv_to_parquet_all(csv_root, parquet_root)
+
+########################################################
+# DuckDB functions
+########################################################
+
+def initialize_duckdb_from_parquet(dataset_name: str, db_target_path: Path) -> bool:
+    """
+    Initialize or refresh a DuckDB for the dataset by creating views over Parquet.
+
+    Parquet root must exist under:
+    <project_root>/m3_data/parquet/<dataset_name>/
+    """
+    dataset_config = get_dataset_config(dataset_name)
+    if not dataset_config:
+        logger.error(f"Configuration for dataset '{dataset_name}' not found.")
+        return False
+
+    parquet_root = get_dataset_parquet_root(dataset_name)
+    if not parquet_root or not parquet_root.exists():
+        logger.error(
+            f"Missing Parquet directory for '{dataset_name}' at {parquet_root}. "
+            "Place Parquet files under the expected path or run the future download command."
+        )
+        return False
+
+    logger.info(
+        f"Creating or refreshing views in {db_target_path} for Parquet under {parquet_root}"
+    )
+    return _create_duckdb_with_views(db_target_path, parquet_root)
 
 
 def _create_duckdb_with_views(db_path: Path, parquet_root: Path) -> bool:
     """
     Create a DuckDB database and define one view per Parquet file,
     using the proper table naming structure that matches MIMIC-IV expectations.
-    
+
     For example:
     - hosp/admissions.parquet → view: hosp_admissions
     - icu/chartevents.parquet → view: icu_chartevents
@@ -457,35 +366,35 @@ def _create_duckdb_with_views(db_path: Path, parquet_root: Path) -> bool:
         cpu_count = os.cpu_count() or 4
         con.execute(f"PRAGMA threads={cpu_count}")
         con.execute("SET memory_limit='8GB'")  # adjust to your machine
-        
+
         logger.info(f"Creating {len(parquet_files)} views in DuckDB...")
         start_time = time.time()
         created = 0
-        
+
         for idx, pq in enumerate(parquet_files, 1):
             # Get relative path from parquet_root
             rel = pq.relative_to(parquet_root)
-            
+
             # Build view name from directory structure + filename
             # e.g., hosp/admissions.parquet -> hosp_admissions
             parts = list(rel.parent.parts) + [rel.stem]  # stem removes .parquet
-            
+
             # Clean and join parts
             view_name = "_".join(
-                p.lower().replace("-", "_").replace(".", "_") 
+                p.lower().replace("-", "_").replace(".", "_")
                 for p in parts if p != "."
             )
-            
+
             # Create view pointing to the specific parquet file
             sql = f"""
                 CREATE OR REPLACE VIEW {view_name} AS
                 SELECT * FROM read_parquet('{pq.as_posix()}');
             """
-            
+
             try:
                 con.execute(sql)
                 created += 1
-                
+
                 # Progress logging
                 if idx % 5 == 0 or idx == len(parquet_files):
                     elapsed = time.time() - start_time
@@ -495,7 +404,7 @@ def _create_duckdb_with_views(db_path: Path, parquet_root: Path) -> bool:
                         f"Progress: {idx}/{len(parquet_files)} views "
                         f"({100*idx/len(parquet_files):.1f}%) - "
                         f"Last: {view_name} - "
-                        f"ETA: {str(timedelta(seconds=int(eta_seconds)))}"
+                        f"ETA: {timedelta(seconds=int(eta_seconds))!s}"
                     )
             except Exception as e:
                 logger.error(f"Failed to create view {view_name} from {pq}: {e}")
@@ -505,72 +414,69 @@ def _create_duckdb_with_views(db_path: Path, parquet_root: Path) -> bool:
         elapsed_time = time.time() - start_time
         logger.info(
             f"✓ Created {created} views in {db_path} in "
-            f"{str(timedelta(seconds=int(elapsed_time)))}"
+            f"{timedelta(seconds=int(elapsed_time))!s}"
         )
-        
+
         # List all created views for verification
-        views_result = con.execute("SELECT name FROM sqlite_master WHERE type='view' ORDER BY name").fetchall()
-        logger.info(f"Created views: {', '.join(v[0] for v in views_result[:10])}{'...' if len(views_result) > 10 else ''}")
-        
+        views_result = con.execute(
+            "SELECT table_name FROM information_schema.tables WHERE table_type='VIEW' ORDER BY table_name"
+        ).fetchall()
+        logger.info(
+            f"Created views: {', '.join(v[0] for v in views_result[:10])}{'...' if len(views_result) > 10 else ''}"
+        )
+
         return True
     finally:
         con.close()
 
 
 def build_duckdb_from_existing_raw(dataset_name: str, db_target_path: Path) -> bool:
-    """
-    Build a DuckDB database from existing raw CSVs (no downloads).
-    - Converts CSVs under m3_data/raw_files/<dataset>/ to Parquet
-    - Creates views in DuckDB that point to those Parquet files
-    """
-    raw_files_root_dir = get_dataset_raw_files_path(dataset_name)
-    if not raw_files_root_dir or not raw_files_root_dir.exists():
+    """Deprecated. Use initialize_duckdb_from_parquet with Parquet already available."""
+    parquet_root = get_dataset_parquet_root(dataset_name)
+    if not parquet_root or not parquet_root.exists():
         logger.error(
-            f"Raw files directory not found for dataset '{dataset_name}'. "
-            "Run 'm3 init mimic-iv-demo' first for the demo, or place full data under "
-            f"{(raw_files_root_dir or Path()).resolve()}."
+            f"Parquet directory not found for dataset '{dataset_name}'. Expected at <project_root>/m3_data/parquet/{dataset_name}/"
         )
         return False
-
-    parquet_root = raw_files_root_dir.parent / "parquet" / dataset_name
-    parquet_root.mkdir(parents=True, exist_ok=True)
-
-    if not _csv_to_parquet_all(raw_files_root_dir, parquet_root):
-        return False
-
-    logger.info("✓ Created all parquet files")
-
     return _create_duckdb_with_views(db_target_path, parquet_root)
 
 
 ########################################################
-# Verification functions
+# Verification and utilities
 ########################################################
 
-def verify_table_rowcount(
-    engine: Literal["sqlite", "duckdb"],
-    db_path: Path,
-    table_name: str,
-) -> int:
-    if engine == "sqlite":
-        import sqlite3
-        conn = sqlite3.connect(db_path)
+def verify_table_rowcount(db_path: Path, table_name: str) -> int:
+    con = duckdb.connect(str(db_path))
+    try:
+        row = con.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()
+        if row is None:
+            raise RuntimeError("No result")
+        return int(row[0])
+    finally:
+        con.close()
+
+
+def ensure_duckdb_for_dataset(dataset_key: str) -> tuple[bool, Path | None, Path | None]:
+    """
+    Ensure DuckDB exists and views are created for the dataset ('mimic-iv-demo'|'mimic-iv-full').
+    Returns (ok, db_path, parquet_root).
+    """
+    db_path = get_default_database_path(dataset_key)
+    parquet_root = get_dataset_parquet_root(dataset_key)
+    if not parquet_root or not parquet_root.exists():
+        logger.error(
+            f"Parquet directory missing: {parquet_root}. Expected at <project_root>/m3_data/parquet/{dataset_key}/"
+        )
+        return False, db_path, parquet_root
+    ok = _create_duckdb_with_views(db_path, parquet_root)
+    return ok, db_path, parquet_root
+
+
+def compute_parquet_dir_size(parquet_root: Path) -> int:
+    total = 0
+    for p in parquet_root.rglob("*.parquet"):
         try:
-            cur = conn.cursor()
-            cur.execute(f"SELECT COUNT(*) FROM {table_name}")
-            row = cur.fetchone()
-            if row is None:
-                raise sqlite3.Error("No result")
-            return int(row[0])
-        finally:
-            conn.close()
-    else:  # duckdb
-        import duckdb
-        con = duckdb.connect(str(db_path))
-        try:
-            row = con.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()
-            if row is None:
-                raise RuntimeError("No result")
-            return int(row[0])
-        finally:
-            con.close()
+            total += p.stat().st_size
+        except OSError:
+            pass
+    return total

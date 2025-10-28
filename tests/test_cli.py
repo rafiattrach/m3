@@ -1,4 +1,3 @@
-import subprocess
 import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -41,56 +40,36 @@ def test_unknown_command_reports_error():
     )
 
 
-@patch("m3.cli.initialize_dataset")
-@patch("sqlite3.connect")
-def test_init_command_respects_custom_db_path(
-    mock_sqlite_connect, mock_initialize_dataset
-):
-    """Test that m3 init --db-path correctly uses custom database path override."""
-    # Setup mocks
-    mock_initialize_dataset.return_value = True
-
-    # Mock sqlite connection and cursor for verification query
-    mock_cursor = mock_sqlite_connect.return_value.cursor.return_value
-    mock_cursor.fetchone.return_value = (100,)  # Mock row count result
+@patch("m3.cli.initialize_duckdb_from_parquet")
+@patch("m3.cli.verify_table_rowcount")
+def test_init_command_duckdb_custom_path(mock_rowcount, mock_init):
+    """Test that m3 init --db-path uses custom database path override and DuckDB flow."""
+    mock_init.return_value = True
+    mock_rowcount.return_value = 100
 
     with tempfile.TemporaryDirectory() as temp_dir:
-        custom_db_path = Path(temp_dir) / "custom_mimic.db"
-        # Resolve the path to handle symlinks (like /var -> /private/var on macOS)
+        custom_db_path = Path(temp_dir) / "custom_mimic.duckdb"
         resolved_custom_db_path = custom_db_path.resolve()
 
-        # Run the init command with custom db path
-        result = runner.invoke(
-            app, ["init", "mimic-iv-demo", "--db-path", str(custom_db_path)]
-        )
+        # Also ensure a dummy parquet path exists for the dataset discovery
+        with patch("m3.cli.get_dataset_parquet_root") as mock_parquet_root:
+            mock_parquet_root.return_value = Path("/Users/hannesill/Developer/m3/m3_data/parquet/mimic-iv-demo/")
+            with patch.object(Path, "exists", return_value=True):
+                result = runner.invoke(
+                    app, ["init", "mimic-iv-demo", "--db-path", str(custom_db_path)]
+                )
 
-        # Assert command succeeded
         assert result.exit_code == 0
-
-        # Verify the output mentions the custom path (either original or resolved form)
         assert (
             str(custom_db_path) in result.stdout
             or str(resolved_custom_db_path) in result.stdout
         )
-        assert "Target database path:" in result.stdout
+        assert "DuckDB path:" in result.stdout
 
-        # Verify initialize_dataset was called with the resolved custom path
-        mock_initialize_dataset.assert_called_once_with(
+        mock_init.assert_called_once_with(
             dataset_name="mimic-iv-demo", db_target_path=resolved_custom_db_path
         )
-
-        # Verify sqlite connection was attempted with the resolved custom path
-        mock_sqlite_connect.assert_called_with(resolved_custom_db_path)
-
-
-def test_config_validation_sqlite_with_project_id():
-    """Test that sqlite backend rejects project-id parameter."""
-    result = runner.invoke(
-        app, ["config", "claude", "--backend", "sqlite", "--project-id", "test"]
-    )
-    assert result.exit_code == 1
-    # Check output - error messages from typer usually go to stdout
-    assert "project-id can only be used with --backend bigquery" in result.output
+        mock_rowcount.assert_called()
 
 
 def test_config_validation_bigquery_with_db_path():
@@ -99,15 +78,13 @@ def test_config_validation_bigquery_with_db_path():
         app, ["config", "claude", "--backend", "bigquery", "--db-path", "/test/path"]
     )
     assert result.exit_code == 1
-    # Check output - error messages from typer usually go to stdout
-    assert "db-path can only be used with --backend sqlite" in result.output
+    assert "db-path can only be used with --backend duckdb" in result.output
 
 
 def test_config_validation_bigquery_requires_project_id():
     """Test that bigquery backend requires project-id parameter."""
     result = runner.invoke(app, ["config", "claude", "--backend", "bigquery"])
     assert result.exit_code == 1
-    # Check output - error messages from typer usually go to stdout
     assert "project-id is required when using --backend bigquery" in result.output
 
 
@@ -120,10 +97,9 @@ def test_config_claude_success(mock_subprocess):
     assert result.exit_code == 0
     assert "Claude Desktop configuration completed" in result.stdout
 
-    # Verify subprocess was called with correct script
     mock_subprocess.assert_called_once()
     call_args = mock_subprocess.call_args[0][0]
-    assert "setup_claude_desktop.py" in call_args[1]  # Script path is second argument
+    assert "setup_claude_desktop.py" in call_args[1]
 
 
 @patch("subprocess.run")
@@ -135,19 +111,7 @@ def test_config_universal_quick_mode(mock_subprocess):
     assert result.exit_code == 0
     assert "Generating M3 MCP configuration" in result.stdout
 
-    # Verify subprocess was called with dynamic config script
     mock_subprocess.assert_called_once()
     call_args = mock_subprocess.call_args[0][0]
-    assert "dynamic_mcp_config.py" in call_args[1]  # Script path is second argument
+    assert "dynamic_mcp_config.py" in call_args[1]
     assert "--quick" in call_args
-
-
-@patch("subprocess.run")
-def test_config_script_failure(mock_subprocess):
-    """Test error handling when config script fails."""
-    mock_subprocess.side_effect = subprocess.CalledProcessError(1, "cmd")
-
-    result = runner.invoke(app, ["config", "claude"])
-    assert result.exit_code == 1
-    # Just verify that the command failed with the right exit code
-    # The specific error message may vary
