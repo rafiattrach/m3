@@ -6,6 +6,10 @@ import requests
 import typer
 from bs4 import BeautifulSoup
 import duckdb
+import time
+from datetime import timedelta
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import os
 
 from m3.config import get_dataset_config, get_dataset_raw_files_path, logger
 
@@ -342,52 +346,176 @@ def initialize_dataset(dataset_name: str, db_target_path: Path) -> bool:
 def _csv_to_parquet_all(src_root: Path, parquet_root: Path) -> bool:
     """
     Convert all CSV files in the source directory to Parquet files.
+    - Streams via DuckDB COPY to keep memory low
+    - Low concurrency to avoid parallel memory spikes
+    - Tunable via env:
+        M3_CONVERT_MAX_WORKERS (default: 4)
+        M3_DUCKDB_MEM         (default: 3GB)
+        M3_DUCKDB_THREADS     (default: 2)
     """
     parquet_paths: list[Path] = []
-    for csv_gz in src_root.rglob("*.csv.gz"):
+    csv_files = list(src_root.rglob("*.csv.gz"))
+    if not csv_files:
+        logger.error(f"No CSV files found in {src_root}")
+        return False
+
+    # Optional: process small files first so progress moves smoothly
+    try:
+        csv_files.sort(key=lambda p: p.stat().st_size)
+    except Exception:
+        pass
+
+    def _convert_one(csv_gz: Path) -> tuple[Path | None, float]:
+        """Convert one CSV file and return the output path and time taken."""
+        start = time.time()
         rel = csv_gz.relative_to(src_root)
         out = parquet_root / rel.with_suffix("").with_suffix(".parquet")
         out.parent.mkdir(parents=True, exist_ok=True)
+
+        con = duckdb.connect()
         try:
-            df = pl.read_csv(
-                source=str(csv_gz),
-                infer_schema_length=None,
-                try_parse_dates=True,
-                ignore_errors=False,
-                null_values=["", "NULL", "null", "\\N", "NA"],
-            )
-            df.write_parquet(str(out))
-            parquet_paths.append(out)
-        except Exception as e:
-            logger.error(f"Parquet conversion failed for {csv_gz}: {e}")
-            return False
-    logger.info(f"Converted {len(parquet_paths)} files to Parquet under {parquet_root}")
+            mem_limit = os.environ.get("M3_DUCKDB_MEM", "3GB")
+            threads = int(os.environ.get("M3_DUCKDB_THREADS", "2"))
+            con.execute(f"SET memory_limit='{mem_limit}'")
+            con.execute(f"PRAGMA threads={threads}")
+
+            # Streamed CSV -> Parquet conversion
+            # 'all_varchar=true' avoids expensive/wide type inference;
+            # if you prefer typed inference, drop it and keep sample_size=-1.
+            sql = f"""
+                COPY (
+                  SELECT * FROM read_csv_auto('{csv_gz.as_posix()}', sample_size=-1, all_varchar=true)
+                )
+                TO '{out.as_posix()}' (FORMAT PARQUET, COMPRESSION ZSTD);
+            """
+            con.execute(sql)
+            elapsed = time.time() - start
+            return out, elapsed
+        finally:
+            con.close()
+
+    start_time = time.time()
+    cpu_cnt = os.cpu_count() or 4
+    # Increase default to 2 for better throughput
+    max_workers = max(1, int(os.environ.get("M3_CONVERT_MAX_WORKERS", "4")))
+    
+    total_files = len(csv_files)
+    completed = 0
+    
+    with ThreadPoolExecutor(max_workers=max_workers) as ex:
+        futures = {ex.submit(_convert_one, f): f for f in csv_files}
+        
+        # Manual progress tracking for better time estimates
+        logger.info(f"Converting {total_files} CSV files to Parquet using {max_workers} workers...")
+        
+        for fut in as_completed(futures):
+            try:
+                result_path, file_time = fut.result()
+                if result_path is not None:
+                    parquet_paths.append(result_path)
+                    completed += 1
+                    
+                    # Log elapsed time
+                    elapsed = time.time() - start_time
+                    logger.info(
+                        f"Progress: {completed}/{total_files} files "
+                        f"({100*completed/total_files:.1f}%) - "
+                        f"Elapsed: {str(timedelta(seconds=int(elapsed)))} - "
+                    )
+            except Exception as e:
+                csv_file = futures[fut]
+                logger.error(f"Parquet conversion failed for {csv_file}: {e}")
+                ex.shutdown(cancel_futures=True)
+                return False
+
+    elapsed_time = time.time() - start_time
+    logger.info(
+        f"✓ Converted {len(parquet_paths)} files to Parquet under {parquet_root} "
+        f"in {str(timedelta(seconds=int(elapsed_time)))}"
+    )
     return True
+
 
 def _create_duckdb_with_views(db_path: Path, parquet_root: Path) -> bool:
     """
-    Create a DuckDB database from existing Parquet files and create views for each table.
+    Create a DuckDB database and define one view per Parquet file,
+    using the proper table naming structure that matches MIMIC-IV expectations.
+    
+    For example:
+    - hosp/admissions.parquet → view: hosp_admissions
+    - icu/chartevents.parquet → view: icu_chartevents
     """
     con = duckdb.connect(str(db_path))
     try:
-        for pq in parquet_root.rglob("*.parquet"):
+        # Find all parquet files
+        parquet_files = list(parquet_root.rglob("*.parquet"))
+        if not parquet_files:
+            logger.error(f"No Parquet files found in {parquet_root}")
+            return False
+
+        # Optimize DuckDB settings
+        cpu_count = os.cpu_count() or 4
+        con.execute(f"PRAGMA threads={cpu_count}")
+        con.execute("SET memory_limit='8GB'")  # adjust to your machine
+        
+        logger.info(f"Creating {len(parquet_files)} views in DuckDB...")
+        start_time = time.time()
+        created = 0
+        
+        for idx, pq in enumerate(parquet_files, 1):
+            # Get relative path from parquet_root
             rel = pq.relative_to(parquet_root)
-            parts = [p.lower() for p in rel.parts]
-            table = (
-                "_".join(parts)
-                .replace(".parquet", "")
-                .replace("-", "_")
-                .replace(".", "_")
+            
+            # Build view name from directory structure + filename
+            # e.g., hosp/admissions.parquet -> hosp_admissions
+            parts = list(rel.parent.parts) + [rel.stem]  # stem removes .parquet
+            
+            # Clean and join parts
+            view_name = "_".join(
+                p.lower().replace("-", "_").replace(".", "_") 
+                for p in parts if p != "."
             )
-            sql = (
-                f"CREATE OR REPLACE VIEW {table} "
-                f"AS SELECT * FROM read_parquet('{pq.as_posix()}');"
-            )
-            con.execute(sql)
+            
+            # Create view pointing to the specific parquet file
+            sql = f"""
+                CREATE OR REPLACE VIEW {view_name} AS
+                SELECT * FROM read_parquet('{pq.as_posix()}');
+            """
+            
+            try:
+                con.execute(sql)
+                created += 1
+                
+                # Progress logging
+                if idx % 5 == 0 or idx == len(parquet_files):
+                    elapsed = time.time() - start_time
+                    avg_time = elapsed / idx
+                    eta_seconds = avg_time * (len(parquet_files) - idx)
+                    logger.info(
+                        f"Progress: {idx}/{len(parquet_files)} views "
+                        f"({100*idx/len(parquet_files):.1f}%) - "
+                        f"Last: {view_name} - "
+                        f"ETA: {str(timedelta(seconds=int(eta_seconds)))}"
+                    )
+            except Exception as e:
+                logger.error(f"Failed to create view {view_name} from {pq}: {e}")
+                raise
+
         con.commit()
+        elapsed_time = time.time() - start_time
+        logger.info(
+            f"✓ Created {created} views in {db_path} in "
+            f"{str(timedelta(seconds=int(elapsed_time)))}"
+        )
+        
+        # List all created views for verification
+        views_result = con.execute("SELECT name FROM sqlite_master WHERE type='view' ORDER BY name").fetchall()
+        logger.info(f"Created views: {', '.join(v[0] for v in views_result[:10])}{'...' if len(views_result) > 10 else ''}")
+        
         return True
     finally:
         con.close()
+
 
 def build_duckdb_from_existing_raw(dataset_name: str, db_target_path: Path) -> bool:
     """
@@ -409,6 +537,8 @@ def build_duckdb_from_existing_raw(dataset_name: str, db_target_path: Path) -> b
 
     if not _csv_to_parquet_all(raw_files_root_dir, parquet_root):
         return False
+
+    logger.info("✓ Created all parquet files")
 
     return _create_duckdb_with_views(db_target_path, parquet_root)
 

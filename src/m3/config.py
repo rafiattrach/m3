@@ -48,9 +48,15 @@ SUPPORTED_DATASETS = {
         "subdirectories_to_scan": ["hosp", "icu"],
         "default_db_filename": "mimic_iv_demo.db",
         "default_duckdb_filename": "mimic_iv_demo.duckdb",
-        "primary_verification_table": "hosp_admissions",  # Table name in SQLite DB
+        "primary_verification_table": "hosp_admissions",
     },
-    # add other datasets here...
+    "mimic-iv-full": {
+        "file_listing_url": None,
+        "subdirectories_to_scan": ["hosp", "icu"],
+        "default_db_filename": "mimic_iv_full.db",
+        "default_duckdb_filename": "mimic_iv_full.duckdb",
+        "primary_verification_table": "hosp_admissions",
+    },
 }
 
 
