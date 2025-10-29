@@ -21,8 +21,8 @@ def test_default_paths(tmp_path, monkeypatch):
     # Redirect default dirs to a temp location
     import m3.config as cfg_mod
 
-    monkeypatch.setattr(cfg_mod, "DEFAULT_DATABASES_DIR", tmp_path / "dbs")
-    monkeypatch.setattr(cfg_mod, "DEFAULT_PARQUET_DIR", tmp_path / "parquet")
+    monkeypatch.setattr(cfg_mod, "_DEFAULT_DATABASES_DIR", tmp_path / "dbs")
+    monkeypatch.setattr(cfg_mod, "_DEFAULT_PARQUET_DIR", tmp_path / "parquet")
     db_path = get_default_database_path("mimic-iv-demo", engine="duckdb")
     raw_path = get_dataset_parquet_root("mimic-iv-demo")
     # They should be Path objects and exist
@@ -35,6 +35,6 @@ def test_default_paths(tmp_path, monkeypatch):
 def test_raw_path_includes_dataset_name(tmp_path, monkeypatch):
     import m3.config as cfg_mod
 
-    monkeypatch.setattr(cfg_mod, "DEFAULT_PARQUET_DIR", tmp_path / "parquet")
+    monkeypatch.setattr(cfg_mod, "_DEFAULT_PARQUET_DIR", tmp_path / "parquet")
     raw_path = get_dataset_parquet_root("mimic-iv-demo")
     assert "mimic-iv-demo" in str(raw_path)

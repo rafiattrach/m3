@@ -111,7 +111,7 @@ class TestMCPTools:
             )
             con.execute(
                 """
-                INSERT INTO icu_icustays VALUES
+                INSERT INTO icu_icustays (subject_id, hadm_id, stay_id, intime, outtime) VALUES
                     (10000032, 20000001, 30000001, '2180-07-23 15:00:00', '2180-07-24 12:00:00'),
                     (10000033, 20000002, 30000002, '2180-08-15 10:30:00', '2180-08-16 14:15:00')
                 """
@@ -129,7 +129,7 @@ class TestMCPTools:
             )
             con.execute(
                 """
-                INSERT INTO hosp_labevents VALUES
+                INSERT INTO hosp_labevents (subject_id, hadm_id, itemid, charttime, value) VALUES
                     (10000032, 20000001, 50912, '2180-07-23 16:00:00', '120'),
                     (10000033, 20000002, 50912, '2180-08-15 11:00:00', '95')
                 """

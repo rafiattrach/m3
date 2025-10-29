@@ -98,8 +98,8 @@ def dataset_init_cmd(
     """
     Initialize a local dataset by creating DuckDB views over existing Parquet files.
 
-    - Parquet must already exist under /Users/hannesill/Developer/m3/m3_data/parquet/<dataset_name>/
-    - DuckDB file will be at /Users/hannesill/Developer/m3/m3_data/databases/<dataset>.duckdb
+    - Parquet must already exist under <project_root>/m3_data/parquet/<dataset_name>/
+    - DuckDB file will be at <project_root>/m3_data/databases/<dataset>.duckdb
     """
     logger.info(f"CLI 'init' called for dataset: '{dataset_name}'")
 
@@ -244,21 +244,28 @@ def use_cmd(
 def status_cmd():
     """Show active dataset, local DB path, Parquet presence, quick counts and sizes."""
     active = get_active_dataset() or "(unset)"
-    typer.echo(f"Active dataset: {active}")
+    typer.secho(f"Active dataset: {active}", fg=typer.colors.BRIGHT_GREEN if active != "(unset)" else typer.colors.YELLOW)
 
     availability = detect_available_local_datasets()
 
     for label in ("demo", "full"):
         info = availability[label]
-        typer.echo(
-            f"{label}: parquet_present={info['parquet_present']} db_present={info['db_present']}\n  parquet_root={info['parquet_root']}\n  db_path={info['db_path']}"
-        )
+        typer.secho(f"\n=== {label.upper()} ===", fg=typer.colors.BRIGHT_BLUE)
+
+        parquet_icon = "✅" if info["parquet_present"] else "❌"
+        db_icon = "✅" if info["db_present"] else "❌"
+
+        typer.echo(f"  parquet_present: {parquet_icon}  db_present: {db_icon}")
+        typer.echo(f"  parquet_root: {info['parquet_root']}")
+        typer.echo(f"  db_path: {info['db_path']}")
+
         if info["parquet_present"]:
             try:
                 size_bytes = compute_parquet_dir_size(Path(info["parquet_root"]))
-                typer.echo(f"  parquet_size_bytes={size_bytes}")
+                size_gb = float(size_bytes) / (1024 ** 3)
+                typer.echo(f"  parquet_size_gb: {size_gb:.4f} GB")
             except Exception:
-                typer.echo("  parquet_size_bytes=(skipped)")
+                typer.echo("  parquet_size_gb: (skipped)")
 
         # Try a quick rowcount on the verification table if db present
         ds_name = "mimic-iv-demo" if label == "demo" else "mimic-iv-full"
@@ -266,9 +273,9 @@ def status_cmd():
         if info["db_present"] and cfg:
             try:
                 count = verify_table_rowcount(Path(info["db_path"]), cfg["primary_verification_table"])
-                typer.echo(f"  {cfg['primary_verification_table']}_rowcount={count}")
+                typer.echo(f"  {cfg['primary_verification_table']}_rowcount: {count:,}")
             except Exception:
-                typer.echo("  rowcount=(skipped)")
+                typer.echo("  rowcount: (skipped)")
 
 
 @app.command("config")
@@ -392,14 +399,25 @@ def config_cmd(
             )
             raise typer.Exit(code=1)
 
-        # Build command arguments
+        # Build command arguments with smart defaults inferred from runtime config
         cmd = [sys.executable, str(script_path)]
 
+        # Always pass backend if not duckdb; duckdb is the script default
         if backend != "duckdb":
             cmd.extend(["--backend", backend])
 
-        if backend == "duckdb" and db_path:
-            cmd.extend(["--db-path", db_path])
+        # For duckdb, infer db_path from active dataset if not provided
+        if backend == "duckdb":
+            effective_db_path = db_path
+            if not effective_db_path:
+                active = get_active_dataset()
+                # Default to demo if unset
+                dataset_key = "mimic-iv-full" if active == "full" else "mimic-iv-demo"
+                guessed = get_default_database_path(dataset_key, "duckdb")
+                if guessed is not None:
+                    effective_db_path = str(guessed)
+            if effective_db_path:
+                cmd.extend(["--db-path", effective_db_path])
         elif backend == "bigquery" and project_id:
             cmd.extend(["--project-id", project_id])
 

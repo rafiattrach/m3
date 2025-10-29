@@ -1,4 +1,5 @@
 import tempfile
+import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -18,7 +19,9 @@ def inject_version(monkeypatch):
 
 def test_help_shows_app_name():
     result = runner.invoke(app, ["--help"])
+    # exit code 0 for successful help display
     assert result.exit_code == 0
+    # help output contains the app name
     assert "M3 CLI" in result.stdout
 
 
@@ -30,6 +33,7 @@ def test_version_option_exits_zero_and_shows_version():
 
 def test_unknown_command_reports_error():
     result = runner.invoke(app, ["not-a-cmd"])
+    # unknown command should fail
     assert result.exit_code != 0
     # Check both stdout and stderr since error messages might go to either depending on environment
     error_message = "No such command 'not-a-cmd'"
@@ -66,9 +70,11 @@ def test_init_command_duckdb_custom_path(mock_rowcount, mock_init):
         )
         assert "DuckDB path:" in result.stdout
 
+        # initializer should be called with the resolved path
         mock_init.assert_called_once_with(
             dataset_name="mimic-iv-demo", db_target_path=resolved_custom_db_path
         )
+        # verification query should be attempted
         mock_rowcount.assert_called()
 
 
@@ -77,6 +83,7 @@ def test_config_validation_bigquery_with_db_path():
     result = runner.invoke(
         app, ["config", "claude", "--backend", "bigquery", "--db-path", "/test/path"]
     )
+    # should fail when db-path is provided with bigquery
     assert result.exit_code == 1
     assert "db-path can only be used with --backend duckdb" in result.output
 
@@ -84,8 +91,20 @@ def test_config_validation_bigquery_with_db_path():
 def test_config_validation_bigquery_requires_project_id():
     """Test that bigquery backend requires project-id parameter."""
     result = runner.invoke(app, ["config", "claude", "--backend", "bigquery"])
+    # missing project-id should fail for bigquery backend
     assert result.exit_code == 1
     assert "project-id is required when using --backend bigquery" in result.output
+
+
+def test_config_validation_duckdb_with_project_id():
+    """Test that duckdb backend rejects project-id parameter."""
+    result = runner.invoke(
+        app, ["config", "claude", "--backend", "duckdb", "--project-id", "test"]
+    )
+    # should fail when project-id is provided with duckdb
+    assert result.exit_code == 1
+    # Check output - error messages from typer usually go to stdout
+    assert "project-id can only be used with --backend bigquery" in result.output
 
 
 @patch("subprocess.run")
@@ -99,6 +118,7 @@ def test_config_claude_success(mock_subprocess):
 
     mock_subprocess.assert_called_once()
     call_args = mock_subprocess.call_args[0][0]
+    # correct script should be invoked
     assert "setup_claude_desktop.py" in call_args[1]
 
 
@@ -115,3 +135,98 @@ def test_config_universal_quick_mode(mock_subprocess):
     call_args = mock_subprocess.call_args[0][0]
     assert "dynamic_mcp_config.py" in call_args[1]
     assert "--quick" in call_args
+
+
+@patch("subprocess.run")
+def test_config_script_failure(mock_subprocess):
+    """Test error handling when config script fails."""
+    mock_subprocess.side_effect = subprocess.CalledProcessError(1, "cmd")
+
+    result = runner.invoke(app, ["config", "claude"])
+    # command should return failure exit code when subprocess fails
+    assert result.exit_code == 1
+    # Just verify that the command failed with the right exit code
+    # The specific error message may vary
+
+@patch("subprocess.run")
+@patch("m3.cli.get_default_database_path")
+@patch("m3.cli.get_active_dataset")
+def test_config_claude_infers_db_path_demo(mock_active, mock_get_default, mock_subprocess):
+    mock_active.return_value = None  # unset -> default to demo
+    mock_get_default.return_value = Path("/tmp/inferred-demo.duckdb")
+    mock_subprocess.return_value = MagicMock(returncode=0)
+
+    result = runner.invoke(app, ["config", "claude"])
+    assert result.exit_code == 0
+
+    # subprocess run should be called with inferred --db-path
+    call_args = mock_subprocess.call_args[0][0]
+    assert "--db-path" in call_args
+    assert "/tmp/inferred-demo.duckdb" in call_args
+
+    # Should have asked for demo duckdb path
+    mock_get_default.assert_called()
+
+
+@patch("subprocess.run")
+@patch("m3.cli.get_default_database_path")
+@patch("m3.cli.get_active_dataset")
+def test_config_claude_infers_db_path_full(mock_active, mock_get_default, mock_subprocess):
+    mock_active.return_value = "full"
+    mock_get_default.return_value = Path("/tmp/inferred-full.duckdb")
+    mock_subprocess.return_value = MagicMock(returncode=0)
+
+    result = runner.invoke(app, ["config", "claude"])
+    assert result.exit_code == 0
+
+    call_args = mock_subprocess.call_args[0][0]
+    assert "--db-path" in call_args
+    assert "/tmp/inferred-full.duckdb" in call_args
+
+@patch("m3.cli.set_active_dataset")
+@patch("m3.cli.detect_available_local_datasets")
+def test_use_full_happy_path(mock_detect, mock_set_active):
+    mock_detect.return_value = {
+        "demo": {
+            "parquet_present": False,
+            "db_present": False,
+            "parquet_root": "/tmp/demo",
+            "db_path": "/tmp/demo.duckdb",
+        },
+        "full": {
+            "parquet_present": True,
+            "db_present": False,
+            "parquet_root": "/tmp/full",
+            "db_path": "/tmp/full.duckdb",
+        },
+    }
+
+    result = runner.invoke(app, ["use", "full"])
+    assert result.exit_code == 0
+    assert "Active dataset set to 'full'." in result.stdout
+    mock_set_active.assert_called_once_with("full")
+
+
+@patch("m3.cli.compute_parquet_dir_size", return_value=123)
+@patch("m3.cli.get_active_dataset", return_value="full")
+@patch("m3.cli.detect_available_local_datasets")
+def test_status_happy_path(mock_detect, mock_active, mock_size):
+    mock_detect.return_value = {
+        "demo": {
+            "parquet_present": True,
+            "db_present": False,
+            "parquet_root": "/tmp/demo",
+            "db_path": "/tmp/demo.duckdb",
+        },
+        "full": {
+            "parquet_present": True,
+            "db_present": False,
+            "parquet_root": "/tmp/full",
+            "db_path": "/tmp/full.duckdb",
+        },
+    }
+
+    result = runner.invoke(app, ["status"])
+    assert result.exit_code == 0
+    assert "Active dataset: full" in result.stdout
+    assert "parquet_size_bytes=123" in result.stdout

@@ -312,6 +312,7 @@ After installation, choose your data source:
    ```bash
    m3 convert mimic-iv-full
    ```
+   - This may take up to 30 minutes, depending on your system (e.g. 10 minutes for MacBook Pro M3)
    - Default destination: `/Users/you/path/to/m3/m3_data/parquet/mimic-iv-full/`
    - Performance knobs (optional):
      ```bash

@@ -250,12 +250,16 @@ def _csv_to_parquet_all(src_root: Path, parquet_root: Path) -> bool:
             con.execute(f"SET memory_limit='{mem_limit}'")
             con.execute(f"PRAGMA threads={threads}")
 
-            # Streamed CSV -> Parquet conversion
-            # 'all_varchar=true' avoids expensive/wide type inference;
-            # if you prefer typed inference, drop it and keep sample_size=-1.
+            # Streamed CSV -> Parquet conversion with robust parsing
             sql = f"""
                 COPY (
-                  SELECT * FROM read_csv_auto('{csv_gz.as_posix()}', sample_size=-1, all_varchar=true)
+                  SELECT * FROM read_csv_auto(
+                    '{csv_gz.as_posix()}',
+                    sample_size=-1,
+                    auto_detect=true,
+                    nullstr=['', 'NULL', 'NA', 'N/A', '___'],
+                    ignore_errors=false
+                  )
                 )
                 TO '{out.as_posix()}' (FORMAT PARQUET, COMPRESSION ZSTD);
             """
@@ -428,17 +432,6 @@ def _create_duckdb_with_views(db_path: Path, parquet_root: Path) -> bool:
         return True
     finally:
         con.close()
-
-
-def build_duckdb_from_existing_raw(dataset_name: str, db_target_path: Path) -> bool:
-    """Deprecated. Use initialize_duckdb_from_parquet with Parquet already available."""
-    parquet_root = get_dataset_parquet_root(dataset_name)
-    if not parquet_root or not parquet_root.exists():
-        logger.error(
-            f"Parquet directory not found for dataset '{dataset_name}'. Expected at <project_root>/m3_data/parquet/{dataset_name}/"
-        )
-        return False
-    return _create_duckdb_with_views(db_target_path, parquet_root)
 
 
 ########################################################

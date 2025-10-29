@@ -36,9 +36,9 @@ def _get_project_root() -> Path:
 _PROJECT_ROOT = _get_project_root()
 _PROJECT_DATA_DIR = _PROJECT_ROOT / "m3_data"
 
-DEFAULT_DATABASES_DIR = _PROJECT_DATA_DIR / "databases"
-DEFAULT_PARQUET_DIR = _PROJECT_DATA_DIR / "parquet"
-RUNTIME_CONFIG_PATH = _PROJECT_DATA_DIR / "config.json"
+_DEFAULT_DATABASES_DIR = _PROJECT_DATA_DIR / "databases"
+_DEFAULT_PARQUET_DIR = _PROJECT_DATA_DIR / "parquet"
+_RUNTIME_CONFIG_PATH = _PROJECT_DATA_DIR / "config.json"
 
 
 # --------------------------------------------------
@@ -90,12 +90,12 @@ def get_default_database_path(dataset_name: str, engine: Literal["duckdb", "bigq
         logger.warning(f"Unknown dataset, cannot determine default DB path: {dataset_name}")
         return None
 
-    DEFAULT_DATABASES_DIR.mkdir(parents=True, exist_ok=True)
+    _DEFAULT_DATABASES_DIR.mkdir(parents=True, exist_ok=True)
     db_fname = cfg.get("default_duckdb_filename")
     if not db_fname:
         logger.warning(f"Missing default DuckDB filename for dataset: {dataset_name}")
         return None
-    return DEFAULT_DATABASES_DIR / db_fname
+    return _DEFAULT_DATABASES_DIR / db_fname
 
 def get_dataset_parquet_root(dataset_name: str) -> Path | None:
     """
@@ -106,7 +106,7 @@ def get_dataset_parquet_root(dataset_name: str) -> Path | None:
     if not cfg:
         logger.warning(f"Unknown dataset, cannot determine Parquet root: {dataset_name}")
         return None
-    path = DEFAULT_PARQUET_DIR / dataset_name.lower()
+    path = _DEFAULT_PARQUET_DIR / dataset_name.lower()
     path.mkdir(parents=True, exist_ok=True)
     return path
 
@@ -115,40 +115,44 @@ def get_dataset_parquet_root(dataset_name: str) -> Path | None:
 # Runtime config (active dataset)
 # -----------------------------
 def _ensure_data_dirs():
-    DEFAULT_DATABASES_DIR.mkdir(parents=True, exist_ok=True)
-    DEFAULT_PARQUET_DIR.mkdir(parents=True, exist_ok=True)
+    _DEFAULT_DATABASES_DIR.mkdir(parents=True, exist_ok=True)
+    _DEFAULT_PARQUET_DIR.mkdir(parents=True, exist_ok=True)
     _PROJECT_DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def get_runtime_config_path() -> Path:
-    return RUNTIME_CONFIG_PATH
+    return _RUNTIME_CONFIG_PATH
+
+
+
+_DEFAULT_RUNTIME_CONFIG = {
+    "active_dataset": None,
+    "duckdb_paths": {
+        "demo": str(get_default_database_path("mimic-iv-demo") or ""),
+        "full": str(get_default_database_path("mimic-iv-full") or ""),
+    },
+    "parquet_roots": {
+        "demo": str(get_dataset_parquet_root("mimic-iv-demo") or ""),
+        "full": str(get_dataset_parquet_root("mimic-iv-full") or ""),
+    },
+}
 
 
 def load_runtime_config() -> dict:
     """Load runtime configuration from <project_root>/m3_data/config.json."""
     _ensure_data_dirs()
-    if RUNTIME_CONFIG_PATH.exists():
+    if _RUNTIME_CONFIG_PATH.exists():
         try:
-            return json.loads(RUNTIME_CONFIG_PATH.read_text())
+            return json.loads(_RUNTIME_CONFIG_PATH.read_text())
         except Exception:
             logger.warning("Could not parse runtime config; using defaults")
     # defaults
-    return {
-        "active_dataset": None,
-        "duckdb_paths": {
-            "demo": str(get_default_database_path("mimic-iv-demo") or ""),
-            "full": str(get_default_database_path("mimic-iv-full") or ""),
-        },
-        "parquet_roots": {
-            "demo": str(get_dataset_parquet_root("mimic-iv-demo") or ""),
-            "full": str(get_dataset_parquet_root("mimic-iv-full") or ""),
-        },
-    }
+    return _DEFAULT_RUNTIME_CONFIG
 
 
 def save_runtime_config(cfg: dict) -> None:
     _ensure_data_dirs()
-    RUNTIME_CONFIG_PATH.write_text(json.dumps(cfg, indent=2))
+    _RUNTIME_CONFIG_PATH.write_text(json.dumps(cfg, indent=2))
 
 
 def _has_parquet_files(path: Path | None) -> bool:
@@ -158,22 +162,22 @@ def _has_parquet_files(path: Path | None) -> bool:
 def detect_available_local_datasets() -> dict:
     """Return presence flags for demo/full based on Parquet roots and DuckDB files."""
     cfg = load_runtime_config()
-    demo_parquet = Path(cfg["parquet_roots"]["demo"]) if cfg["parquet_roots"]["demo"] else get_dataset_parquet_root("mimic-iv-demo")
-    full_parquet = Path(cfg["parquet_roots"]["full"]) if cfg["parquet_roots"]["full"] else get_dataset_parquet_root("mimic-iv-full")
-    demo_db = Path(cfg["duckdb_paths"]["demo"]) if cfg["duckdb_paths"]["demo"] else get_default_database_path("mimic-iv-demo")
-    full_db = Path(cfg["duckdb_paths"]["full"]) if cfg["duckdb_paths"]["full"] else get_default_database_path("mimic-iv-full")
+    demo_parquet_path = Path(cfg["parquet_roots"]["demo"]) if cfg["parquet_roots"]["demo"] else get_dataset_parquet_root("mimic-iv-demo")
+    full_parquet_path = Path(cfg["parquet_roots"]["full"]) if cfg["parquet_roots"]["full"] else get_dataset_parquet_root("mimic-iv-full")
+    demo_db_path = Path(cfg["duckdb_paths"]["demo"]) if cfg["duckdb_paths"]["demo"] else get_default_database_path("mimic-iv-demo")
+    full_db_path = Path(cfg["duckdb_paths"]["full"]) if cfg["duckdb_paths"]["full"] else get_default_database_path("mimic-iv-full")
     return {
         "demo": {
-            "parquet_present": _has_parquet_files(demo_parquet),
-            "db_present": bool(demo_db and demo_db.exists()),
-            "parquet_root": str(demo_parquet) if demo_parquet else "",
-            "db_path": str(demo_db) if demo_db else "",
+            "parquet_present": _has_parquet_files(demo_parquet_path),
+            "db_present": bool(demo_db_path and demo_db_path.exists()),
+            "parquet_root": str(demo_parquet_path) if demo_parquet_path else "",
+            "db_path": str(demo_db_path) if demo_db_path else "",
         },
         "full": {
-            "parquet_present": _has_parquet_files(full_parquet),
-            "db_present": bool(full_db and full_db.exists()),
-            "parquet_root": str(full_parquet) if full_parquet else "",
-            "db_path": str(full_db) if full_db else "",
+            "parquet_present": _has_parquet_files(full_parquet_path),
+            "db_present": bool(full_db_path and full_db_path.exists()),
+            "parquet_root": str(full_parquet_path) if full_parquet_path else "",
+            "db_path": str(full_db_path) if full_db_path else "",
         },
     }
 
