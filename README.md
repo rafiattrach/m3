@@ -424,6 +424,28 @@ We welcome contributions! Please:
 3. Add tests for new functionality
 4. Submit a pull request
 
+## Citation
+
+If you use M3 in your research, please cite:
+
+```bibtex
+@article{attrach2025conversational,
+  title={Conversational LLMs Simplify Secure Clinical Data Access, Understanding, and Analysis},
+  author={Attrach, Rafi Al and Moreira, Pedro and Fani, Rajna and Umeton, Renato and Celi, Leo Anthony},
+  journal={arXiv preprint arXiv:2507.01053},
+  year={2025}
+}
+```
+
+You can also use the "Cite this repository" button at the top of the GitHub page for other formats.
+
+## Related Projects
+
+M3 has been forked and adapted by the community:
+- [MCPStack-MIMIC](https://github.com/MCP-Pipeline/mcpstack-mimic) - Integrates M3 with other MCP servers (Jupyter, sklearn, etc.)
+
+---
+
 *Built with ❤️ for the medical AI community*
 
 **Need help?** Open an issue on GitHub or check our troubleshooting guide above.
