@@ -21,7 +21,7 @@ from m3.data_io import (
     compute_parquet_dir_size,
     convert_csv_to_parquet,
     download_dataset,
-    initialize_duckdb_from_parquet,
+    init_duckdb_from_parquet,
     verify_table_rowcount,
 )
 
@@ -86,6 +86,15 @@ def dataset_init_cmd(
             metavar="DATASET_NAME",
         ),
     ] = "mimic-iv-demo",
+    src: Annotated[
+        str | None,
+        typer.Option(
+            "--src",
+            help=(
+                "Path to existing raw CSV.gz root (hosp/, icu/). If provided, download is skipped."
+            ),
+        ),
+    ] = None,
     db_path_str: Annotated[
         str | None,
         typer.Option(
@@ -96,16 +105,20 @@ def dataset_init_cmd(
     ] = None,
 ):
     """
-    Initialize a local dataset by creating DuckDB views over existing Parquet files.
+    Initialize a local dataset in one step by detecting what's already present:
+    - If Parquet exists: only initialize DuckDB views
+    - If raw CSV.gz exists but Parquet is missing: convert then initialize
+    - If neither exists: download (demo only), convert, then initialize
 
-    - Parquet must already exist under <project_root>/m3_data/parquet/<dataset_name>/
-    - DuckDB file will be at <project_root>/m3_data/databases/<dataset>.duckdb
+    Notes:
+    - Auto-download currently supports only 'mimic-iv-demo'. For 'mimic-iv-full',
+      place the official raw CSV.gz files under <project_root>/m3_data/raw_files/<dataset>/
+      with 'hosp/' and 'icu/' subdirectories, then re-run this command.
     """
     logger.info(f"CLI 'init' called for dataset: '{dataset_name}'")
 
-    dataset_key = dataset_name.lower()  # Normalize for lookup
+    dataset_key = dataset_name.lower()
     dataset_config = get_dataset_config(dataset_key)
-
     if not dataset_config:
         typer.secho(
             f"Error: Dataset '{dataset_name}' is not supported or not configured.",
@@ -119,6 +132,80 @@ def dataset_init_cmd(
         )
         raise typer.Exit(code=1)
 
+    # Resolve roots
+    pq_root = get_dataset_parquet_root(dataset_key)
+    if pq_root is None:
+        typer.secho("Could not determine dataset directories.", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1)
+
+    csv_root_default = pq_root.parent.parent / "raw_files" / dataset_key
+    csv_root = Path(src).resolve() if src else csv_root_default
+
+    # Presence detection (check for any parquet or csv.gz files)
+    # NOTE: Checks need to be more robust as soon as we support the full dataset for download (don't just check for any file, but that no files are missing)
+    parquet_present = any(pq_root.rglob("*.parquet"))
+    raw_present = any(csv_root.rglob("*.csv.gz"))
+
+    typer.echo(f"Detected dataset: '{dataset_key}'")
+    typer.echo(f"Raw root: {csv_root}  (present={raw_present})")
+    typer.echo(f"Parquet root: {pq_root}  (present={parquet_present})")
+
+    # Step 1: Ensure raw dataset exists (download demo if missing; for full, inform and return)
+    if not raw_present and not parquet_present:
+        if dataset_key == "mimic-iv-demo":
+            out_dir = csv_root_default
+            out_dir.mkdir(parents=True, exist_ok=True)
+
+            typer.echo(f"Downloading dataset: '{dataset_key}'")
+            typer.echo(f"Listing URL: {dataset_config.get('file_listing_url')}")
+            typer.echo(f"Output directory: {out_dir}")
+
+            ok = download_dataset(dataset_key, out_dir)
+            if not ok:
+                typer.secho(
+                    "Download failed. Please check logs for details.",
+                    fg=typer.colors.RED,
+                    err=True,
+                )
+                raise typer.Exit(code=1)
+            typer.secho("✅ Download complete.", fg=typer.colors.GREEN)
+
+            # Point csv_root to the downloaded location
+            csv_root = out_dir
+            raw_present = True
+        else:
+            typer.secho(
+                "Auto-download is only supported for 'mimic-iv-demo'.",
+                fg=typer.colors.YELLOW,
+            )
+            typer.secho(
+                (
+                    "To initialize 'mimic-iv-full':\n"
+                    "1) Download the official MIMIC-IV dataset from PhysioNet (this requires a PhysioNet account with dataset access)\n"
+                    "2) Place the raw CSV.gz files under: {csv_root_default}\n"
+                    "   Ensure the structure includes 'hosp/' and 'icu/' subdirectories.\n"
+                    "3) Then re-run: m3 init mimic-iv-full"
+                ),
+                fg=typer.colors.WHITE,
+            )
+            return
+
+    # Step 2: Ensure Parquet exists (convert if missing)
+    if not parquet_present:
+        typer.echo(f"Converting dataset: '{dataset_key}'")
+        typer.echo(f"CSV root: {csv_root}")
+        typer.echo(f"Parquet destination: {pq_root}")
+        ok = convert_csv_to_parquet(dataset_key, csv_root, pq_root)
+        if not ok:
+            typer.secho(
+                "Conversion failed. Please check logs for details.",
+                fg=typer.colors.RED,
+                err=True,
+            )
+            raise typer.Exit(code=1)
+        typer.secho("✅ Conversion complete.", fg=typer.colors.GREEN)
+
+    # Step 2: Initialize DuckDB over Parquet
     final_db_path = (
         Path(db_path_str).resolve()
         if db_path_str
@@ -132,26 +219,21 @@ def dataset_init_cmd(
         )
         raise typer.Exit(code=1)
 
-    # Ensure parent directory for the database exists
     final_db_path.parent.mkdir(parents=True, exist_ok=True)
-    parquet_root = get_dataset_parquet_root(dataset_key)
     typer.echo(f"Initializing dataset: '{dataset_name}'")
     typer.echo(f"DuckDB path: {final_db_path}")
-    typer.echo(f"Parquet root: {parquet_root}")
+    typer.echo(f"Parquet root: {pq_root}")
 
-    if not parquet_root or not parquet_root.exists():
+    if not pq_root or not pq_root.exists():
         typer.secho(
-            f"Parquet directory not found at {parquet_root}.\n",
+            f"Parquet directory not found at {pq_root}.",
             fg=typer.colors.RED,
             err=True,
         )
         raise typer.Exit(code=1)
 
-    initialization_successful = initialize_duckdb_from_parquet(
-        dataset_name=dataset_key, db_target_path=final_db_path
-    )
-
-    if not initialization_successful:
+    init_successful = init_duckdb_from_parquet(dataset_name=dataset_key, db_target_path=final_db_path)
+    if not init_successful:
         typer.secho(
             (
                 f"Dataset '{dataset_name}' initialization FAILED. "
@@ -167,45 +249,39 @@ def dataset_init_cmd(
         "Verifying database integrity..."
     )
 
-    # Basic verification by querying a known table (fast check)
     verification_table_name = dataset_config.get("primary_verification_table")
     if not verification_table_name:
         logger.warning(
-            f"No 'primary_verification_table' configured for '{dataset_name}'. "
-            "Skipping DB query test."
+            f"No 'primary_verification_table' configured for '{dataset_name}'. Skipping DB query test."
         )
         typer.secho(
             (
                 f"Dataset '{dataset_name}' initialized to {final_db_path}. "
-                f"Parquet at {parquet_root}."
+                f"Parquet at {pq_root}."
             ),
             fg=typer.colors.GREEN,
         )
-        typer.secho(
-            "Skipped database query test as no verification table is set in config.",
-            fg=typer.colors.YELLOW,
-        )
-        return
+    else:
+        try:
+            record_count = verify_table_rowcount(final_db_path, verification_table_name)
+            typer.secho(
+                f"Database verification successful: Found {record_count} records in table '{verification_table_name}'.",
+                fg=typer.colors.GREEN,
+            )
+            typer.secho(
+                f"Dataset '{dataset_name}' ready at {final_db_path}. Parquet at {pq_root}.",
+                fg=typer.colors.BRIGHT_GREEN,
+            )
+        except Exception as e:
+            logger.error(
+                f"Unexpected error during database verification: {e}", exc_info=True
+            )
+            typer.secho(
+                f"An unexpected error occurred during database verification: {e}",
+                fg=typer.colors.RED,
+                err=True,
+            )
 
-    try:
-        record_count = verify_table_rowcount(final_db_path, verification_table_name)
-        typer.secho(
-            f"Database verification successful: Found {record_count} records in table '{verification_table_name}'.",
-            fg=typer.colors.GREEN,
-        )
-        typer.secho(
-            f"Dataset '{dataset_name}' ready at {final_db_path}. Parquet at {parquet_root}.",
-            fg=typer.colors.BRIGHT_GREEN,
-        )
-    except Exception as e:
-        logger.error(
-            f"Unexpected error during database verification: {e}", exc_info=True
-        )
-        typer.secho(
-            f"An unexpected error occurred during database verification: {e}",
-            fg=typer.colors.RED,
-            err=True,
-        )
     # Set active dataset to match init target
     if dataset_key == "mimic-iv-demo":
         set_active_dataset("demo")
@@ -505,159 +581,6 @@ def config_cmd(
                 err=True,
             )
             raise typer.Exit(code=1)
-
-
-@app.command("download")
-def download_cmd(
-    dataset: Annotated[
-        str,
-        typer.Argument(
-            help=(
-                "Dataset to download (currently only supports 'mimic-iv-demo'). "
-                f"Configured: {', '.join(SUPPORTED_DATASETS.keys())}"
-            ),
-            metavar="DATASET_NAME",
-        ),
-    ],
-    output: Annotated[
-        str | None,
-        typer.Option(
-            "--output",
-            "-o",
-            help=(
-                "Directory to store downloaded files. Default: <project_root>/m3_data/raw_files/<dataset>/"
-            ),
-        ),
-    ] = None,
-):
-    """
-    Download public dataset files (demo only in this version).
-
-    - For 'mimic-iv-demo', downloads CSV.gz files under hosp/ and icu/ subdirectories.
-    - Files are saved to the output directory, preserving the original structure.
-    - This command does not convert CSV to Parquet.
-    """
-    dataset_key = dataset.lower()
-    if dataset_key != "mimic-iv-demo":
-        typer.secho(
-            "Currently only 'mimic-iv-demo' is supported by 'm3 download'.",
-            fg=typer.colors.RED,
-            err=True,
-        )
-        raise typer.Exit(code=1)
-
-    cfg = get_dataset_config(dataset_key)
-    if not cfg or not cfg.get("file_listing_url"):
-        typer.secho(
-            f"Dataset '{dataset}' is not configured for download.",
-            fg=typer.colors.RED,
-            err=True,
-        )
-        raise typer.Exit(code=1)
-
-    # Default output: <project_root>/m3_data/raw_files/<dataset>/
-    if output:
-        out_dir = Path(output).resolve()
-    else:
-        # Build from the parquet root: <root>/m3_data/parquet/<dataset> -> <root>/m3_data/raw_files/<dataset>
-        pq = get_dataset_parquet_root(dataset_key)
-        out_dir = pq.parent.parent / "raw_files" / dataset_key
-
-    out_dir.mkdir(parents=True, exist_ok=True)
-
-    typer.echo(f"Downloading dataset: '{dataset}'")
-    typer.echo(f"Listing URL: {cfg.get('file_listing_url')}")
-    typer.echo(f"Output directory: {out_dir}")
-
-    ok = download_dataset(dataset_key, out_dir)
-    if not ok:
-        typer.secho(
-            "Download failed. Please check logs for details.",
-            fg=typer.colors.RED,
-            err=True,
-        )
-        raise typer.Exit(code=1)
-
-    typer.secho("✅ Download complete.", fg=typer.colors.GREEN)
-    typer.secho(
-        "Next step: Run 'm3 convert' to convert the downloaded CSV files to Parquet.",
-        fg=typer.colors.YELLOW,
-    )
-
-
-@app.command("convert")
-def convert_cmd(
-    dataset: Annotated[
-        str,
-        typer.Argument(
-            help=(
-                "Dataset to convert (csv.gz → parquet). Expected CSVs under raw_files/<dataset>."
-            ),
-            metavar="DATASET_NAME",
-        ),
-    ],
-    src: Annotated[
-        str | None,
-        typer.Option(
-            "--src",
-            "-s",
-            help="Root directory containing CSV.gz files (default: <project_root>/m3_data/raw_files/<dataset>)",
-        ),
-    ] = None,
-    dst: Annotated[
-        str | None,
-        typer.Option(
-            "--dst",
-            "-d",
-            help="Destination Parquet root (default: <project_root>/m3_data/parquet/<dataset>)",
-        ),
-    ] = None,
-):
-    """
-    Convert all CSV.gz files for a dataset to Parquet, mirroring structure (hosp/, icu/).
-    Uses DuckDB streaming COPY for low memory usage.
-    """
-    dataset_key = dataset.lower()
-    cfg = get_dataset_config(dataset_key)
-    if not cfg:
-        typer.secho(
-            f"Unsupported dataset: {dataset}",
-            fg=typer.colors.RED,
-            err=True,
-        )
-        raise typer.Exit(code=1)
-
-    # Defaults
-    pq_root_default = get_dataset_parquet_root(dataset_key)
-    # raw_files default relative to project root
-    if pq_root_default is None:
-        typer.secho("Could not determine dataset directories.", fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=1)
-
-    if src:
-        csv_root = Path(src).resolve()
-    else:
-        csv_root = pq_root_default.parent.parent / "raw_files" / dataset_key
-
-    if dst:
-        parquet_root = Path(dst).resolve()
-    else:
-        parquet_root = pq_root_default
-
-    typer.echo(f"Converting dataset: '{dataset}'")
-    typer.echo(f"CSV root: {csv_root}")
-    typer.echo(f"Parquet destination: {parquet_root}")
-
-    ok = convert_csv_to_parquet(dataset_key, csv_root, parquet_root)
-    if not ok:
-        typer.secho(
-            "Conversion failed. Please check logs for details.",
-            fg=typer.colors.RED,
-            err=True,
-        )
-        raise typer.Exit(code=1)
-
-    typer.secho("✅ Conversion complete.", fg=typer.colors.GREEN)
 
 
 if __name__ == "__main__":

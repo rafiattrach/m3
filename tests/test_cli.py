@@ -44,7 +44,7 @@ def test_unknown_command_reports_error():
     )
 
 
-@patch("m3.cli.initialize_duckdb_from_parquet")
+@patch("m3.cli.init_duckdb_from_parquet")
 @patch("m3.cli.verify_table_rowcount")
 def test_init_command_duckdb_custom_path(mock_rowcount, mock_init):
     """Test that m3 init --db-path uses custom database path override and DuckDB flow."""
@@ -229,4 +229,5 @@ def test_status_happy_path(mock_detect, mock_active, mock_size):
     result = runner.invoke(app, ["status"])
     assert result.exit_code == 0
     assert "Active dataset: full" in result.stdout
-    assert "parquet_size_bytes=123" in result.stdout
+    size_gb = 123 / (1024 ** 3)
+    assert f"parquet_size_gb: {size_gb:.4f} GB" in result.stdout

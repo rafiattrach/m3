@@ -323,7 +323,7 @@ def convert_csv_to_parquet(dataset_name: str, csv_root: Path, parquet_root: Path
 # DuckDB functions
 ########################################################
 
-def initialize_duckdb_from_parquet(dataset_name: str, db_target_path: Path) -> bool:
+def init_duckdb_from_parquet(dataset_name: str, db_target_path: Path) -> bool:
     """
     Initialize or refresh a DuckDB for the dataset by creating views over Parquet.
 

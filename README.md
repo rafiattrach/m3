@@ -270,20 +270,12 @@ After installation, choose your data source:
 
 **Perfect for learning and development - completely free!**
 
-1. **Download demo CSVs**:
-   ```bash
-   m3 download mimic-iv-demo
-   ```
-2. **Convert CSV to Parquet**:
-   ```bash
-   m3 convert mimic-iv-demo
-   ```
-3. **Create DuckDB views over Parquet**:
+1. **Initialize demo dataset**:
    ```bash
    m3 init mimic-iv-demo
    ```
 
-4. **Setup MCP Client**:
+2. **Setup MCP Client**:
    ```bash
    m3 config
    ```
@@ -306,14 +298,13 @@ After installation, choose your data source:
    - Download the official MIMIC-IV CSVs from PhysioNet and place them under:
      - `/Users/you/path/to/m3/m3_data/raw_files/mimic-iv-full/hosp/`
      - `/Users/you/path/to/m3/m3_data/raw_files/mimic-iv-full/icu/`
-   - Note: `m3 download` currently supports the demo only. Use your browser or `wget` to obtain the full dataset.
+   - Note: `m3 init`'s auto-download function currently only supports the demo dataset. Use your browser or `wget` to obtain the full dataset.
 
-2. **Convert CSV → Parquet** (streaming via DuckDB):
+2. **Initialize full dataset**:
    ```bash
-   m3 convert mimic-iv-full
+   m3 init mimic-iv-full
    ```
    - This may take up to 30 minutes, depending on your system (e.g. 10 minutes for MacBook Pro M3)
-   - Default destination: `/Users/you/path/to/m3/m3_data/parquet/mimic-iv-full/`
    - Performance knobs (optional):
      ```bash
      export M3_CONVERT_MAX_WORKERS=6   # number of parallel files (default=4)
@@ -322,20 +313,14 @@ After installation, choose your data source:
      ```
      Pay attention to your system specifications, especially if you have enough memory.
 
-3. **Create DuckDB views over Parquet**:
+3. **Select dataset and verify**:
    ```bash
-   m3 init mimic-iv-full
-   ```
-   - Database path: `/Users/you/path/to/m3/m3_data/databases/mimic_iv_full.duckdb`
-
-4. **Select dataset and verify**:
-   ```bash
-   m3 use full
+   m3 use full # optional, as this automatically got set to full
    m3 status
    ```
    - Status prints active dataset, local DB path, Parquet presence, quick row counts and total Parquet size.
 
-5. **Configure MCP client** (uses the full local DB):
+4. **Configure MCP client** (uses the full local DB):
    ```bash
    m3 config
    # or

@@ -9,7 +9,7 @@ from m3.data_io import (
     _scrape_urls_from_html_page,
     compute_parquet_dir_size,
     convert_csv_to_parquet,
-    initialize_duckdb_from_parquet,
+    init_duckdb_from_parquet,
     verify_table_rowcount,
 )
 
@@ -129,7 +129,7 @@ def test_convert_csv_to_parquet_and_init_duckdb(tmp_path, monkeypatch):
     # Initialize DuckDB views, patching the parquet root resolver
     db_path = tmp_path / "test.duckdb"
     with mock.patch("m3.data_io.get_dataset_parquet_root", return_value=dst_root):
-        init_ok = initialize_duckdb_from_parquet("mimic-iv-demo", db_path)
+        init_ok = init_duckdb_from_parquet("mimic-iv-demo", db_path)
     assert init_ok  # views created
 
     # Query the created view name hosp_sample
