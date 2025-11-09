@@ -682,8 +682,19 @@ This ensures compatibility across different MIMIC-IV setups."""
 
 def main():
     """Main entry point for MCP server."""
-    # Run the FastMCP server
-    mcp.run()
+    # Check if we should run in HTTP mode (for Kubernetes/Docker)
+    transport = os.getenv("MCP_TRANSPORT", "stdio").lower()
+    
+    if transport in ("sse", "http"):
+        # Run in HTTP mode for web-based clients (like kagent)
+        host = os.getenv("MCP_HOST", "0.0.0.0")
+        port = int(os.getenv("MCP_PORT", "3000"))
+        path = os.getenv("MCP_PATH", "/sse")
+        # FastMCP streamable-http transport
+        mcp.run(transport="streamable-http", host=host, port=port, path=path)
+    else:
+        # Run in STDIO mode (default for desktop clients)
+        mcp.run()
 
 
 if __name__ == "__main__":
