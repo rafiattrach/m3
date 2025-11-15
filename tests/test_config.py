@@ -23,7 +23,7 @@ def test_default_paths(tmp_path, monkeypatch):
 
     monkeypatch.setattr(cfg_mod, "_DEFAULT_DATABASES_DIR", tmp_path / "dbs")
     monkeypatch.setattr(cfg_mod, "_DEFAULT_PARQUET_DIR", tmp_path / "parquet")
-    db_path = get_default_database_path("mimic-iv-demo", engine="duckdb")
+    db_path = get_default_database_path("mimic-iv-demo")
     raw_path = get_dataset_parquet_root("mimic-iv-demo")
     # They should be Path objects and exist
     assert isinstance(db_path, Path)

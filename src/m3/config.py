@@ -40,7 +40,6 @@ _DEFAULT_DATABASES_DIR = _PROJECT_DATA_DIR / "databases"
 _DEFAULT_PARQUET_DIR = _PROJECT_DATA_DIR / "parquet"
 _RUNTIME_CONFIG_PATH = _PROJECT_DATA_DIR / "config.json"
 
-
 # --------------------------------------------------
 # Dataset configurations (add more entries as needed)
 # --------------------------------------------------
@@ -48,14 +47,12 @@ SUPPORTED_DATASETS = {
     "mimic-iv-demo": {
         "file_listing_url": "https://physionet.org/files/mimic-iv-demo/2.2/",
         "subdirectories_to_scan": ["hosp", "icu"],
-        "default_db_filename": "mimic_iv_demo.db",
         "default_duckdb_filename": "mimic_iv_demo.duckdb",
         "primary_verification_table": "hosp_admissions",
     },
     "mimic-iv-full": {
         "file_listing_url": None,
         "subdirectories_to_scan": ["hosp", "icu"],
-        "default_db_filename": "mimic_iv_full.db",
         "default_duckdb_filename": "mimic_iv_full.duckdb",
         "primary_verification_table": "hosp_admissions",
     },
@@ -76,14 +73,11 @@ def get_dataset_config(dataset_name: str) -> dict | None:
     return SUPPORTED_DATASETS.get(dataset_name.lower())
 
 
-def get_default_database_path(dataset_name: str, engine: Literal["duckdb", "bigquery"] = "duckdb") -> Path | None:
+def get_default_database_path(dataset_name: str) -> Path | None:
     """
     Return the default local DuckDB path for a given dataset,
     under <project_root>/m3_data/databases/.
     """
-    if engine != "duckdb":
-        logger.warning("Only DuckDB is supported for local databases.")
-        return None
 
     cfg = get_dataset_config(dataset_name)
     if not cfg:
@@ -120,12 +114,8 @@ def _ensure_data_dirs():
     _PROJECT_DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def get_runtime_config_path() -> Path:
-    return _RUNTIME_CONFIG_PATH
-
-
-
-_DEFAULT_RUNTIME_CONFIG = {
+def _get_default_runtime_config() -> dict:
+    return {
     "active_dataset": None,
     "duckdb_paths": {
         "demo": str(get_default_database_path("mimic-iv-demo") or ""),
@@ -139,7 +129,7 @@ _DEFAULT_RUNTIME_CONFIG = {
 
 
 def load_runtime_config() -> dict:
-    """Load runtime configuration from <project_root>/m3_data/config.json."""
+    """Load runtime configuration from <project_root>/m3_data/config.json or use default"""
     _ensure_data_dirs()
     if _RUNTIME_CONFIG_PATH.exists():
         try:
@@ -147,7 +137,7 @@ def load_runtime_config() -> dict:
         except Exception:
             logger.warning("Could not parse runtime config; using defaults")
     # defaults
-    return _DEFAULT_RUNTIME_CONFIG
+    return _get_default_runtime_config()
 
 
 def save_runtime_config(cfg: dict) -> None:
@@ -185,14 +175,18 @@ def detect_available_local_datasets() -> dict:
 def get_active_dataset() -> str | None:
     cfg = load_runtime_config()
     active = cfg.get("active_dataset")
-    if active:
-        return active
+    if active in CLI_DATASET_ALIASES:
+        return CLI_DATASET_ALIASES[active]
+    if active == "bigquery":
+        return "bigquery"
     # Auto-detect default: prefer demo, then full
     availability = detect_available_local_datasets()
     if availability["demo"]["parquet_present"]:
-        return "demo"
+        return CLI_DATASET_ALIASES["demo"]
     if availability["full"]["parquet_present"]:
-        return "full"
+        return CLI_DATASET_ALIASES["full"]
+
+    logger.warning("Unknown active_dataset value in config: %s", active)
     return None
 
 

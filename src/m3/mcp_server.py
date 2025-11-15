@@ -141,7 +141,7 @@ def _init_backend():
     if _backend == "duckdb":
         _db_path = os.getenv("M3_DB_PATH")
         if not _db_path:
-            path = get_default_database_path("mimic-iv-demo", engine="duckdb")
+            path = get_default_database_path("mimic-iv-demo")
             _db_path = str(path) if path else None
         if not _db_path or not Path(_db_path).exists():
             raise FileNotFoundError(f"DuckDB database not found: {_db_path}")

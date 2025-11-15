@@ -59,9 +59,7 @@ uv --version
    ```
    *Opens your browser - choose the Google account with BigQuery access to MIMIC-IV.*
 
-### MCP Client Configuration
-
-Paste one of the following into your MCP client config, then restart your client.
+### M3 Initialization
 
 **Supported clients:** [Claude Desktop](https://www.claude.com/download), [Cursor](https://cursor.com/download), [Goose](https://block.github.io/goose/), and [more](https://github.com/punkpeye/awesome-mcp-clients).
 
@@ -69,25 +67,24 @@ Paste one of the following into your MCP client config, then restart your client
 <tr>
 <td width="50%">
 
-**DuckDB (Demo Database)**
+**DuckDB (Demo or Full Dataset)**
 
-Free, local, no setup required.
 
-```json
-{
-  "mcpServers": {
-    "m3": {
-      "command": "uvx",
-      "args": ["m3-mcp"],
-      "env": {
-        "M3_BACKEND": "duckdb"
-      }
-    }
-  }
-}
+To create a m3 directory and navigate into it run:
+```shell
+mkdir m3 && cd m3
 ```
+If you want to use the full dataset, download it manually from [PhysioNet](https://physionet.org/content/mimiciv/3.1/) and place it into `m3/m3_data/raw`. For using the demo set you can continue and run:
 
-*Demo database (136MB, 100 patients, 275 admissions) downloads automatically on first query.*
+```shell
+uv init && uv add m3-mcp && \
+uv run m3 init DATASET_NAME && uv run m3 config --quick
+```
+Replace `DATASET_NAME` with `mimic-iv-demo` or `mimic-iv-full` and copy & paste the output of this command into your client config JSON file.
+
+*Demo dataset (16MB raw download size) downloads automatically on first query.*
+
+*Full dataset (10.6GB raw download size) needs to be downloaded manually.*
 
 </td>
 <td width="50%">
@@ -95,6 +92,8 @@ Free, local, no setup required.
 **BigQuery (Full Dataset)**
 
 Requires GCP credentials and PhysioNet access.
+
+Paste this into your client config JSON file:
 
 ```json
 {
@@ -479,14 +478,7 @@ Try asking your MCP client these questions:
 ### Common Issues
 
 **Local "Parquet not found" or view errors:**
-```bash
-# 1) Download CSVs (demo only in current version)
-m3 download mimic-iv-demo
-# 2) Convert CSV → Parquet
-m3 convert mimic-iv-demo
-# 3) Create/refresh views
-m3 init mimic-iv-demo
-```
+Rerun the `m3 init` command for your chosen dataset.
 
 **MCP client server not starting:**
 1. Check your MCP client logs (for Claude Desktop: Help → View Logs)

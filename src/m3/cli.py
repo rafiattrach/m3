@@ -209,7 +209,7 @@ def dataset_init_cmd(
     final_db_path = (
         Path(db_path_str).resolve()
         if db_path_str
-        else get_default_database_path(dataset_key, "duckdb")
+        else get_default_database_path(dataset_key)
     )
     if not final_db_path:
         typer.secho(
@@ -484,16 +484,17 @@ def config_cmd(
 
         # For duckdb, infer db_path from active dataset if not provided
         if backend == "duckdb":
-            effective_db_path = db_path
-            if not effective_db_path:
-                active = get_active_dataset()
-                # Default to demo if unset
-                dataset_key = "mimic-iv-full" if active == "full" else "mimic-iv-demo"
-                guessed = get_default_database_path(dataset_key, "duckdb")
-                if guessed is not None:
-                    effective_db_path = str(guessed)
-            if effective_db_path:
-                cmd.extend(["--db-path", effective_db_path])
+            if db_path:
+                inferred_db_path = Path(db_path).resolve()
+            else:
+                active_dataset = get_active_dataset()
+                if not active_dataset:
+                    # default to demo if nothing is set
+                    inferred_db_path = get_default_database_path("mimic-iv-demo")
+                else:
+                    inferred_db_path = get_default_database_path(active_dataset)
+            cmd.extend(["--db-path", str(inferred_db_path)])
+
         elif backend == "bigquery" and project_id:
             cmd.extend(["--project-id", project_id])
 
