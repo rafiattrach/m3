@@ -422,20 +422,6 @@ m3 config  # Choose OAuth2 option during setup
 
 ---
 
-## Backend Details
-
-**DuckDB Backend (Local)**
-- ✅ **Free**: No cloud costs
-- ✅ **Fast**: Local queries over Parquet
-- ✅ **Easy**: No authentication needed
-- ❌ **Big download size**: Manual download for the full dataset required
-
-**BigQuery Backend**
-- ✅ **Complete**: Full MIMIC-IV dataset (~500k admissions)
-- ✅ **Scalable**: Google Cloud infrastructure
-- ✅ **Current**: Latest MIMIC-IV version (3.1)
-- ❌ **Costs**: BigQuery usage fees apply
-
 ## 🛠️ Available MCP Tools
 
 When your MCP client processes questions, it uses these tools automatically:
