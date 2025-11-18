@@ -54,10 +54,10 @@ def test_init_command_duckdb_custom_path(mock_rowcount, mock_init):
     with tempfile.TemporaryDirectory() as temp_dir:
         custom_db_path = Path(temp_dir) / "custom_mimic.duckdb"
         resolved_custom_db_path = custom_db_path.resolve()
-
-        # Also ensure a dummy parquet path exists for the dataset discovery
+        # Also ensure a deterministic parquet path exists for the dataset discovery.
         with patch("m3.cli.get_dataset_parquet_root") as mock_parquet_root:
-            mock_parquet_root.return_value = Path("/Users/hannesill/Developer/m3/m3_data/parquet/mimic-iv-demo/")
+            repo_root = Path(__file__).resolve().parents[1]
+            mock_parquet_root.return_value = repo_root / "m3_data/parquet/mimic-iv-demo"
             with patch.object(Path, "exists", return_value=True):
                 result = runner.invoke(
                     app, ["init", "mimic-iv-demo", "--db-path", str(custom_db_path)]
