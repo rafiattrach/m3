@@ -1,7 +1,6 @@
 import json
 import logging
 from pathlib import Path
-from typing import Literal
 
 APP_NAME = "m3"
 
@@ -81,7 +80,9 @@ def get_default_database_path(dataset_name: str) -> Path | None:
 
     cfg = get_dataset_config(dataset_name)
     if not cfg:
-        logger.warning(f"Unknown dataset, cannot determine default DB path: {dataset_name}")
+        logger.warning(
+            f"Unknown dataset, cannot determine default DB path: {dataset_name}"
+        )
         return None
 
     _DEFAULT_DATABASES_DIR.mkdir(parents=True, exist_ok=True)
@@ -91,6 +92,7 @@ def get_default_database_path(dataset_name: str) -> Path | None:
         return None
     return _DEFAULT_DATABASES_DIR / db_fname
 
+
 def get_dataset_parquet_root(dataset_name: str) -> Path | None:
     """
     Return the Parquet root for a dataset under
@@ -98,7 +100,9 @@ def get_dataset_parquet_root(dataset_name: str) -> Path | None:
     """
     cfg = get_dataset_config(dataset_name)
     if not cfg:
-        logger.warning(f"Unknown dataset, cannot determine Parquet root: {dataset_name}")
+        logger.warning(
+            f"Unknown dataset, cannot determine Parquet root: {dataset_name}"
+        )
         return None
     path = _DEFAULT_PARQUET_DIR / dataset_name.lower()
     path.mkdir(parents=True, exist_ok=True)
@@ -116,16 +120,16 @@ def _ensure_data_dirs():
 
 def _get_default_runtime_config() -> dict:
     return {
-    "active_dataset": None,
-    "duckdb_paths": {
-        "demo": str(get_default_database_path("mimic-iv-demo") or ""),
-        "full": str(get_default_database_path("mimic-iv-full") or ""),
-    },
-    "parquet_roots": {
-        "demo": str(get_dataset_parquet_root("mimic-iv-demo") or ""),
-        "full": str(get_dataset_parquet_root("mimic-iv-full") or ""),
-    },
-}
+        "active_dataset": None,
+        "duckdb_paths": {
+            "demo": str(get_default_database_path("mimic-iv-demo") or ""),
+            "full": str(get_default_database_path("mimic-iv-full") or ""),
+        },
+        "parquet_roots": {
+            "demo": str(get_dataset_parquet_root("mimic-iv-demo") or ""),
+            "full": str(get_dataset_parquet_root("mimic-iv-full") or ""),
+        },
+    }
 
 
 def load_runtime_config() -> dict:
@@ -146,16 +150,32 @@ def save_runtime_config(cfg: dict) -> None:
 
 
 def _has_parquet_files(path: Path | None) -> bool:
-        return bool(path and path.exists() and any(path.rglob("*.parquet")))
+    return bool(path and path.exists() and any(path.rglob("*.parquet")))
 
 
 def detect_available_local_datasets() -> dict:
     """Return presence flags for demo/full based on Parquet roots and DuckDB files."""
     cfg = load_runtime_config()
-    demo_parquet_path = Path(cfg["parquet_roots"]["demo"]) if cfg["parquet_roots"]["demo"] else get_dataset_parquet_root("mimic-iv-demo")
-    full_parquet_path = Path(cfg["parquet_roots"]["full"]) if cfg["parquet_roots"]["full"] else get_dataset_parquet_root("mimic-iv-full")
-    demo_db_path = Path(cfg["duckdb_paths"]["demo"]) if cfg["duckdb_paths"]["demo"] else get_default_database_path("mimic-iv-demo")
-    full_db_path = Path(cfg["duckdb_paths"]["full"]) if cfg["duckdb_paths"]["full"] else get_default_database_path("mimic-iv-full")
+    demo_parquet_path = (
+        Path(cfg["parquet_roots"]["demo"])
+        if cfg["parquet_roots"]["demo"]
+        else get_dataset_parquet_root("mimic-iv-demo")
+    )
+    full_parquet_path = (
+        Path(cfg["parquet_roots"]["full"])
+        if cfg["parquet_roots"]["full"]
+        else get_dataset_parquet_root("mimic-iv-full")
+    )
+    demo_db_path = (
+        Path(cfg["duckdb_paths"]["demo"])
+        if cfg["duckdb_paths"]["demo"]
+        else get_default_database_path("mimic-iv-demo")
+    )
+    full_db_path = (
+        Path(cfg["duckdb_paths"]["full"])
+        if cfg["duckdb_paths"]["full"]
+        else get_default_database_path("mimic-iv-full")
+    )
     return {
         "demo": {
             "parquet_present": _has_parquet_files(demo_parquet_path),

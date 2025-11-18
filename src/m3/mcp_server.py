@@ -195,7 +195,10 @@ def _execute_duckdb_query(sql_query: str) -> str:
             if df.empty:
                 return "No results found"
             if len(df) > 50:
-                out = df.head(50).to_string(index=False) + f"\n... ({len(df)} total rows, showing first 50)"
+                out = (
+                    df.head(50).to_string(index=False)
+                    + f"\n... ({len(df)} total rows, showing first 50)"
+                )
             else:
                 out = df.to_string(index=False)
             return out

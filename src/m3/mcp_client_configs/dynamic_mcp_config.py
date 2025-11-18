@@ -97,7 +97,7 @@ class MCPConfigGenerator:
                 if not default_path:
                     raise ValueError(_DATABASE_PATH_ERROR_MSG)
                 env["M3_DB_PATH"] = str(default_path)
-                
+
         elif backend == "bigquery" and project_id:
             env["M3_PROJECT_ID"] = project_id
             env["GOOGLE_CLOUD_PROJECT"] = project_id

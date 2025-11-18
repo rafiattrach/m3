@@ -214,6 +214,7 @@ def download_dataset(dataset_name: str, output_root: Path) -> bool:
 # CSV to Parquet conversion
 ########################################################
 
+
 def _csv_to_parquet_all(src_root: Path, parquet_root: Path) -> bool:
     """
     Convert all CSV files in the source directory to Parquet files.
@@ -278,7 +279,9 @@ def _csv_to_parquet_all(src_root: Path, parquet_root: Path) -> bool:
     with ThreadPoolExecutor(max_workers=max_workers) as ex:
         futures = {ex.submit(_convert_one, f): f for f in csv_files}
 
-        logger.info(f"Converting {total_files} CSV files to Parquet using {max_workers} workers...")
+        logger.info(
+            f"Converting {total_files} CSV files to Parquet using {max_workers} workers..."
+        )
 
         for fut in as_completed(futures):
             try:
@@ -290,7 +293,7 @@ def _csv_to_parquet_all(src_root: Path, parquet_root: Path) -> bool:
                     elapsed = time.time() - start_time
                     logger.info(
                         f"Progress: {completed}/{total_files} files "
-                        f"({100*completed/total_files:.1f}%) - "
+                        f"({100 * completed / total_files:.1f}%) - "
                         f"Elapsed: {timedelta(seconds=int(elapsed))!s}"
                     )
             except Exception as e:
@@ -307,7 +310,9 @@ def _csv_to_parquet_all(src_root: Path, parquet_root: Path) -> bool:
     return True
 
 
-def convert_csv_to_parquet(dataset_name: str, csv_root: Path, parquet_root: Path) -> bool:
+def convert_csv_to_parquet(
+    dataset_name: str, csv_root: Path, parquet_root: Path
+) -> bool:
     """
     Public wrapper to convert CSV.gz files to Parquet for a dataset.
     - csv_root: root folder containing hosp/ and icu/ CSV.gz files
@@ -319,9 +324,11 @@ def convert_csv_to_parquet(dataset_name: str, csv_root: Path, parquet_root: Path
     parquet_root.mkdir(parents=True, exist_ok=True)
     return _csv_to_parquet_all(csv_root, parquet_root)
 
+
 ########################################################
 # DuckDB functions
 ########################################################
+
 
 def init_duckdb_from_parquet(dataset_name: str, db_target_path: Path) -> bool:
     """
@@ -381,12 +388,11 @@ def _create_duckdb_with_views(db_path: Path, parquet_root: Path) -> bool:
 
             # Build view name from directory structure + filename
             # e.g., hosp/admissions.parquet -> hosp_admissions
-            parts = list(rel.parent.parts) + [rel.stem]  # stem removes .parquet
+            parts = [*list(rel.parent.parts), rel.stem]  # stem removes .parquet
 
             # Clean and join parts
             view_name = "_".join(
-                p.lower().replace("-", "_").replace(".", "_")
-                for p in parts if p != "."
+                p.lower().replace("-", "_").replace(".", "_") for p in parts if p != "."
             )
 
             # Create view pointing to the specific parquet file
@@ -406,7 +412,7 @@ def _create_duckdb_with_views(db_path: Path, parquet_root: Path) -> bool:
                     eta_seconds = avg_time * (len(parquet_files) - idx)
                     logger.info(
                         f"Progress: {idx}/{len(parquet_files)} views "
-                        f"({100*idx/len(parquet_files):.1f}%) - "
+                        f"({100 * idx / len(parquet_files):.1f}%) - "
                         f"Last: {view_name} - "
                         f"ETA: {timedelta(seconds=int(eta_seconds))!s}"
                     )
@@ -438,6 +444,7 @@ def _create_duckdb_with_views(db_path: Path, parquet_root: Path) -> bool:
 # Verification and utilities
 ########################################################
 
+
 def verify_table_rowcount(db_path: Path, table_name: str) -> int:
     con = duckdb.connect(str(db_path))
     try:
@@ -449,7 +456,9 @@ def verify_table_rowcount(db_path: Path, table_name: str) -> int:
         con.close()
 
 
-def ensure_duckdb_for_dataset(dataset_key: str) -> tuple[bool, Path | None, Path | None]:
+def ensure_duckdb_for_dataset(
+    dataset_key: str,
+) -> tuple[bool, Path | None, Path | None]:
     """
     Ensure DuckDB exists and views are created for the dataset ('mimic-iv-demo'|'mimic-iv-full').
     Returns (ok, db_path, parquet_root).

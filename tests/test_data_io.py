@@ -1,8 +1,8 @@
-import duckdb
 import gzip
-import requests
 from unittest import mock
-import pytest
+
+import duckdb
+import requests
 
 from m3.data_io import (
     COMMON_USER_AGENT,

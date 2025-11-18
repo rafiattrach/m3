@@ -135,7 +135,9 @@ def dataset_init_cmd(
     # Resolve roots
     pq_root = get_dataset_parquet_root(dataset_key)
     if pq_root is None:
-        typer.secho("Could not determine dataset directories.", fg=typer.colors.RED, err=True)
+        typer.secho(
+            "Could not determine dataset directories.", fg=typer.colors.RED, err=True
+        )
         raise typer.Exit(code=1)
 
     csv_root_default = pq_root.parent.parent / "raw_files" / dataset_key
@@ -232,7 +234,9 @@ def dataset_init_cmd(
         )
         raise typer.Exit(code=1)
 
-    init_successful = init_duckdb_from_parquet(dataset_name=dataset_key, db_target_path=final_db_path)
+    init_successful = init_duckdb_from_parquet(
+        dataset_name=dataset_key, db_target_path=final_db_path
+    )
     if not init_successful:
         typer.secho(
             (
@@ -293,13 +297,17 @@ def dataset_init_cmd(
 def use_cmd(
     target: Annotated[
         str,
-        typer.Argument(help="Select active dataset: demo | full | bigquery", metavar="TARGET"),
-    ]
+        typer.Argument(
+            help="Select active dataset: demo | full | bigquery", metavar="TARGET"
+        ),
+    ],
 ):
     """Set the active dataset selection for the project."""
     target = target.lower()
     if target not in ("demo", "full", "bigquery"):
-        typer.secho("Target must be one of: demo, full, bigquery", fg=typer.colors.RED, err=True)
+        typer.secho(
+            "Target must be one of: demo, full, bigquery", fg=typer.colors.RED, err=True
+        )
         raise typer.Exit(code=1)
 
     if target in ("demo", "full"):
@@ -320,7 +328,10 @@ def use_cmd(
 def status_cmd():
     """Show active dataset, local DB path, Parquet presence, quick counts and sizes."""
     active = get_active_dataset() or "(unset)"
-    typer.secho(f"Active dataset: {active}", fg=typer.colors.BRIGHT_GREEN if active != "(unset)" else typer.colors.YELLOW)
+    typer.secho(
+        f"Active dataset: {active}",
+        fg=typer.colors.BRIGHT_GREEN if active != "(unset)" else typer.colors.YELLOW,
+    )
 
     availability = detect_available_local_datasets()
 
@@ -338,7 +349,7 @@ def status_cmd():
         if info["parquet_present"]:
             try:
                 size_bytes = compute_parquet_dir_size(Path(info["parquet_root"]))
-                size_gb = float(size_bytes) / (1024 ** 3)
+                size_gb = float(size_bytes) / (1024**3)
                 typer.echo(f"  parquet_size_gb: {size_gb:.4f} GB")
             except Exception:
                 typer.echo("  parquet_size_gb: (skipped)")
@@ -348,7 +359,9 @@ def status_cmd():
         cfg = get_dataset_config(ds_name)
         if info["db_present"] and cfg:
             try:
-                count = verify_table_rowcount(Path(info["db_path"]), cfg["primary_verification_table"])
+                count = verify_table_rowcount(
+                    Path(info["db_path"]), cfg["primary_verification_table"]
+                )
                 typer.echo(f"  {cfg['primary_verification_table']}_rowcount: {count:,}")
             except Exception:
                 typer.echo("  rowcount: (skipped)")
@@ -452,15 +465,27 @@ def config_cmd(
     # Validate backend-specific arguments
     # duckdb: db_path allowed, project_id not allowed
     if backend == "duckdb" and project_id:
-        typer.secho("❌ Error: --project-id can only be used with --backend bigquery", fg=typer.colors.RED, err=True)
+        typer.secho(
+            "❌ Error: --project-id can only be used with --backend bigquery",
+            fg=typer.colors.RED,
+            err=True,
+        )
         raise typer.Exit(code=1)
 
     # bigquery: requires project_id, db_path not allowed
     if backend == "bigquery" and db_path:
-        typer.secho("❌ Error: --db-path can only be used with --backend duckdb", fg=typer.colors.RED, err=True)
+        typer.secho(
+            "❌ Error: --db-path can only be used with --backend duckdb",
+            fg=typer.colors.RED,
+            err=True,
+        )
         raise typer.Exit(code=1)
     if backend == "bigquery" and not project_id:
-        typer.secho("❌ Error: --project-id is required when using --backend bigquery", fg=typer.colors.RED, err=True)
+        typer.secho(
+            "❌ Error: --project-id is required when using --backend bigquery",
+            fg=typer.colors.RED,
+            err=True,
+        )
         raise typer.Exit(code=1)
 
     if client == "claude":

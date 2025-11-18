@@ -1,5 +1,5 @@
-import tempfile
 import subprocess
+import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -148,10 +148,13 @@ def test_config_script_failure(mock_subprocess):
     # Just verify that the command failed with the right exit code
     # The specific error message may vary
 
+
 @patch("subprocess.run")
 @patch("m3.cli.get_default_database_path")
 @patch("m3.cli.get_active_dataset")
-def test_config_claude_infers_db_path_demo(mock_active, mock_get_default, mock_subprocess):
+def test_config_claude_infers_db_path_demo(
+    mock_active, mock_get_default, mock_subprocess
+):
     mock_active.return_value = None  # unset -> default to demo
     mock_get_default.return_value = Path("/tmp/inferred-demo.duckdb")
     mock_subprocess.return_value = MagicMock(returncode=0)
@@ -171,7 +174,9 @@ def test_config_claude_infers_db_path_demo(mock_active, mock_get_default, mock_s
 @patch("subprocess.run")
 @patch("m3.cli.get_default_database_path")
 @patch("m3.cli.get_active_dataset")
-def test_config_claude_infers_db_path_full(mock_active, mock_get_default, mock_subprocess):
+def test_config_claude_infers_db_path_full(
+    mock_active, mock_get_default, mock_subprocess
+):
     mock_active.return_value = "full"
     mock_get_default.return_value = Path("/tmp/inferred-full.duckdb")
     mock_subprocess.return_value = MagicMock(returncode=0)
@@ -182,6 +187,7 @@ def test_config_claude_infers_db_path_full(mock_active, mock_get_default, mock_s
     call_args = mock_subprocess.call_args[0][0]
     assert "--db-path" in call_args
     assert "/tmp/inferred-full.duckdb" in call_args
+
 
 @patch("m3.cli.set_active_dataset")
 @patch("m3.cli.detect_available_local_datasets")
@@ -229,5 +235,5 @@ def test_status_happy_path(mock_detect, mock_active, mock_size):
     result = runner.invoke(app, ["status"])
     assert result.exit_code == 0
     assert "Active dataset: full" in result.stdout
-    size_gb = 123 / (1024 ** 3)
+    size_gb = 123 / (1024**3)
     assert f"parquet_size_gb: {size_gb:.4f} GB" in result.stdout
