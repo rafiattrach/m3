@@ -33,23 +33,18 @@ jobs:
         echo "version=$VERSION" >> $GITHUB_OUTPUT
         echo "Publishing version: $VERSION"
 
-    - name: Update version in pyproject.toml
+    - name: Update version in __init__.py
       run: |
-        # Update version in pyproject.toml to match the git tag
-        sed -i "s/version = \".*\"/version = \"${{ steps.get_version.outputs.version }}\"/" pyproject.toml
-        echo "Updated pyproject.toml version to ${{ steps.get_version.outputs.version }}"
-        cat pyproject.toml | grep version
-
-    - name: Lock dependencies
-      run: uv lock --locked
+        # Update version in src/m3/__init__.py to match the git tag
+        sed -i "s/__version__ = \".*\"/__version__ = \"${{ steps.get_version.outputs.version }}\"/" src/m3/__init__.py
+        echo "Updated src/m3/__init__.py version to ${{ steps.get_version.outputs.version }}"
+        grep "__version__" src/m3/__init__.py
 
     - name: Sync dependencies including dev
       run: uv sync --all-groups
 
     - name: Run quick tests
       run: |
-        uv add pytest==7.4.3
-        uv add pytest-asyncio
         uv run pytest tests/ -v --tb=short
 
     - name: Build package
