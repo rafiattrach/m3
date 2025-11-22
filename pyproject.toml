@@ -19,7 +19,7 @@ maintainers = [
 ]
 readme = "README.md"
 license = "MIT"
-keywords = ["mimic-iv", "clinical-data", "mcp", "llm", "medical", "healthcare", "sqlite", "bigquery"]
+keywords = ["mimic-iv", "clinical-data", "mcp", "llm", "medical", "healthcare", "duckdb", "bigquery"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
@@ -50,14 +50,15 @@ dependencies = [
     "cryptography>=41.0.0", # Cryptographic operations for JWT
     "python-jose[cryptography]>=3.3.0", # Additional JWT support with crypto
     "httpx>=0.24.0", # Modern HTTP client for OAuth2 token validation
+    "duckdb>=1.4.1",
 ]
 
-[project.dependency-groups]
+[dependency-groups]
 dev = [
     "ruff>=0.4.0",
     "pre-commit>=3.0.0",
-    "pytest>=7.4.0",
-    "pytest-asyncio>=0.23.0",
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.24.0",
     "pytest-mock>=3.10.0",
     "aiohttp>=3.8.0",  # For MCP client testing
 ]

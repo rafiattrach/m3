@@ -25,7 +25,6 @@ jobs:
           ln -s $(which uv) ~/.local/bin/uv
       - run: uv venv
       - run: uv sync --dev
-      - run: uv add pytest==7.4.3
       - uses: tox-dev/action-pre-commit-uv@v1
         with:
           extra_args: --all-files

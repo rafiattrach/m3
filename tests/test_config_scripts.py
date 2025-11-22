@@ -14,8 +14,8 @@ from m3.mcp_client_configs.dynamic_mcp_config import MCPConfigGenerator
 class TestMCPConfigGenerator:
     """Test the MCPConfigGenerator class."""
 
-    def test_generate_config_sqlite_default(self):
-        """Test generating SQLite config with defaults."""
+    def test_generate_config_duckdb_default(self):
+        """Test generating DuckDB config with defaults."""
         generator = MCPConfigGenerator()
 
         with (
@@ -24,7 +24,7 @@ class TestMCPConfigGenerator:
         ):
             config = generator.generate_config()
 
-            assert config["mcpServers"]["m3"]["env"]["M3_BACKEND"] == "sqlite"
+            assert config["mcpServers"]["m3"]["env"]["M3_BACKEND"] == "duckdb"
             assert "M3_PROJECT_ID" not in config["mcpServers"]["m3"]["env"]
             assert config["mcpServers"]["m3"]["args"] == ["-m", "m3.mcp_server"]
 
@@ -47,8 +47,8 @@ class TestMCPConfigGenerator:
                 == "test-project"
             )
 
-    def test_generate_config_sqlite_with_db_path(self):
-        """Test generating SQLite config with custom database path."""
+    def test_generate_config_duckdb_with_db_path(self):
+        """Test generating DuckDB config with custom database path."""
         generator = MCPConfigGenerator()
 
         with (
@@ -56,13 +56,13 @@ class TestMCPConfigGenerator:
             patch.object(generator, "_validate_directory", return_value=True),
         ):
             config = generator.generate_config(
-                backend="sqlite", db_path="/custom/path/database.db"
+                backend="duckdb", db_path="/custom/path/database.duckdb"
             )
 
-            assert config["mcpServers"]["m3"]["env"]["M3_BACKEND"] == "sqlite"
+            assert config["mcpServers"]["m3"]["env"]["M3_BACKEND"] == "duckdb"
             assert (
                 config["mcpServers"]["m3"]["env"]["M3_DB_PATH"]
-                == "/custom/path/database.db"
+                == "/custom/path/database.duckdb"
             )
 
     def test_generate_config_custom_server_name(self):
@@ -93,7 +93,7 @@ class TestMCPConfigGenerator:
             env = config["mcpServers"]["m3"]["env"]
             assert env["DEBUG"] == "true"
             assert env["LOG_LEVEL"] == "info"
-            assert env["M3_BACKEND"] == "sqlite"  # Default should still be there
+            assert env["M3_BACKEND"] == "duckdb"  # Default should still be there
 
     def test_validation_invalid_python_path(self):
         """Test that invalid Python path raises error."""
