@@ -113,14 +113,24 @@ def _download_dataset_files(
 
     all_files_to_process = []  # List of (url, local_target_path)
 
-    for subdir_name in subdirs_to_scan:
-        subdir_listing_url = urljoin(base_listing_url, f"{subdir_name}/")
-        logger.info(f"Scanning subdirectory for CSVs: {subdir_listing_url}")
-        csv_urls_in_subdir = _scrape_urls_from_html_page(subdir_listing_url, session)
+    # Prepare list of (subdir_name, listing_url)
+    # If subdirs_to_scan is empty, we scan the base_listing_url directly (root)
+    scan_targets = []
+    if not subdirs_to_scan:
+        scan_targets.append(("", base_listing_url))
+    else:
+        for subdir in subdirs_to_scan:
+            # Ensure slash for directory joining
+            subdir_url = urljoin(base_listing_url, f"{subdir}/")
+            scan_targets.append((subdir, subdir_url))
+
+    for subdir_name, listing_url in scan_targets:
+        logger.info(f"Scanning for CSVs: {listing_url}")
+        csv_urls_in_subdir = _scrape_urls_from_html_page(listing_url, session)
 
         if not csv_urls_in_subdir:
             logger.warning(
-                f"No .csv.gz files found in subdirectory: {subdir_listing_url}"
+                f"No .csv.gz files found in location: {listing_url}"
             )
             continue
 
@@ -161,8 +171,7 @@ def _download_dataset_files(
 
     if not all_files_to_process:
         logger.error(
-            f"No '.csv.gz' download links found after scanning {base_listing_url} "
-            f"and its subdirectories {subdirs_to_scan} for dataset '{dataset_name}'."
+            f"No '.csv.gz' download links found for dataset '{dataset_name}'."
         )
         return False
 
@@ -359,11 +368,12 @@ def init_duckdb_from_parquet(dataset_name: str, db_target_path: Path) -> bool:
 def _create_duckdb_with_views(db_path: Path, parquet_root: Path) -> bool:
     """
     Create a DuckDB database and define one view per Parquet file,
-    using the proper table naming structure that matches MIMIC-IV expectations.
+    using a generic table naming structure: folder_subfolder_filename.
 
     For example:
     - hosp/admissions.parquet → view: hosp_admissions
     - icu/chartevents.parquet → view: icu_chartevents
+    - data.parquet → view: data
     """
     con = duckdb.connect(str(db_path))
     try:
@@ -460,7 +470,7 @@ def ensure_duckdb_for_dataset(
     dataset_key: str,
 ) -> tuple[bool, Path | None, Path | None]:
     """
-    Ensure DuckDB exists and views are created for the dataset ('mimic-iv-demo'|'mimic-iv-full').
+    Ensure DuckDB exists and views are created for the dataset.
     Returns (ok, db_path, parquet_root).
     """
     db_path = get_default_database_path(dataset_key)

@@ -11,7 +11,7 @@ import sqlparse
 from fastmcp import FastMCP
 
 from m3.auth import init_oauth2, require_oauth2
-from m3.config import get_default_database_path
+from m3.config import get_default_database_path, get_active_dataset
 
 # Create FastMCP server instance
 mcp = FastMCP("m3")
@@ -141,10 +141,20 @@ def _init_backend():
     if _backend == "duckdb":
         _db_path = os.getenv("M3_DB_PATH")
         if not _db_path:
-            path = get_default_database_path("mimic-iv-demo")
-            _db_path = str(path) if path else None
+            # Try to detect active dataset if not set
+            active = get_active_dataset()
+            if active and active != "bigquery":
+                 path = get_default_database_path(active)
+                 _db_path = str(path) if path else None
+            else:
+                # Fallback to demo if we can't figure it out
+                 path = get_default_database_path("mimic-iv-demo")
+                 _db_path = str(path) if path else None
+
         if not _db_path or not Path(_db_path).exists():
-            raise FileNotFoundError(f"DuckDB database not found: {_db_path}")
+             # We don't raise here to allow server to start even if DB is missing (e.g. for 'config' command usage via import)
+             # But runtime queries will fail.
+             pass
 
     elif _backend == "bigquery":
         try:
@@ -188,6 +198,9 @@ def _get_backend_info() -> str:
 
 def _execute_duckdb_query(sql_query: str) -> str:
     """Execute DuckDB query - internal function."""
+    if not _db_path or not Path(_db_path).exists():
+         return "❌ Error: Database file not found. Please initialize a dataset using 'm3 init'."
+
     try:
         conn = duckdb.connect(_db_path)
         try:
@@ -555,6 +568,8 @@ def get_icu_stays(patient_id: int | None = None, limit: int = 10) -> str:
 
     # Try common ICU table names based on backend
     if _backend == "duckdb":
+        # More robust check: look for available tables first? 
+        # For now we guess common naming convention
         icustays_table = "icu_icustays"
     else:  # bigquery
         icustays_table = "`physionet-data.mimiciv_3_1_icu.icustays`"

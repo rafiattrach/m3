@@ -62,8 +62,13 @@ class TestMCPServerSetup:
             with patch("m3.mcp_server.get_default_database_path") as mock_path:
                 mock_path.return_value = Path("/fake/path.duckdb")
                 with patch("pathlib.Path.exists", return_value=False):
-                    with pytest.raises(FileNotFoundError):
-                        _init_backend()
+                    _init_backend()
+                    # Verify that we didn't crash and that the path is set,
+                    # allowing the runtime check in _execute_duckdb_query to handle it gracefully.
+                    import m3.mcp_server
+
+                    assert m3.mcp_server._db_path == str(Path("/fake/path.duckdb"))
+                    assert m3.mcp_server._backend == "duckdb"
 
     @pytest.mark.skipif(
         not _bigquery_available(), reason="BigQuery dependencies not available"
