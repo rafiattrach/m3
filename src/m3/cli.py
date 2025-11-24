@@ -2,12 +2,11 @@ import logging
 import subprocess
 import sys
 from pathlib import Path
-from typing import Annotated, Optional
+from typing import Annotated
 
 import typer
 
 from m3 import __version__
-from m3.datasets import DatasetRegistry
 from m3.config import (
     detect_available_local_datasets,
     get_active_dataset,
@@ -24,6 +23,7 @@ from m3.data_io import (
     init_duckdb_from_parquet,
     verify_table_rowcount,
 )
+from m3.datasets import DatasetRegistry
 
 app = typer.Typer(
     name="m3",
@@ -109,7 +109,7 @@ def dataset_init_cmd(
     - If Parquet exists: only initialize DuckDB views
     - If raw CSV.gz exists but Parquet is missing: convert then initialize
     - If neither exists: download (demo only), convert, then initialize
-    
+
     Notes:
     - Auto-download is based on the dataset definition URL.
     - For datasets without a download URL (e.g. mimic-iv-full), you must provide the --src path or place files in the expected location.
@@ -150,9 +150,34 @@ def dataset_init_cmd(
     typer.echo(f"Raw root: {csv_root}  (present={raw_present})")
     typer.echo(f"Parquet root: {pq_root}  (present={parquet_present})")
 
-    # Step 1: Ensure raw dataset exists (download demo if missing; for full, inform and return)
+    # Step 1: Ensure raw dataset exists (download if missing, for requires_authentication datasets, inform and return)
     if not raw_present and not parquet_present:
-        listing_url = dataset_config.get('file_listing_url')
+        requires_auth = dataset_config.get("requires_authentication", False)
+
+        if requires_auth:
+            base_url = dataset_config.get("file_listing_url")
+
+            typer.secho(
+                f"❌ Files not found for credentialed dataset '{dataset_key}'.",
+                fg=typer.colors.RED,
+            )
+            typer.echo("To download this credentialed dataset:")
+            typer.echo(
+                f"1. Ensure you have signed the DUA at: {base_url or 'https://physionet.org'}"
+            )
+            typer.echo(
+                "2. Run this command (you will be asked for your PhysioNet password):"
+            )
+            typer.echo("")
+
+            # Wget command tailored to the user's path
+            wget_cmd = f"wget -r -N -c -np --user YOUR_USERNAME --ask-password {base_url} -P {csv_root}"
+            typer.secho(f"   {wget_cmd}", fg=typer.colors.CYAN)
+            typer.echo("")
+            typer.echo(f"3. Re-run 'm3 init {dataset_key}'")
+            return
+
+        listing_url = dataset_config.get("file_listing_url")
         if listing_url:
             out_dir = csv_root_default
             out_dir.mkdir(parents=True, exist_ok=True)
@@ -294,39 +319,43 @@ def use_cmd(
     target: Annotated[
         str,
         typer.Argument(
-            help="Select active dataset: name | bigquery", metavar="TARGET"
+            help="Select active dataset: name (e.g., mimic-iv-full)", metavar="TARGET"
         ),
     ],
 ):
     """Set the active dataset selection for the project."""
     target = target.lower()
-    
-    # Check if it is bigquery
-    if target == "bigquery":
-         set_active_dataset(target)
-         typer.secho(f"Active dataset set to '{target}'.", fg=typer.colors.GREEN)
-         return
 
-    # Check if local availability
+    # 1. Check if dataset is registered
+    # We use detect_available_local_datasets just to get the list + status,
+    # but we could also just check DatasetRegistry directly.
     availability = detect_available_local_datasets().get(target)
+
     if not availability:
         typer.secho(
-             f"Dataset '{target}' not found or not registered.",
-             fg=typer.colors.RED,
-             err=True
-        )
-        raise typer.Exit(code=1)
-
-    if not availability["parquet_present"]:
-        typer.secho(
-            f"Parquet directory missing at {availability['parquet_root']}. Cannot activate '{target}'.",
+            f"Dataset '{target}' not found or not registered.",
             fg=typer.colors.RED,
             err=True,
         )
+        # List available
+        supported = ", ".join([ds.name for ds in DatasetRegistry.list_all()])
+        typer.secho(f"Supported datasets: {supported}", fg=typer.colors.YELLOW)
         raise typer.Exit(code=1)
 
+    # 2. Set it active immediately (don't block on files)
     set_active_dataset(target)
     typer.secho(f"Active dataset set to '{target}'.", fg=typer.colors.GREEN)
+
+    # 3. Warn if local files are missing (helpful info, not a blocker)
+    if not availability["parquet_present"]:
+        typer.secho(
+            f"⚠️  Note: Local Parquet files not found at {availability['parquet_root']}.",
+            fg=typer.colors.YELLOW,
+        )
+        typer.echo(
+            "   This is fine if you are using the BigQuery backend.\n"
+            "   If you intend to use DuckDB (local), run 'm3 init' first."
+        )
 
 
 @app.command("status")

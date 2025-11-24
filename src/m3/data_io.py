@@ -129,9 +129,7 @@ def _download_dataset_files(
         csv_urls_in_subdir = _scrape_urls_from_html_page(listing_url, session)
 
         if not csv_urls_in_subdir:
-            logger.warning(
-                f"No .csv.gz files found in location: {listing_url}"
-            )
+            logger.warning(f"No .csv.gz files found in location: {listing_url}")
             continue
 
         for file_url in csv_urls_in_subdir:
@@ -170,9 +168,7 @@ def _download_dataset_files(
             all_files_to_process.append((file_url, local_target_path))
 
     if not all_files_to_process:
-        logger.error(
-            f"No '.csv.gz' download links found for dataset '{dataset_name}'."
-        )
+        logger.error(f"No '.csv.gz' download links found for dataset '{dataset_name}'.")
         return False
 
     # Deduplicate and sort for consistent processing order
@@ -208,6 +204,15 @@ def download_dataset(dataset_name: str, output_root: Path) -> bool:
     if not cfg:
         logger.error(f"Unsupported dataset: {dataset_name}")
         return False
+
+    # Prevent accidental scraping of credentialed datasets
+    if cfg.get("requires_authentication"):
+        logger.error(
+            f"Dataset '{dataset_name}' requires authentication and cannot be auto-downloaded. "
+            "Please download files manually."
+        )
+        return False
+
     if not cfg.get("file_listing_url"):
         logger.error(
             f"Dataset '{dataset_name}' does not have a configured listing URL. "

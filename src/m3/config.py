@@ -1,10 +1,11 @@
+import dataclasses
 import json
 import logging
+import os
 from pathlib import Path
-import dataclasses
-from typing import Dict, Any, Optional
+from typing import Any
 
-from m3.datasets import DatasetRegistry, DatasetDefinition
+from m3.datasets import DatasetDefinition, DatasetRegistry
 
 APP_NAME = "m3"
 
@@ -51,7 +52,9 @@ _CUSTOM_DATASETS_DIR = _PROJECT_DATA_DIR / "datasets"
 def _load_custom_datasets():
     """Load custom dataset definitions from JSON files in m3_data/datasets/."""
     if not _CUSTOM_DATASETS_DIR.exists():
-        logger.warning(f"Custom datasets directory does not exist: {_CUSTOM_DATASETS_DIR}")
+        logger.warning(
+            f"Custom datasets directory does not exist: {_CUSTOM_DATASETS_DIR}"
+        )
         return
 
     for f in _CUSTOM_DATASETS_DIR.glob("*.json"):
@@ -68,7 +71,7 @@ def get_dataset_config(dataset_name: str) -> dict | None:
     """Retrieve the configuration for a given dataset (case-insensitive)."""
     # Ensure custom datasets are loaded
     _load_custom_datasets()
-    
+
     ds = DatasetRegistry.get(dataset_name.lower())
     return dataclasses.asdict(ds) if ds else None
 
@@ -120,12 +123,12 @@ def _ensure_data_dirs():
 
 
 def _get_default_runtime_config() -> dict:
-    # We initialize with empty overrides. 
+    # We initialize with empty overrides.
     # Paths are derived dynamically from registry unless overridden here.
     return {
         "active_dataset": None,
         "duckdb_paths": {},  # Map dataset_name -> path
-        "parquet_roots": {}, # Map dataset_name -> path
+        "parquet_roots": {},  # Map dataset_name -> path
     }
 
 
@@ -150,64 +153,77 @@ def _has_parquet_files(path: Path | None) -> bool:
     return bool(path and path.exists() and any(path.rglob("*.parquet")))
 
 
-def detect_available_local_datasets() -> Dict[str, Dict[str, Any]]:
+def detect_available_local_datasets() -> dict[str, dict[str, Any]]:
     """Return presence flags for all registered datasets."""
     _load_custom_datasets()
     cfg = load_runtime_config()
-    
+
     results = {}
-    
+
     # Check all registered datasets
     for ds in DatasetRegistry.list_all():
         name = ds.name
-        
+
         # Determine paths (check config overrides first)
         parquet_root_str = cfg.get("parquet_roots", {}).get(name)
-        parquet_root = Path(parquet_root_str) if parquet_root_str else get_dataset_parquet_root(name)
-        
+        parquet_root = (
+            Path(parquet_root_str)
+            if parquet_root_str
+            else get_dataset_parquet_root(name)
+        )
+
         db_path_str = cfg.get("duckdb_paths", {}).get(name)
         db_path = Path(db_path_str) if db_path_str else get_default_database_path(name)
-        
+
         results[name] = {
             "parquet_present": _has_parquet_files(parquet_root),
             "db_present": bool(db_path and db_path.exists()),
             "parquet_root": str(parquet_root) if parquet_root else "",
             "db_path": str(db_path) if db_path else "",
         }
-            
+
     return results
 
 
 def get_active_dataset() -> str | None:
     """Get the active dataset name."""
+    # Ensure custom datasets are loaded so they can be found in the registry
+    _load_custom_datasets()
+
+    # Priority 1: Environment variable
+    env_dataset = os.getenv("M3_DATASET")
+    if env_dataset:
+        return env_dataset
+
+    # Priority 2: Config file
     cfg = load_runtime_config()
     active = cfg.get("active_dataset")
-    
+
+    # Priority 3: Auto-detect default: prefer demo, then full
     if not active:
-        # Auto-detect default: prefer demo, then full
         availability = detect_available_local_datasets()
         if availability.get("mimic-iv-demo", {}).get("parquet_present"):
-            return "mimic-iv-demo"
-        if availability.get("mimic-iv-full", {}).get("parquet_present"):
-            return "mimic-iv-full"
-        return None
-        
-    if active == "bigquery":
-        return "bigquery"
-        
+            active = "mimic-iv-demo"
+        elif availability.get("mimic-iv-full", {}).get("parquet_present"):
+            active = "mimic-iv-full"
+        else:
+            active = None
+
     return active
 
 
 def set_active_dataset(choice: str) -> None:
-    # Allow registered names, or 'bigquery'
-    valid_names = {"bigquery"} | {ds.name for ds in DatasetRegistry.list_all()}
-    
+    # Allow registered names
+    valid_names = {ds.name for ds in DatasetRegistry.list_all()}
+
     if choice not in valid_names:
         # It might be a new custom dataset not yet loaded in this process?
         # We'll allow it if it's in the registry now.
         _load_custom_datasets()
         if not DatasetRegistry.get(choice):
-             raise ValueError(f"active_dataset must be a registered dataset or 'bigquery'. Got: {choice}")
+            raise ValueError(
+                f"active_dataset must be a registered dataset. Got: {choice}"
+            )
 
     cfg = load_runtime_config()
     cfg["active_dataset"] = choice
@@ -215,12 +231,8 @@ def set_active_dataset(choice: str) -> None:
 
 
 def get_duckdb_path_for(choice: str) -> Path | None:
-    if choice == "bigquery":
-        return None
     return get_default_database_path(choice)
 
 
 def get_parquet_root_for(choice: str) -> Path | None:
-    if choice == "bigquery":
-        return None
     return get_dataset_parquet_root(choice)
