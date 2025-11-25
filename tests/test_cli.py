@@ -162,13 +162,9 @@ def test_config_claude_infers_db_path_demo(
     result = runner.invoke(app, ["config", "claude"])
     assert result.exit_code == 0
 
-    # subprocess run should be called with inferred --db-path
+    # subprocess run should NOT be called with inferred --db-path (dynamic resolution)
     call_args = mock_subprocess.call_args[0][0]
-    assert "--db-path" in call_args
-    assert "/tmp/inferred-demo.duckdb" in call_args
-
-    # Should have asked for demo duckdb path
-    mock_get_default.assert_called()
+    assert "--db-path" not in call_args
 
 
 @patch("subprocess.run")
@@ -185,8 +181,7 @@ def test_config_claude_infers_db_path_full(
     assert result.exit_code == 0
 
     call_args = mock_subprocess.call_args[0][0]
-    assert "--db-path" in call_args
-    assert "/tmp/inferred-full.duckdb" in call_args
+    assert "--db-path" not in call_args
 
 
 @patch("m3.cli.set_active_dataset")

@@ -34,6 +34,14 @@ def _bigquery_available():
 class TestMCPServerSetup:
     """Test MCP server setup and configuration."""
 
+    @pytest.fixture(autouse=True)
+    def reset_bq_cache(self):
+        """Reset the BigQuery client cache before each test."""
+        import m3.mcp_server
+
+        if hasattr(m3.mcp_server, "_bq_client_cache"):
+            m3.mcp_server._bq_client_cache = {"client": None, "project_id": None}
+
     def test_server_instance_exists(self):
         """Test that the FastMCP server instance exists."""
         assert mcp is not None
@@ -70,14 +78,17 @@ class TestMCPServerSetup:
                     # allowing the runtime check in _execute_duckdb_query to handle it gracefully.
                     import m3.mcp_server
 
-                    assert m3.mcp_server._db_path == str(Path("/fake/path.duckdb"))
+                    # _db_path was removed, check behavior via internal getter or backend info
+                    assert m3.mcp_server._get_db_path() == str(
+                        Path("/fake/path.duckdb")
+                    )
                     assert m3.mcp_server._backend == "duckdb"
 
     @pytest.mark.skipif(
         not _bigquery_available(), reason="BigQuery dependencies not available"
     )
     def test_backend_init_bigquery(self):
-        """Test BigQuery backend initialization."""
+        """Test BigQuery backend initialization and client creation."""
         mock_ds = DatasetDefinition(
             name="mock-ds",
             bigquery_project_id="test-project",
@@ -94,8 +105,20 @@ class TestMCPServerSetup:
                 with patch("google.cloud.bigquery.Client") as mock_client:
                     mock_client.return_value = Mock()
                     _init_backend()
-                    # If no exception raised, initialization succeeded
-                    # The project ID might come from env or dataset, both are 'test-project' here
+
+                    # _init_backend no longer creates the client eagerly
+                    mock_client.assert_not_called()
+
+                    # Call the internal getter to trigger creation
+                    import m3.mcp_server
+
+                    client, project_id = m3.mcp_server._get_bq_client()
+
+                    assert project_id == "test-project"
+                    mock_client.assert_called_once_with(project="test-project")
+
+                    # Second call should be cached (no new client init)
+                    m3.mcp_server._get_bq_client()
                     mock_client.assert_called_once_with(project="test-project")
 
     def test_backend_init_invalid(self):
@@ -322,6 +345,14 @@ class TestMCPTools:
 
 class TestBigQueryIntegration:
     """Test BigQuery integration with mocks (no real API calls)."""
+
+    @pytest.fixture(autouse=True)
+    def reset_bq_cache(self):
+        """Reset the BigQuery client cache before each test."""
+        import m3.mcp_server
+
+        if hasattr(m3.mcp_server, "_bq_client_cache"):
+            m3.mcp_server._bq_client_cache = {"client": None, "project_id": None}
 
     @pytest.mark.skipif(
         not _bigquery_available(), reason="BigQuery dependencies not available"

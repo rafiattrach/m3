@@ -58,8 +58,8 @@ class DatasetRegistry:
             subdirectories_to_scan=["hosp", "icu"],
             primary_verification_table="hosp_admissions",
             tags=["mimic", "clinical", "demo"],
-            bigquery_project_id="physionet-data",
-            bigquery_dataset_ids=["mimiciv_demo_hosp", "mimiciv_demo_icu"],
+            bigquery_project_id=None,
+            bigquery_dataset_ids=None,
         )
 
         mimic_iv_full = DatasetDefinition(

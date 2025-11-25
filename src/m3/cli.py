@@ -356,6 +356,22 @@ def use_cmd(
             "   This is fine if you are using the BigQuery backend.\n"
             "   If you intend to use DuckDB (local), run 'm3 init' first."
         )
+    else:
+        typer.secho(
+            "  Local: Available",
+        )
+
+    # 4. Check BigQuery support
+    ds_def = DatasetRegistry.get(target)
+    if ds_def:
+        if not ds_def.bigquery_dataset_ids:
+            typer.secho(
+                "⚠️  Warning: This dataset is not configured for BigQuery.",
+                fg=typer.colors.YELLOW,
+            )
+            typer.echo("   If you are using the BigQuery backend, queries will fail.")
+        else:
+            typer.echo(f"  BigQuery: Available (Project: {ds_def.bigquery_project_id})")
 
 
 @app.command("status")
@@ -389,6 +405,12 @@ def status_cmd():
                 typer.echo(f"  parquet_size_gb: {size_gb:.4f} GB")
             except Exception:
                 typer.echo("  parquet_size_gb: (skipped)")
+
+        # Show BigQuery status
+        ds_def = DatasetRegistry.get(label)
+        if ds_def:
+            bq_status = "✅" if ds_def.bigquery_dataset_ids else "❌"
+            typer.echo(f"  BigQuery Support: {bq_status}")
 
         # Try a quick rowcount on the verification table if db present
         cfg = get_dataset_config(label)
@@ -542,17 +564,10 @@ def config_cmd(
         if backend != "duckdb":
             cmd.extend(["--backend", backend])
 
-        # For duckdb, infer db_path from active dataset if not provided
-        if backend == "duckdb":
-            if db_path:
-                inferred_db_path = Path(db_path).resolve()
-            else:
-                active_dataset = get_active_dataset()
-                if not active_dataset:
-                    # default to demo if nothing is set
-                    inferred_db_path = get_default_database_path("mimic-iv-demo")
-                else:
-                    inferred_db_path = get_default_database_path(active_dataset)
+        # For duckdb, pass db_path only if explicitly provided.
+        # If omitted, the server will resolve it dynamically based on the active dataset.
+        if backend == "duckdb" and db_path:
+            inferred_db_path = Path(db_path).resolve()
             cmd.extend(["--db-path", str(inferred_db_path)])
 
         elif backend == "bigquery" and project_id:

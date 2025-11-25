@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from m3.config import get_active_dataset, get_default_database_path
+from m3.config import get_default_database_path
 
 # Error messages
 _DATABASE_PATH_ERROR_MSG = (
@@ -86,17 +86,7 @@ class MCPConfigGenerator:
         if backend == "duckdb":
             if db_path:
                 env["M3_DB_PATH"] = db_path
-            else:
-                active = get_active_dataset()
-                if not active:
-                    raise ValueError(
-                        "Could not determine default DuckDB path; run `m3 init ...` first "
-                        "or pass --db-path explicitly."
-                    )
-                default_path = get_default_database_path(active)
-                if not default_path:
-                    raise ValueError(_DATABASE_PATH_ERROR_MSG)
-                env["M3_DB_PATH"] = str(default_path)
+            # If no db_path, we rely on dynamic resolution in the server
 
         elif backend == "bigquery" and project_id:
             env["M3_PROJECT_ID"] = project_id
@@ -194,9 +184,12 @@ class MCPConfigGenerator:
                 raise ValueError(_DATABASE_PATH_ERROR_MSG)
             print(f"Default database path: {default_db_path}")
 
+            print(
+                "\nLeaving database path empty allows switching datasets dynamically via 'm3 use'."
+            )
             db_path = (
                 input(
-                    "DuckDB database path (optional, press Enter to use default): "
+                    "DuckDB database path (optional, press Enter for dynamic): "
                 ).strip()
                 or None
             )

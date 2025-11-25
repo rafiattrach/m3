@@ -19,10 +19,78 @@ mcp = FastMCP("m3")
 
 # Global variables for backend configuration
 _backend = None
-_db_path = None
-_bq_client = None
-_project_id = None
-_active_dataset_def = None
+# Cache for BigQuery client to avoid re-initializing on every request
+_bq_client_cache = {"client": None, "project_id": None}
+
+
+def _get_active_dataset_def():
+    """Get the currently active dataset definition."""
+    # 1. Try currently active dataset from config/env
+    active_ds_name = get_active_dataset()
+    if active_ds_name:
+        return DatasetRegistry.get(active_ds_name)
+
+    # 2. Fallback for BigQuery: try to find a full definition
+    if _backend == "bigquery":
+        # Use mimic-iv-full as reference if available, else demo
+        return DatasetRegistry.get("mimic-iv-full") or DatasetRegistry.get(
+            "mimic-iv-demo"
+        )
+
+    # 3. Fallback for DuckDB: demo
+    return DatasetRegistry.get("mimic-iv-demo")
+
+
+def _get_db_path():
+    """Get the current DuckDB path."""
+    # 1. Env var overrides everything (static mode)
+    env_path = os.getenv("M3_DB_PATH")
+    if env_path:
+        return env_path
+
+    # 2. Dynamic resolution based on active dataset
+    ds_def = _get_active_dataset_def()
+    if ds_def:
+        path = get_default_database_path(ds_def.name)
+        return str(path) if path else None
+
+    return None
+
+
+def _get_bq_client():
+    """Get or create a BigQuery client for the current project."""
+    try:
+        from google.cloud import bigquery
+    except ImportError:
+        raise ImportError(
+            "BigQuery dependencies not found. Install with: pip install google-cloud-bigquery"
+        )
+
+    # Determine target project ID
+    # Priority: Env Var > Dataset Config > Default
+    env_project = os.getenv("M3_PROJECT_ID")
+    ds_def = _get_active_dataset_def()
+    ds_project = ds_def.bigquery_project_id if ds_def else None
+
+    target_project_id = env_project or ds_project or "physionet-data"
+
+    # Check cache
+    if (
+        _bq_client_cache["client"]
+        and _bq_client_cache["project_id"] == target_project_id
+    ):
+        return _bq_client_cache["client"], target_project_id
+
+    # Create new client
+    try:
+        client = bigquery.Client(project=target_project_id)
+        _bq_client_cache["client"] = client
+        _bq_client_cache["project_id"] = target_project_id
+        return client, target_project_id
+    except Exception as e:
+        raise RuntimeError(
+            f"Failed to initialize BigQuery client for project {target_project_id}: {e}"
+        )
 
 
 def _validate_limit(limit: int) -> bool:
@@ -133,85 +201,34 @@ def _is_safe_query(sql_query: str, internal_tool: bool = False) -> tuple[bool, s
 
 def _init_backend():
     """Initialize the backend based on environment variables."""
-    global _backend, _db_path, _bq_client, _project_id, _active_dataset_def
+    global _backend
 
     # Initialize OAuth2 authentication
     init_oauth2()
 
     _backend = os.getenv("M3_BACKEND", "duckdb")
-    active_ds_name = get_active_dataset()
 
-    # Load dataset definition if available
-    if active_ds_name:
-        _active_dataset_def = DatasetRegistry.get(active_ds_name)
-    else:
-        # If explicitly bigquery or unset, we might default to a 'full' mimic definition if available,
-        # but better to handle it dynamically.
-        # For now, let's see if we can infer a default definition for bigquery mode
-        # or just rely on manual project_id
-        if _backend == "bigquery":
-            # We might want to default to mimic-iv-full for bigquery metadata if not specified?
-            # But the user might want a different one.
-            # Let's check if we can infer it.
-            # For now, we'll try to use 'mimic-iv-full' as the reference for BigQuery structure
-            # if the user hasn't selected another dataset but is using BigQuery backend.
-            _active_dataset_def = DatasetRegistry.get("mimic-iv-full")
-
-    if _backend == "duckdb":
-        _db_path = os.getenv("M3_DB_PATH")
-        if not _db_path:
-            if active_ds_name:
-                path = get_default_database_path(active_ds_name)
-                _db_path = str(path) if path else None
-            else:
-                # Fallback to demo if we can't figure it out
-                path = get_default_database_path("mimic-iv-demo")
-                _db_path = str(path) if path else None
-                if not _active_dataset_def:
-                    _active_dataset_def = DatasetRegistry.get("mimic-iv-demo")
-
-        if not _db_path or not Path(_db_path).exists():
-            # We don't raise here to allow server to start even if DB is missing (e.g. for 'config' command usage via import)
-            # But runtime queries will fail.
-            pass
-
-    elif _backend == "bigquery":
-        try:
-            from google.cloud import bigquery
-        except ImportError:
-            raise ImportError(
-                "BigQuery dependencies not found. Install with: pip install google-cloud-bigquery"
-            )
-
-        # User's GCP project ID for authentication and billing
-        # Priority: Env Var > Dataset Config > Default
-        env_project = os.getenv("M3_PROJECT_ID")
-        ds_project = (
-            _active_dataset_def.bigquery_project_id if _active_dataset_def else None
+    if _backend not in ["duckdb", "bigquery"]:
+        raise ValueError(
+            f"Unsupported backend: {_backend}. Supported backends: duckdb, bigquery"
         )
 
-        _project_id = env_project or ds_project or "physionet-data"
 
-        try:
-            _bq_client = bigquery.Client(project=_project_id)
-        except Exception as e:
-            raise RuntimeError(f"Failed to initialize BigQuery client: {e}")
-
-    else:
-        raise ValueError(f"Unsupported backend: {_backend}")
-
-
-# Initialize backend when module is imported
 _init_backend()
 
 
 def _get_backend_info() -> str:
     """Get current backend information for display in responses."""
-    ds_name = _active_dataset_def.name if _active_dataset_def else "unknown"
+    ds_def = _get_active_dataset_def()
+    ds_name = ds_def.name if ds_def else "unknown"
+
     if _backend == "duckdb":
-        return f"🔧 **Current Backend:** DuckDB (local database)\n📦 **Dataset:** {ds_name}\n📁 **Database Path:** {_db_path}\n"
+        db_path = _get_db_path()
+        return f"🔧 **Current Backend:** DuckDB (local database)\n📦 **Active Dataset:** {ds_name}\n📁 **Database Path:** {db_path}\n"
     else:
-        return f"🔧 **Current Backend:** BigQuery (cloud database)\n📦 **Dataset:** {ds_name}\n☁️ **Project ID:** {_project_id}\n"
+        # Resolve project ID dynamically for display
+        _, project_id = _get_bq_client()
+        return f"🔧 **Current Backend:** BigQuery (cloud database)\n📦 **Active Dataset:** {ds_name}\n☁️ **Project ID:** {project_id}\n"
 
 
 # ==========================================
@@ -224,11 +241,12 @@ def _get_backend_info() -> str:
 
 def _execute_duckdb_query(sql_query: str) -> str:
     """Execute DuckDB query - internal function."""
-    if not _db_path or not Path(_db_path).exists():
+    db_path = _get_db_path()
+    if not db_path or not Path(db_path).exists():
         return "❌ Error: Database file not found. Please initialize a dataset using 'm3 init'."
 
     try:
-        conn = duckdb.connect(_db_path)
+        conn = duckdb.connect(db_path)
         try:
             df = conn.execute(sql_query).df()
             if df.empty:
@@ -253,8 +271,10 @@ def _execute_bigquery_query(sql_query: str) -> str:
     try:
         from google.cloud import bigquery
 
+        client, _ = _get_bq_client()
+
         job_config = bigquery.QueryJobConfig()
-        query_job = _bq_client.query(sql_query, job_config=job_config)
+        query_job = client.query(sql_query, job_config=job_config)
         df = query_job.to_dataframe()
 
         if df.empty:
@@ -402,13 +422,14 @@ def get_database_schema() -> str:
 
     elif _backend == "bigquery":
         # Dynamic schema discovery based on active dataset definition
-        if not _active_dataset_def or not _active_dataset_def.bigquery_dataset_ids:
+        ds_def = _get_active_dataset_def()
+        if not ds_def or not ds_def.bigquery_dataset_ids:
             return f"{_get_backend_info()}❌ **Error:** No BigQuery datasets configured for the active dataset."
 
-        project_id = _active_dataset_def.bigquery_project_id or "physionet-data"
+        project_id = ds_def.bigquery_project_id or "physionet-data"
         queries = []
 
-        for dataset_id in _active_dataset_def.bigquery_dataset_ids:
+        for dataset_id in ds_def.bigquery_dataset_ids:
             queries.append(f"""
              SELECT CONCAT('`{project_id}.{dataset_id}.', table_name, '`') as query_ready_table_name
              FROM `{project_id}.{dataset_id}.INFORMATION_SCHEMA.TABLES`
@@ -525,9 +546,10 @@ def get_table_info(table_name: str, show_sample: bool = True) -> str:
                 pass  # Fall through to try search approach if direct lookup fails (unlikely but safe)
 
         # Try configured datasets with simple name
-        if _active_dataset_def and _active_dataset_def.bigquery_dataset_ids:
-            project_id = _active_dataset_def.bigquery_project_id or "physionet-data"
-            for dataset_id in _active_dataset_def.bigquery_dataset_ids:
+        ds_def = _get_active_dataset_def()
+        if ds_def and ds_def.bigquery_dataset_ids:
+            project_id = ds_def.bigquery_project_id or "physionet-data"
+            for dataset_id in ds_def.bigquery_dataset_ids:
                 try:
                     full_table_name = f"`{project_id}.{dataset_id}.{simple_table_name}`"
 
@@ -599,8 +621,9 @@ def get_icu_stays(patient_id: int | None = None, limit: int = 10) -> str:
         ICU stay data as formatted text or guidance if table not found
     """
     # Check dataset compatibility
-    if _active_dataset_def and "mimic" not in _active_dataset_def.tags:
-        return f"❌ **Error:** This tool is optimized for MIMIC datasets. The current dataset '{_active_dataset_def.name}' does not appear to be a MIMIC dataset."
+    ds_def = _get_active_dataset_def()
+    if ds_def and "mimic" not in ds_def.tags:
+        return f"❌ **Error:** This tool is optimized for MIMIC datasets. The current dataset '{ds_def.name}' does not appear to be a MIMIC dataset."
 
     # Security validation
     if not _validate_limit(limit):
@@ -611,9 +634,14 @@ def get_icu_stays(patient_id: int | None = None, limit: int = 10) -> str:
         icustays_table = "icu_icustays"
     else:  # bigquery
         # Try to find icustays in configured datasets
-        project_id = _active_dataset_def.bigquery_project_id or "physionet-data"
+        project_id = (
+            ds_def.bigquery_project_id or "physionet-data"
+            if ds_def
+            else "physionet-data"
+        )
         found = False
-        for ds in _active_dataset_def.bigquery_dataset_ids:
+        dataset_ids = ds_def.bigquery_dataset_ids if ds_def else []
+        for ds in dataset_ids:
             if "icu" in ds:
                 icustays_table = f"`{project_id}.{ds}.icustays`"
                 found = True
@@ -663,8 +691,9 @@ def get_lab_results(
         Lab results as formatted text or guidance if table not found
     """
     # Check dataset compatibility
-    if _active_dataset_def and "mimic" not in _active_dataset_def.tags:
-        return f"❌ **Error:** This tool is optimized for MIMIC datasets. The current dataset '{_active_dataset_def.name}' does not appear to be a MIMIC dataset."
+    ds_def = _get_active_dataset_def()
+    if ds_def and "mimic" not in ds_def.tags:
+        return f"❌ **Error:** This tool is optimized for MIMIC datasets. The current dataset '{ds_def.name}' does not appear to be a MIMIC dataset."
 
     # Security validation
     if not _validate_limit(limit):
@@ -675,9 +704,14 @@ def get_lab_results(
         labevents_table = "hosp_labevents"
     else:  # bigquery
         # Try to find labevents in configured datasets
-        project_id = _active_dataset_def.bigquery_project_id or "physionet-data"
+        project_id = (
+            ds_def.bigquery_project_id or "physionet-data"
+            if ds_def
+            else "physionet-data"
+        )
         found = False
-        for ds in _active_dataset_def.bigquery_dataset_ids:
+        dataset_ids = ds_def.bigquery_dataset_ids if ds_def else []
+        for ds in dataset_ids:
             if "hosp" in ds:
                 labevents_table = f"`{project_id}.{ds}.labevents`"
                 found = True
@@ -732,8 +766,9 @@ def get_race_distribution(limit: int = 10) -> str:
         Race distribution as formatted text or guidance if table not found
     """
     # Check dataset compatibility
-    if _active_dataset_def and "mimic" not in _active_dataset_def.tags:
-        return f"❌ **Error:** This tool is optimized for MIMIC datasets. The current dataset '{_active_dataset_def.name}' does not appear to be a MIMIC dataset."
+    ds_def = _get_active_dataset_def()
+    if ds_def and "mimic" not in ds_def.tags:
+        return f"❌ **Error:** This tool is optimized for MIMIC datasets. The current dataset '{ds_def.name}' does not appear to be a MIMIC dataset."
 
     # Security validation
     if not _validate_limit(limit):
@@ -744,9 +779,14 @@ def get_race_distribution(limit: int = 10) -> str:
         admissions_table = "hosp_admissions"
     else:  # bigquery
         # Try to find admissions in configured datasets
-        project_id = _active_dataset_def.bigquery_project_id or "physionet-data"
+        project_id = (
+            ds_def.bigquery_project_id or "physionet-data"
+            if ds_def
+            else "physionet-data"
+        )
         found = False
-        for ds in _active_dataset_def.bigquery_dataset_ids:
+        dataset_ids = ds_def.bigquery_dataset_ids if ds_def else []
+        for ds in dataset_ids:
             if "hosp" in ds:
                 admissions_table = f"`{project_id}.{ds}.admissions`"
                 found = True
