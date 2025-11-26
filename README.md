@@ -1,4 +1,4 @@
-# M3: MIMIC-IV + MCP + Models 🏥🤖
+# M3: Medical Datasets ↔ MCP ↔ Models 🏥🤖
 
 <div align="center">
   <img src="webapp/public/m3_logo_transparent.png" alt="M3 Logo" width="300"/>
@@ -14,6 +14,17 @@
 
 Transform medical data analysis with AI! Ask questions about MIMIC-IV and other PhysioNet datasets in plain English and get instant insights. Choose between local data (free) or full cloud dataset (BigQuery).
 
+## 💡 How It Works
+
+M3 acts as a bridge between your **AI Client** (like Claude Desktop, Cursor, or LibreChat) and your medical data.
+
+1.  **You** ask a question in your chat interface: *"How many patients in the ICU have high blood pressure?"*
+2.  **M3** securely translates this into a database query.
+3.  **M3** runs the query on your local or cloud data.
+4.  **The LLM** explains the results to you in plain English.
+
+*No SQL knowledge required.*
+
 ## Features
 
 - 🔍 **Natural Language Queries**: Ask questions about your medical data in plain English
@@ -26,11 +37,17 @@ Transform medical data analysis with AI! Ask questions about MIMIC-IV and other 
 
 ## 🚀 Quick Start
 
-> 📺 **Prefer video tutorials?** Check out [step-by-step video guides](https://rafiattrach.github.io/m3/) covering setup, PhysioNet configuration, and more.
+> **New to this?** 📺 [Watch our 5-minute setup video](https://rafiattrach.github.io/m3/) to see it in action.
 
-### Install uv (required for `uvx`)
+### Prerequisites
+You need an **MCP-compatible Client** to use M3. Popular options include:
+- [Claude for Desktop](https://claude.ai/download)
+- [Cursor](https://cursor.com)
+- [LibreChat](https://www.librechat.ai/)
 
-We use `uvx` to run the MCP server. Install `uv` from the official installer, then verify with `uv --version`.
+### 1. Install `uv` (Required)
+
+We use `uvx` to run the MCP server efficiently.
 
 **macOS and Linux:**
 ```bash
@@ -42,322 +59,273 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
 
-Verify installation:
-```bash
-uv --version
-```
+### 2. Choose Your Data Source
 
-### BigQuery Setup (Optional - Full Dataset)
+Select **Option A** (Local) or **Option B** (Cloud).
 
-**Skip this if using DuckDB demo database.**
+#### Option A: Local Dataset (Free & Fast)
+*Best for development, testing, and offline use.*
 
-1. **Install Google Cloud SDK:**
-   - macOS: `brew install google-cloud-sdk`
-   - Windows/Linux: https://cloud.google.com/sdk/docs/install
+1.  **Create project directory:**
+    ```bash
+    mkdir m3 && cd m3
+    ```
 
-2. **Authenticate:**
-   ```bash
-   gcloud auth application-default login
-   ```
-   *Opens your browser - choose the Google account with BigQuery access to MIMIC-IV.*
+2.  **Initialize Dataset:**
 
-### M3 Initialization
+    We will use MIMIC-IV as an example.
 
-**Supported clients:** [Claude Desktop](https://www.claude.com/download), [Cursor](https://cursor.com/download), [Goose](https://block.github.io/goose/), and [more](https://github.com/punkpeye/awesome-mcp-clients).
+    **For Demo (Auto-download ~16MB):**
+    ```bash
+    uv init && uv add m3-mcp
+    uv run m3 init mimic-iv-demo
+    ```
 
-<table>
-<tr>
-<td width="50%">
+    **For Full Data (Requires Manual Download):**
+    *Download CSVs from [PhysioNet](https://physionet.org/content/mimiciv/3.1/) first and place them in `m3_data/raw_files`.*
+    ```bash
+    uv init && uv add m3-mcp
+    uv run m3 init mimic-iv-full
+    ```
+    *This can take 5-15 minutes depending on your machine*
 
-**DuckDB (Local Datasets)**
+3.  **Configure Your Client:**
 
-To create a m3 directory and navigate into it run:
-```shell
-mkdir m3 && cd m3
-```
+    **For Claude Desktop (Shortcut):**
+    ```bash
+    uv run m3 config claude --quick
+    ```
 
-**Option A: MIMIC-IV Demo (Auto-Download)**
-```shell
-uv init && uv add m3-mcp && \
-uv run m3 init mimic-iv-demo && uv run m3 config --quick
-```
-*Downloads ~16MB automatically.*
+    **For Other Clients (Cursor, LibreChat, etc.):**
+    ```bash
+    uv run m3 config --quick
+    ```
+    *This generates the configuration JSON you need to paste into your client's settings.*
 
-**Option B: Full Datasets (Manual Download)**
-1. Download CSVs from PhysioNet.
-2. Run init with source path:
-```shell
-uv run m3 init mimic-iv-full --src /path/to/raw/csvs
-```
-3. Configure client:
-```shell
-uv run m3 config --quick
-```
+#### Option B: BigQuery (Full Cloud Dataset)
+*Best for researchers with Google Cloud access.*
 
-</td>
-<td width="50%">
+1.  **Authenticate with Google:**
+    ```bash
+    gcloud auth application-default login
+    ```
 
-**BigQuery (Full Dataset)**
+2.  **Configure Client:**
+    ```bash
+    uv run m3 config --backend bigquery --project_id BIGQUERY_PROJECT_ID
+    ```
+    *This also generates the configuration JSON you need to paste into your client's settings.*
 
-Requires GCP credentials and PhysioNet access.
 
-Paste this into your client config JSON file:
 
-```json
-{
-  "mcpServers": {
-    "m3": {
-      "command": "uvx",
-      "args": ["m3-mcp"],
-      "env": {
-        "M3_BACKEND": "bigquery",
-        "M3_PROJECT_ID": "your-project-id"
-      }
-    }
-  }
-}
-```
-
-*Replace `your-project-id` with your Google Cloud project ID.*
-
-</td>
-</tr>
-</table>
-
-**That's it!** Restart your MCP client and ask:
+### 3. Start Asking Questions!
+Restart your MCP client and try:
 - "What tools do you have for MIMIC-IV data?"
 - "Show me patient demographics from the ICU"
 - "What is the race distribution in admissions?"
 
 ---
 
-## ➕ Adding Custom Datasets
+## 🔄 Managing Datasets
 
-M3 is designed to be modular. You can add support for any tabular dataset easily.
-
-### 1. CLI Method (Ad-hoc)
-
-If you have a folder of CSV/CSV.gz files, you can initialize it directly as a custom dataset:
+Switch between available datasets instantly:
 
 ```bash
-# Not yet implemented in CLI but supported by architecture
-# Future: m3 init --local /path/to/my/csvs --name my-custom-study
+# Switch to full dataset
+m3 use mimic-iv-full
+
+# Switch back to demo
+m3 use mimic-iv-demo
+
+# Check status
+m3 status
 ```
 
-Currently, you can register new datasets by creating a definition file.
+---
 
-### 2. JSON Definition Method
+## Backend Comparison
 
-Create a JSON file in `m3_data/datasets/my_study.json`:
+| Feature | DuckDB (Demo) | DuckDB (Full) | BigQuery (Full) |
+|---------|---------------|---------------|-----------------|
+| **Cost** | Free | Free | BigQuery usage fees |
+| **Setup** | Zero config | Manual Download | GCP credentials required |
+| **Credentials** | Not required | PhysioNet | PhysioNet |
+| **Data Size** | 100 patients | 365k patients | 365k patients |
+| **Speed** | Fast (local) | Fast (local) | Network latency |
+| **Use Case** | Learning | Research (local) | Research, production |
 
+---
+
+## ➕ Adding Custom Datasets
+
+M3 is designed to be modular. You can add support for any tabular dataset on PhysioNet easily. Let's take eICU as an example:
+
+### JSON Definition Method
+
+1.  Create a definition file: `m3_data/datasets/eicu.json`
+    ```json
+    {
+      "name": "eicu",
+      "description": "eICU Collaborative Research Database",
+      "file_listing_url": "https://physionet.org/files/eicu-crd/2.0/",
+      "subdirectories_to_scan": [],
+      "primary_verification_table": "eicu_crd_patient",
+      "tags": ["clinical", "eicu"],
+      "requires_authentication": true,
+      "bigquery_project_id": "physionet-data",
+      "bigquery_dataset_ids": ["eicu_crd"]
+    }
+    ```
+
+2.  Initialize it:
+    ```bash
+    m3 init eicu --src /path/to/raw/csvs
+    ```
+    *M3 will convert CSVs to Parquet and create DuckDB views automatically.*
+
+---
+
+## Alternative Installation Methods
+
+> Already have Docker or prefer pip?
+
+### 🐳 Docker
+
+<table>
+<tr>
+<td width="50%">
+
+**DuckDB (Local):**
+```bash
+git clone https://github.com/rafiattrach/m3.git && cd m3
+docker build -t m3:lite --target lite .
+docker run -d --name m3-server m3:lite tail -f /dev/null
+```
+
+</td>
+<td width="50%">
+
+**BigQuery:**
+```bash
+git clone https://github.com/rafiattrach/m3.git && cd m3
+docker build -t m3:bigquery --target bigquery .
+docker run -d --name m3-server \
+  -e M3_BACKEND=bigquery \
+  -e M3_PROJECT_ID=your-project-id \
+  -v $HOME/.config/gcloud:/root/.config/gcloud:ro \
+  m3:bigquery tail -f /dev/null
+```
+
+</td>
+</tr>
+</table>
+
+**MCP config (same for both):**
 ```json
 {
-  "name": "my-study",
-  "description": "My custom clinical study data",
-  "file_listing_url": null,
-  "subdirectories_to_scan": ["data", "metadata"],
-  "default_duckdb_filename": "my_study.duckdb",
-  "tags": ["clinical", "custom"]
+  "mcpServers": {
+    "m3": {
+      "command": "docker",
+      "args": ["exec", "-i", "m3-server", "python", "-m", "m3.mcp_server"]
+    }
+  }
 }
 ```
 
-Then initialize it:
+### pip Install
 
 ```bash
-m3 init my-study --src /path/to/raw/csvs
+pip install m3-mcp
+m3 config --quick
 ```
 
-M3 will:
-1. Scan the source directory for CSVs
-2. Convert them to Parquet
-3. Create DuckDB views automatically (e.g. `data/patients.csv` -> table `data_patients`)
+### Local Development
+
+For contributors:
+
+1.  **Clone & Install (using `uv`):**
+    ```bash
+    git clone https://github.com/rafiattrach/m3.git
+    cd m3
+    uv venv
+    uv sync
+    ```
+
+2.  **MCP Config:**
+    ```json
+    {
+      "mcpServers": {
+        "m3": {
+          "command": "/absolute/path/to/m3/.venv/bin/python",
+          "args": ["-m", "m3.mcp_server"],
+          "cwd": "/absolute/path/to/m3",
+          "env": { "M3_BACKEND": "duckdb" }
+        }
+      }
+    }
+    ```
 
 ---
 
 ## 🔧 Advanced Configuration
 
-Need to configure other MCP clients or customize settings? Use these commands:
-
-### Interactive Configuration (Universal)
+**Interactive Config Generator:**
 ```bash
 m3 config
 ```
-Generates configuration for any MCP client with step-by-step guidance.
 
-### Quick Configuration Examples
+**OAuth2 Authentication:**
+For secure production deployments:
 ```bash
-# Quick universal config with defaults
-m3 config --quick
-
-# Universal config with custom DuckDB database
-m3 config --quick --backend duckdb --db-path /path/to/database.duckdb
-
-# Save config to file for other MCP clients
-m3 config --output my_config.json
-```
-
-### OAuth2 Authentication (Optional)
-
-For production deployments requiring secure access to medical data:
-
-```bash
-# Enable OAuth2 with Claude Desktop
 m3 config claude --enable-oauth2 \
   --oauth2-issuer https://your-auth-provider.com \
-  --oauth2-audience m3-api \
-  --oauth2-scopes "read:mimic-data"
-
-# Or configure interactively
-m3 config  # Choose OAuth2 option during setup
+  --oauth2-audience m3-api
 ```
-
-**Supported OAuth2 Providers:**
-- Auth0, Google Identity Platform, Microsoft Azure AD, Keycloak
-- Any OAuth2/OpenID Connect compliant provider
-
-> 📖 **Complete OAuth2 Setup Guide**: See [`docs/OAUTH2_AUTHENTICATION.md`](docs/OAUTH2_AUTHENTICATION.md) for detailed configuration, troubleshooting, and production deployment guidelines.
+> See [`docs/OAUTH2_AUTHENTICATION.md`](docs/OAUTH2_AUTHENTICATION.md) for details.
 
 ---
 
 ## 🛠️ Available MCP Tools
 
-When your MCP client processes questions, it uses these tools automatically:
-
 - **get_database_schema**: List all available tables
-- **get_table_info**: Get column info and sample data for a table
+- **get_table_info**: Get column info and sample data
 - **execute_mimic_query**: Execute SQL SELECT queries
-- **get_icu_stays**: ICU stay information and length of stay data
+- **get_icu_stays**: ICU stay info & length of stay
 - **get_lab_results**: Laboratory test results
-- **get_race_distribution**: Patient race distribution
+- **get_race_distribution**: Patient race statistics
 
 ## Example Prompts
 
-Try asking your MCP client these questions:
-
-**Demographics & Statistics:**
-
-- `Prompt:` *What is the race distribution in admissions?*
-- `Prompt:` *Show me patient demographics for ICU stays*
-- `Prompt:` *How many total admissions are in the database?*
+**Demographics:**
+- *What is the race distribution in MIMIC-IV admissions?*
+- *Show me patient demographics for ICU stays*
 
 **Clinical Data:**
+- *Find lab results for patient X*
+- *What lab tests are most commonly ordered?*
 
-- `Prompt:` *Find lab results for patient X*
-- `Prompt:` *What lab tests are most commonly ordered?*
-- `Prompt:` *Show me recent ICU admissions*
+**Exploration:**
+- *What tables are available in the database?*
 
-**Data Exploration:**
+---
 
-- `Prompt:` *What tables are available in the database?*
-- `Prompt:` *What tools do you have for MIMIC-IV data?*
+## Troubleshooting
 
-## 🎩 Pro Tips
+- **"Parquet not found"**: Rerun `m3 init <dataset_name>`.
+- **MCP client not starting**: Check logs (Claude Desktop: Help → View Logs).
+- **BigQuery Access Denied**: Run `gcloud auth application-default login` and verify project ID.
 
-- Do you want to pre-approve the usage of all tools in Claude Desktop? Use the prompt below and then select **Always Allow**
-  - `Prompt:` *Can you please call all your tools in a logical sequence?*
+---
 
-## 🔍 Troubleshooting
+## Contributing & Citation
 
-### Common Issues
+### For Developers
+We welcome contributions!
+1.  **Setup:** Follow the "Local Development" steps above.
+2.  **Test:** Run `uv run pre-commit --all-files` to ensure everything is working and linted.
+3.  **Submit:** Open a Pull Request with your changes.
 
-**Local "Parquet not found" or view errors:**
-Rerun the `m3 init` command for your chosen dataset.
-
-**MCP client server not starting:**
-1. Check your MCP client logs (for Claude Desktop: Help → View Logs)
-2. Verify configuration file location and format
-3. Restart your MCP client completely
-
-### OAuth2 Authentication Issues
-
-**"Missing OAuth2 access token" errors:**
-```bash
-# Set your access token
-export M3_OAUTH2_TOKEN="Bearer your-access-token-here"
-```
-
-**"OAuth2 authentication failed" errors:**
-- Verify your token hasn't expired
-- Check that required scopes are included in your token
-- Ensure your OAuth2 provider configuration is correct
-
-**Rate limit exceeded:**
-- Wait for the rate limit window to reset
-- Contact your administrator to adjust limits if needed
-
-> 🔧 **OAuth2 Troubleshooting**: See [`OAUTH2_AUTHENTICATION.md`](docs/OAUTH2_AUTHENTICATION.md) for detailed OAuth2 troubleshooting and configuration guides.
-
-### BigQuery Issues
-
-**"Access Denied" errors:**
-- Ensure you have MIMIC-IV access on PhysioNet
-- Verify your Google Cloud project has BigQuery API enabled
-- Check that you're authenticated: `gcloud auth list`
-
-**"Dataset not found" errors:**
-- Confirm your project ID is correct
-- Ensure you have access to `physionet-data` project
-
-**Authentication issues:**
-```bash
-# Re-authenticate
-gcloud auth application-default login
-
-# Check current authentication
-gcloud auth list
-```
-
-## For Developers
-
-> See "Local Development" section above for setup instructions.
-
-### Running Tests
-
-```bash
-pytest  # All tests (includes OAuth2 and BigQuery mocks)
-pytest tests/test_mcp_server.py -v  # MCP server tests
-pytest tests/test_oauth2_auth.py -v  # OAuth2 authentication tests
-```
-
-### Test BigQuery Locally
-
-```bash
-# Set environment variables
-export M3_BACKEND=bigquery
-export M3_PROJECT_ID=your-project-id
-export GOOGLE_CLOUD_PROJECT=your-project-id
-
-# Optional: Test with OAuth2 authentication
-export M3_OAUTH2_ENABLED=true
-export M3_OAUTH2_ISSUER_URL=https://your-provider.com
-export M3_OAUTH2_AUDIENCE=m3-api
-export M3_OAUTH2_TOKEN="Bearer your-test-token"
-
-# Test MCP server
-m3-mcp-server
-```
-
-## Roadmap
-
-- 🏠 **Complete Local Full Dataset**: Complete the support for `mimic-iv-full` (Download CLI)
-- 🔧 **Advanced Tools**: More specialized medical data functions
-- 📊 **Visualization**: Built-in plotting and charting tools
-- 🔐 **Enhanced Security**: Role-based access control, audit logging
-- 🌐 **Multi-tenant Support**: Organization-level data isolation
-
-## Contributing
-
-We welcome contributions! Please:
-
-1. Fork the repository
-2. Create a feature branch
-3. Add tests for new functionality
-4. Submit a pull request
-
-## Citation
-
-If you use M3 in your research, please cite:
-
+**Citation:**
 ```bibtex
 @article{attrach2025conversational,
   title={Conversational LLMs Simplify Secure Clinical Data Access, Understanding, and Analysis},
