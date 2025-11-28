@@ -452,65 +452,6 @@ The container uses StreamableHTTP transport on port 3000 with path `/sse`. Confi
 
 Helm charts for deploying M3 are available in a separate repository.
 
-## 🤖 AI Agent Integration
-
-### Agent Instructions
-
-Copy these instructions into your AI agent configuration for optimal MIMIC-IV querying:
-
-**Core Workflow:**
-1. Always start with schema discovery using get_database_schema()
-2. Use get_table_info(table_name) to see columns and sample data
-3. Check sample data for actual formats (dates, column names, values)
-4. Write queries with proper JOINs and LIMIT clauses
-5. Provide context and interpretation with results
-
-**Key Tables:**
-- patients: Demographics (subject_id, gender, anchor_age, anchor_year)
-- admissions: Hospital stays (hadm_id, admittime, dischtime, admission_type)
-- icustays: ICU episodes (stay_id, intime, outtime, los)
-- labevents: Lab results (itemid, value, valuenum, valueuom)
-- prescriptions: Medications (drug, dose_val_rx, route)
-
-**Best Practices:**
-- Always use LIMIT to prevent returning too many rows
-- Verify column names from sample data (e.g., 'anchor_age' not 'age')
-- Handle NULLs explicitly in clinical data
-- Use convenience functions for common patterns
-- Explain results, don't just dump data
-
-**Example Query Pattern:**
-```sql
-SELECT p.subject_id, p.gender, a.admittime, a.diagnosis
-FROM patients p
-INNER JOIN admissions a ON p.subject_id = a.subject_id
-WHERE a.admission_type = 'EMERGENCY'
-LIMIT 10;
-```
-
-### Sample Questions
-
-**Basic Exploration:**
-- What tables are available in the database?
-- Show me the structure of the patients table
-- Give me a sample of 5 rows from the icustays table
-
-**Patient Analysis:**
-- How many patients are in the database?
-- Show me the age and gender distribution
-- What's the average ICU length of stay?
-
-**Clinical Queries:**
-- Show me patients with diabetes diagnoses
-- What are the most common admission types?
-- Find patients with both high glucose and kidney problems
-- Compare ICU length of stay between emergency and elective admissions
-
-**Deep Dives:**
-- Give me the complete medical history for patient 10001
-- Show all ICU stays, diagnoses, and medications for patient 10006
-- What were the lab trends during a patient's last admission?
-
 ## 🤝 Contributing
 
 We welcome contributions! Please:
