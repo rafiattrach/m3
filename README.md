@@ -548,7 +548,23 @@ m3-mcp-server
 - 🔐 **Enhanced Security**: Role-based access control, audit logging
 - 🌐 **Multi-tenant Support**: Organization-level data isolation
 
-## Contributing
+## 🐳 Kubernetes Deployment
+
+Deploy M3 on Kubernetes using Docker images with pre-loaded MIMIC-IV demo database:
+
+```bash
+# Build and push Docker image
+make all  # Will prompt for Docker registry/username
+
+# Or specify registry directly
+make all DOCKER_REGISTRY=your-username DOCKER=podman
+```
+
+The container uses StreamableHTTP transport on port 3000 with path `/sse`. Configure your MCP client to connect to the service endpoint (e.g., `http://m3.kagent.svc.cluster.local:3000/sse` for intra-cluster access).
+
+Helm charts for deploying M3 are available in a separate repository.
+
+## 🤝 Contributing
 
 We welcome contributions! Please:
 

@@ -682,9 +682,30 @@ This ensures compatibility across different MIMIC-IV setups."""
 
 
 def main():
-    """Main entry point for MCP server."""
-    # Run the FastMCP server
-    mcp.run()
+    """Main entry point for MCP server.
+
+    Runs FastMCP server in either STDIO mode (desktop clients) or HTTP mode
+    (Kubernetes/web clients). Transport mode configured via environment variables.
+
+    Environment Variables:
+        MCP_TRANSPORT: "stdio" (default), "sse", or "http"
+        MCP_HOST: Host binding for HTTP mode (default: "0.0.0.0")
+        MCP_PORT: Port for HTTP mode (default: 3000)
+        MCP_PATH: SSE endpoint path for HTTP mode (default: "/sse")
+
+    Notes:
+        HTTP/SSE mode uses streamable-http transport for containerized deployments
+        where STDIO is unavailable. Binds to 0.0.0.0 for Kubernetes service mesh access.
+    """
+    transport = os.getenv("MCP_TRANSPORT", "stdio").lower()
+
+    if transport in ("sse", "http"):
+        host = os.getenv("MCP_HOST", "0.0.0.0")
+        port = int(os.getenv("MCP_PORT", "3000"))
+        path = os.getenv("MCP_PATH", "/sse")
+        mcp.run(transport="streamable-http", host=host, port=port, path=path)
+    else:
+        mcp.run()
 
 
 if __name__ == "__main__":

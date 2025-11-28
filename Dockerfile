@@ -27,9 +27,19 @@ RUN m3 init mimic-iv-demo
 
 # Lite: SQLite only
 FROM base AS lite
+ENV MCP_TRANSPORT=http \
+    MCP_HOST=0.0.0.0 \
+    MCP_PORT=3000 \
+    MCP_PATH=/sse
+EXPOSE 3000
 CMD ["python", "-m", "m3.mcp_server"]
 
 # BigQuery: add GCP client
 FROM base AS bigquery
 RUN pip install --no-cache-dir google-cloud-bigquery
+ENV MCP_TRANSPORT=http \
+    MCP_HOST=0.0.0.0 \
+    MCP_PORT=3000 \
+    MCP_PATH=/sse
+EXPOSE 3000
 CMD ["python", "-m", "m3.mcp_server"]
