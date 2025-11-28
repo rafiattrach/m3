@@ -1,7 +1,7 @@
 # Makefile for M3 Docker Image Build and Push
 DOCKER ?= docker
 IMAGE_NAME := m3-mimic-demo
-IMAGE_TAG ?= 0.0.3
+IMAGE_TAG ?= 0.4.0
 
 # Prompt for registry only if not set
 ifndef DOCKER_REGISTRY
