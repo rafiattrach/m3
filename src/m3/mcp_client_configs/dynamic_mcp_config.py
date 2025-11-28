@@ -10,6 +10,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from m3.config import get_active_dataset, get_default_database_path
+
 # Error messages
 _DATABASE_PATH_ERROR_MSG = (
     "Could not determine default database path for mimic-iv-demo.\n"
@@ -21,7 +23,10 @@ class MCPConfigGenerator:
     """Generator for MCP server configurations."""
 
     def __init__(self):
-        self.current_dir = Path(__file__).parent.parent.absolute()
+        p = Path(__file__).resolve()
+        while p != p.parent and not (p / "pyproject.toml").exists():
+            p = p.parent
+        self.current_dir = p
         self.default_python = self._get_default_python()
 
     def _get_default_python(self) -> str:
@@ -49,7 +54,7 @@ class MCPConfigGenerator:
         server_name: str = "m3",
         python_path: str | None = None,
         working_directory: str | None = None,
-        backend: str = "sqlite",
+        backend: str = "duckdb",
         db_path: str | None = None,
         project_id: str | None = None,
         additional_env: dict[str, str] | None = None,
@@ -78,8 +83,21 @@ class MCPConfigGenerator:
         }
 
         # Add backend-specific environment variables
-        if backend == "sqlite" and db_path:
-            env["M3_DB_PATH"] = db_path
+        if backend == "duckdb":
+            if db_path:
+                env["M3_DB_PATH"] = db_path
+            else:
+                active = get_active_dataset()
+                if not active:
+                    raise ValueError(
+                        "Could not determine default DuckDB path; run `m3 init ...` first "
+                        "or pass --db-path explicitly."
+                    )
+                default_path = get_default_database_path(active)
+                if not default_path:
+                    raise ValueError(_DATABASE_PATH_ERROR_MSG)
+                env["M3_DB_PATH"] = str(default_path)
+
         elif backend == "bigquery" and project_id:
             env["M3_PROJECT_ID"] = project_id
             env["GOOGLE_CLOUD_PROJECT"] = project_id
@@ -154,7 +172,7 @@ class MCPConfigGenerator:
 
         # Backend selection - simplified
         print("\nChoose backend:")
-        print("1. SQLite (local database)")
+        print("1. DuckDB (local database)")
         print("2. BigQuery (Google Cloud)")
 
         while True:
@@ -163,16 +181,14 @@ class MCPConfigGenerator:
                 break
             print("Please enter 1 or 2")
 
-        backend = "sqlite" if backend_choice == "1" else "bigquery"
+        backend = "duckdb" if backend_choice == "1" else "bigquery"
 
         # Backend-specific configuration
         db_path = None
         project_id = None
 
-        if backend == "sqlite":
-            print("\n📁 SQLite Configuration:")
-            from m3.config import get_default_database_path
-
+        if backend == "duckdb":
+            print("\n📁 DuckDB Configuration:")
             default_db_path = get_default_database_path("mimic-iv-demo")
             if default_db_path is None:
                 raise ValueError(_DATABASE_PATH_ERROR_MSG)
@@ -180,7 +196,7 @@ class MCPConfigGenerator:
 
             db_path = (
                 input(
-                    "SQLite database path (optional, press Enter to use default): "
+                    "DuckDB database path (optional, press Enter to use default): "
                 ).strip()
                 or None
             )
@@ -278,10 +294,8 @@ def print_config_info(config: dict[str, Any]):
 
     if "M3_DB_PATH" in server_config["env"]:
         print(f"💾 Database path: {server_config['env']['M3_DB_PATH']}")
-    elif server_config["env"].get("M3_BACKEND") == "sqlite":
-        # Show the default path when using SQLite backend
-        from m3.config import get_default_database_path
-
+    elif server_config["env"].get("M3_BACKEND") in ("duckdb",):
+        # Show the default path when using DuckDB backend
         default_path = get_default_database_path("mimic-iv-demo")
         if default_path is None:
             raise ValueError(_DATABASE_PATH_ERROR_MSG)
@@ -344,12 +358,12 @@ Examples:
     parser.add_argument("--working-directory", help="Working directory for the server")
     parser.add_argument(
         "--backend",
-        choices=["sqlite", "bigquery"],
-        default="sqlite",
-        help="Backend to use (default: sqlite)",
+        choices=["duckdb", "bigquery"],
+        default="duckdb",
+        help="Backend to use (default: duckdb)",
     )
     parser.add_argument(
-        "--db-path", help="Path to SQLite database (for sqlite backend)"
+        "--db-path", help="Path to DuckDB database (for duckdb backend)"
     )
     parser.add_argument(
         "--project-id", help="Google Cloud project ID (for bigquery backend)"
@@ -372,7 +386,7 @@ Examples:
     args = parser.parse_args()
 
     # Validate backend-specific arguments
-    if args.backend == "sqlite" and args.project_id:
+    if args.backend in ("duckdb",) and args.project_id:
         print(
             "❌ Error: --project-id can only be used with --backend bigquery",
             file=sys.stderr,
@@ -381,7 +395,7 @@ Examples:
 
     if args.backend == "bigquery" and args.db_path:
         print(
-            "❌ Error: --db-path can only be used with --backend sqlite",
+            "❌ Error: --db-path can only be used with --backend duckdb",
             file=sys.stderr,
         )
         sys.exit(1)

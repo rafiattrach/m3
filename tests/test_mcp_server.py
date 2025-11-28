@@ -3,7 +3,6 @@ Tests for the MCP server functionality.
 """
 
 import os
-import sqlite3
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -13,7 +12,8 @@ from fastmcp import Client
 # Mock the database path check during import to handle CI environments
 with patch("pathlib.Path.exists", return_value=True):
     with patch(
-        "m3.mcp_server.get_default_database_path", return_value=Path("/fake/test.db")
+        "m3.mcp_server.get_default_database_path",
+        return_value=Path("/fake/test.duckdb"),
     ):
         from m3.mcp_server import _init_backend, mcp
 
@@ -36,31 +36,31 @@ class TestMCPServerSetup:
         assert mcp is not None
         assert mcp.name == "m3"
 
-    def test_backend_init_sqlite_default(self):
-        """Test SQLite backend initialization with defaults."""
-        with patch.dict(os.environ, {"M3_BACKEND": "sqlite"}, clear=True):
+    def test_backend_init_duckdb_default(self):
+        """Test DuckDB backend initialization with defaults."""
+        with patch.dict(os.environ, {"M3_BACKEND": "duckdb"}, clear=True):
             with patch("m3.mcp_server.get_default_database_path") as mock_path:
-                mock_path.return_value = Path("/fake/path.db")
+                mock_path.return_value = Path("/fake/path.duckdb")
                 with patch("pathlib.Path.exists", return_value=True):
                     _init_backend()
                     # If no exception raised, initialization succeeded
 
-    def test_backend_init_sqlite_custom_path(self):
-        """Test SQLite backend initialization with custom path."""
+    def test_backend_init_duckdb_custom_path(self):
+        """Test DuckDB backend initialization with custom path."""
         with patch.dict(
             os.environ,
-            {"M3_BACKEND": "sqlite", "M3_DB_PATH": "/custom/path.db"},
+            {"M3_BACKEND": "duckdb", "M3_DB_PATH": "/custom/path.duckdb"},
             clear=True,
         ):
             with patch("pathlib.Path.exists", return_value=True):
                 _init_backend()
                 # If no exception raised, initialization succeeded
 
-    def test_backend_init_sqlite_missing_db(self):
-        """Test SQLite backend initialization with missing database."""
-        with patch.dict(os.environ, {"M3_BACKEND": "sqlite"}, clear=True):
+    def test_backend_init_duckdb_missing_db(self):
+        """Test DuckDB backend initialization with missing database."""
+        with patch.dict(os.environ, {"M3_BACKEND": "duckdb"}, clear=True):
             with patch("m3.mcp_server.get_default_database_path") as mock_path:
-                mock_path.return_value = Path("/fake/path.db")
+                mock_path.return_value = Path("/fake/path.duckdb")
                 with patch("pathlib.Path.exists", return_value=False):
                     with pytest.raises(FileNotFoundError):
                         _init_backend()
@@ -93,60 +93,62 @@ class TestMCPTools:
 
     @pytest.fixture
     def test_db(self, tmp_path):
-        """Create a test SQLite database."""
-        db_path = tmp_path / "test.db"
+        """Create a test DuckDB database."""
+        import duckdb
 
-        # Create test database with MIMIC-IV-like structure
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-
-        # Create icu_icustays table
-        cursor.execute("""
-            CREATE TABLE icu_icustays (
-                subject_id INTEGER,
-                hadm_id INTEGER,
-                stay_id INTEGER,
-                intime TEXT,
-                outtime TEXT
+        db_path = tmp_path / "test.duckdb"
+        con = duckdb.connect(str(db_path))
+        try:
+            con.execute(
+                """
+                CREATE TABLE icu_icustays (
+                    subject_id INTEGER,
+                    hadm_id INTEGER,
+                    stay_id INTEGER,
+                    intime TIMESTAMP,
+                    outtime TIMESTAMP
+                )
+                """
             )
-        """)
-        cursor.execute("""
-            INSERT INTO icu_icustays (subject_id, hadm_id, stay_id, intime, outtime)
-            VALUES
-                (10000032, 20000001, 30000001, '2180-07-23 15:00:00', '2180-07-24 12:00:00'),
-                (10000033, 20000002, 30000002, '2180-08-15 10:30:00', '2180-08-16 14:15:00')
-        """)
-
-        # Create hosp_labevents table
-        cursor.execute("""
-            CREATE TABLE hosp_labevents (
-                subject_id INTEGER,
-                hadm_id INTEGER,
-                itemid INTEGER,
-                charttime TEXT,
-                value TEXT
+            con.execute(
+                """
+                INSERT INTO icu_icustays (subject_id, hadm_id, stay_id, intime, outtime) VALUES
+                    (10000032, 20000001, 30000001, '2180-07-23 15:00:00', '2180-07-24 12:00:00'),
+                    (10000033, 20000002, 30000002, '2180-08-15 10:30:00', '2180-08-16 14:15:00')
+                """
             )
-        """)
-        cursor.execute("""
-            INSERT INTO hosp_labevents (subject_id, hadm_id, itemid, charttime, value)
-            VALUES
-                (10000032, 20000001, 50912, '2180-07-23 16:00:00', '120'),
-                (10000033, 20000002, 50912, '2180-08-15 11:00:00', '95')
-        """)
-
-        conn.commit()
-        conn.close()
+            con.execute(
+                """
+                CREATE TABLE hosp_labevents (
+                    subject_id INTEGER,
+                    hadm_id INTEGER,
+                    itemid INTEGER,
+                    charttime TIMESTAMP,
+                    value TEXT
+                )
+                """
+            )
+            con.execute(
+                """
+                INSERT INTO hosp_labevents (subject_id, hadm_id, itemid, charttime, value) VALUES
+                    (10000032, 20000001, 50912, '2180-07-23 16:00:00', '120'),
+                    (10000033, 20000002, 50912, '2180-08-15 11:00:00', '95')
+                """
+            )
+            con.commit()
+        finally:
+            con.close()
 
         return str(db_path)
 
     @pytest.mark.asyncio
     async def test_tools_via_client(self, test_db):
         """Test MCP tools through the FastMCP client."""
-        # Set up environment for SQLite backend with OAuth2 disabled
+        # Set up environment for DuckDB backend with OAuth2 disabled
         with patch.dict(
             os.environ,
             {
-                "M3_BACKEND": "sqlite",
+                "M3_BACKEND": "duckdb",
                 "M3_DB_PATH": test_db,
                 "M3_OAUTH2_ENABLED": "false",
             },
@@ -191,7 +193,7 @@ class TestMCPTools:
         with patch.dict(
             os.environ,
             {
-                "M3_BACKEND": "sqlite",
+                "M3_BACKEND": "duckdb",
                 "M3_DB_PATH": test_db,
                 "M3_OAUTH2_ENABLED": "false",
             },
@@ -226,7 +228,7 @@ class TestMCPTools:
         with patch.dict(
             os.environ,
             {
-                "M3_BACKEND": "sqlite",
+                "M3_BACKEND": "duckdb",
                 "M3_DB_PATH": test_db,
                 "M3_OAUTH2_ENABLED": "false",
             },
@@ -247,7 +249,7 @@ class TestMCPTools:
         with patch.dict(
             os.environ,
             {
-                "M3_BACKEND": "sqlite",
+                "M3_BACKEND": "duckdb",
                 "M3_DB_PATH": test_db,
                 "M3_OAUTH2_ENABLED": "false",
             },
@@ -268,11 +270,11 @@ class TestMCPTools:
     @pytest.mark.asyncio
     async def test_oauth2_authentication_required(self, test_db):
         """Test that OAuth2 authentication is required when enabled."""
-        # Set up environment for SQLite backend with OAuth2 enabled
+        # Set up environment for DuckDB backend with OAuth2 enabled
         with patch.dict(
             os.environ,
             {
-                "M3_BACKEND": "sqlite",
+                "M3_BACKEND": "duckdb",
                 "M3_DB_PATH": test_db,
                 "M3_OAUTH2_ENABLED": "true",
                 "M3_OAUTH2_ISSUER_URL": "https://auth.example.com",
