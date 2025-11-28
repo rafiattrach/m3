@@ -681,19 +681,38 @@ This ensures compatibility across different MIMIC-IV setups."""
 
 
 def main():
-    """Main entry point for MCP server."""
-    # Check if we should run in HTTP mode (for Kubernetes/Docker)
+    """Main entry point for MCP server.
+    
+    Initializes and runs the FastMCP server with transport mode determined by environment
+    variables. Supports both STDIO mode for desktop clients and HTTP mode for web-based
+    clients and containerized deployments.
+    
+    Environment Variables:
+        MCP_TRANSPORT: Transport mode - "stdio" (default), "sse", or "http"
+        MCP_HOST: Host to bind to when using HTTP mode (default: "0.0.0.0")
+        MCP_PORT: Port to bind to when using HTTP mode (default: 3000)
+        MCP_PATH: Path for SSE endpoint when using HTTP mode (default: "/sse")
+    
+    Notes:
+        Transport Modes:
+        - STDIO mode (default): Used by desktop MCP clients like Claude Desktop
+        - HTTP/SSE mode: Used for Kubernetes deployments and web-based clients like kagent
+        
+        When MCP_TRANSPORT is set to "http" or "sse", the server runs in streamable-http
+        mode, which enables HTTP-based communication over Server-Sent Events (SSE). This
+        is required for containerized deployments where STDIO is not available.
+        
+        The server binds to 0.0.0.0 by default in HTTP mode to allow connections from
+        outside the container, making it accessible via Kubernetes service mesh.
+    """
     transport = os.getenv("MCP_TRANSPORT", "stdio").lower()
     
     if transport in ("sse", "http"):
-        # Run in HTTP mode for web-based clients (like kagent)
         host = os.getenv("MCP_HOST", "0.0.0.0")
         port = int(os.getenv("MCP_PORT", "3000"))
         path = os.getenv("MCP_PATH", "/sse")
-        # FastMCP streamable-http transport
         mcp.run(transport="streamable-http", host=host, port=port, path=path)
     else:
-        # Run in STDIO mode (default for desktop clients)
         mcp.run()
 
 
