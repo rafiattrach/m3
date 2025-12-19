@@ -30,9 +30,16 @@ Transform medical data analysis with AI! Ask questions about MIMIC-IV data in pl
 
 We use `uvx` to run the MCP server. Install `uv` from the official installer, then verify with `uv --version`.
 
-**macOS and Linux:**
+**macOS:**
+```bash
+brew install uv
+```
+
+**Linux (or macOS without Homebrew):**
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
+# macOS - enable for GUI apps like Claude Desktop:
+sudo ln -s $(which uv) $(which uvx) /usr/local/bin/
 ```
 
 **Windows (PowerShell):**
