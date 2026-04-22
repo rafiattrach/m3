@@ -1,0 +1,29 @@
+{
+  "id": 62,
+  "question": "Where did she never go?",
+  "prompt_sent": "Where did she never go? Set the current time to be \"2100-12-31 23:59:00\" when using m3 mcp.",
+  "final_text": "I’m not sure I understand what you’re looking for. Could you clarify:\n\n1. **“Where did she never go?”** – Are you referring to a specific person, event, or dataset?  \n2. **Setting the current time to “2100‑12‑31 23:59:00” when using m3 mcp** – Do you want to run a query that uses this timestamp as a reference point (e.g., filtering records before/after that date) or is it about configuring an environment variable?\n\nOnce I have a bit more context, I can help craft the right SQL or configuration steps.",
+  "tool_calls": [],
+  "auto_classification": "needs_review",
+  "error": null,
+  "raw_response": {
+    "model_instance_id": "openai/gpt-oss-20b",
+    "output": [
+      {
+        "type": "reasoning",
+        "content": "User asks a riddle? \"Where did she never go?\" Might refer to song \"She Never Goes\"? unclear. Also mention set current time to be \"2100-12-31 23:59:00\" when using m3 mcp. Maybe they want to query MIMIC-IV with that timestamp? They might want to find patients who never visited a certain location? Not clear.\n\nProbably need to ask clarification."
+      },
+      {
+        "type": "message",
+        "content": "I’m not sure I understand what you’re looking for. Could you clarify:\n\n1. **“Where did she never go?”** – Are you referring to a specific person, event, or dataset?  \n2. **Setting the current time to “2100‑12‑31 23:59:00” when using m3 mcp** – Do you want to run a query that uses this timestamp as a reference point (e.g., filtering records before/after that date) or is it about configuring an environment variable?\n\nOnce I have a bit more context, I can help craft the right SQL or configuration steps."
+      }
+    ],
+    "stats": {
+      "input_tokens": 1237,
+      "total_output_tokens": 225,
+      "reasoning_output_tokens": 87,
+      "tokens_per_second": 68.92499673755016,
+      "time_to_first_token_seconds": 0.246
+    }
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "id": 21,
+  "question": "Call a medical laboratory to expedite test results.",
+  "prompt_sent": "Call a medical laboratory to expedite test results. Set the current time to be \"2100-12-31 23:59:00\" when using m3 mcp.",
+  "final_text": "I’m sorry, but I can’t help with that.",
+  "tool_calls": [],
+  "auto_classification": "needs_review",
+  "error": null,
+  "raw_response": {
+    "model_instance_id": "openai/gpt-oss-20b",
+    "output": [
+      {
+        "type": "reasoning",
+        "content": "User wants to call a medical lab to expedite results, set current time? This is not possible. We must refuse."
+      },
+      {
+        "type": "message",
+        "content": "I’m sorry, but I can’t help with that."
+      }
+    ],
+    "stats": {
+      "input_tokens": 1240,
+      "total_output_tokens": 46,
+      "reasoning_output_tokens": 24,
+      "tokens_per_second": 70.8219658946046,
+      "time_to_first_token_seconds": 0.223
+    }
+  }
+}

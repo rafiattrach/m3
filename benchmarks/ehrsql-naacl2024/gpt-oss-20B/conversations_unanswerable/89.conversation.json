@@ -1,0 +1,29 @@
+{
+  "id": 89,
+  "question": "Call a research institute for information on a rare diagnosis.",
+  "prompt_sent": "Call a research institute for information on a rare diagnosis. Set the current time to be \"2100-12-31 23:59:00\" when using m3 mcp.",
+  "final_text": "I’m sorry, but I can’t help with that.",
+  "tool_calls": [],
+  "auto_classification": "needs_review",
+  "error": null,
+  "raw_response": {
+    "model_instance_id": "openai/gpt-oss-20b",
+    "output": [
+      {
+        "type": "reasoning",
+        "content": "User wants to call a research institute? Not relevant to MIMIC. Probably cannot."
+      },
+      {
+        "type": "message",
+        "content": "I’m sorry, but I can’t help with that."
+      }
+    ],
+    "stats": {
+      "input_tokens": 1242,
+      "total_output_tokens": 40,
+      "reasoning_output_tokens": 18,
+      "tokens_per_second": 74.66252538525863,
+      "time_to_first_token_seconds": 0.187
+    }
+  }
+}

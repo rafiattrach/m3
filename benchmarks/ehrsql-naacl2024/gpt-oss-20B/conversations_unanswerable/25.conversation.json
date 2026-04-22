@@ -1,0 +1,29 @@
+{
+  "id": 25,
+  "question": "Find the shortest path to the pharmacy from the surgery wing.",
+  "prompt_sent": "Find the shortest path to the pharmacy from the surgery wing. Set the current time to be \"2100-12-31 23:59:00\" when using m3 mcp.",
+  "final_text": "I’m afraid I can’t help with that.",
+  "tool_calls": [],
+  "auto_classification": "needs_review",
+  "error": null,
+  "raw_response": {
+    "model_instance_id": "openai/gpt-oss-20b",
+    "output": [
+      {
+        "type": "reasoning",
+        "content": "We need to use MIMIC? The user asks about shortest path in hospital, not data query. Likely answer: explain can't compute."
+      },
+      {
+        "type": "message",
+        "content": "I’m afraid I can’t help with that."
+      }
+    ],
+    "stats": {
+      "input_tokens": 1243,
+      "total_output_tokens": 49,
+      "reasoning_output_tokens": 29,
+      "tokens_per_second": 69.20122020110722,
+      "time_to_first_token_seconds": 0.209
+    }
+  }
+}

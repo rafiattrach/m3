@@ -630,7 +630,7 @@
                   "type": "toolCallResult",
                   "callId": 849489520600372,
                   "toolCallRequestId": "672093938",
-                  "content": "[{\"type\":\"text\",\"text\":\"🔧 **Current Backend:** SQLite (local database)\\n📁 **Database Path:** /Users/rafraf/Documents/code/MIT/m3/data/databases/mimic_iv.sqlite\\n\\n📋 **Available Tables:**\\n              name\\n        admissions\\n       chartevents\\n              cost\\n   d_icd_diagnoses\\n  d_icd_procedures\\n           d_items\\n        d_labitems\\n     diagnoses_icd\\n          icustays\\n       inputevents\\n         labevents\\nmicrobiologyevents\\n      outputevents\\n          patients\\n     prescriptions\\n    procedures_icd\\n         transfers\"}]"
+                  "content": "[{\"type\":\"text\",\"text\":\"🔧 **Current Backend:** SQLite (local database)\\n📁 **Database Path:** mimic_iv.sqlite\\n\\n📋 **Available Tables:**\\n              name\\n        admissions\\n       chartevents\\n              cost\\n   d_icd_diagnoses\\n  d_icd_procedures\\n           d_items\\n        d_labitems\\n     diagnoses_icd\\n          icustays\\n       inputevents\\n         labevents\\nmicrobiologyevents\\n      outputevents\\n          patients\\n     prescriptions\\n    procedures_icd\\n         transfers\"}]"
                 }
               ],
               "roleOverride": "tool",
@@ -937,7 +937,7 @@
                   "type": "toolCallResult",
                   "callId": 849489520600373,
                   "toolCallRequestId": "132938404",
-                  "content": "[{\"type\":\"text\",\"text\":\"🔧 **Current Backend:** SQLite (local database)\\n📁 **Database Path:** /Users/rafraf/Documents/code/MIT/m3/data/databases/mimic_iv.sqlite\\n📋 **Table:** microbiologyevents\\n\\n**Column Information:**\\n cid           name         type  notnull dflt_value  pk\\n   0         row_id          INT        1       None   1\\n   1     subject_id          INT        1       None   0\\n   2        hadm_id          INT        1       None   0\\n   3      charttime TIMESTAMP(0)        1       None   0\\n   4 spec_type_desc VARCHAR(100)        0       None   0\\n   5      test_name VARCHAR(100)        0       None   0\\n   6       org_name VARCHAR(100)        0       None   0\\n\\n📊 **Sample Data (first 3 rows):**\\n row_id  subject_id  hadm_id           charttime spec_type_desc                             test_name org_name\\n      0    10000032 25742920 2100-08-26 20:35:00           swab r/o vancomycin resistant enterococcus     None\\n      1    10000032 22595853 2100-05-27 00:19:00           swab r/o vancomycin resistant enterococcus     None\\n      2    10000032 29079034 2100-08-13 00:55:00           swab r/o vancomycin resistant enterococcus     None\"}]"
+                  "content": "[{\"type\":\"text\",\"text\":\"🔧 **Current Backend:** SQLite (local database)\\n📁 **Database Path:** mimic_iv.sqlite\\n📋 **Table:** microbiologyevents\\n\\n**Column Information:**\\n cid           name         type  notnull dflt_value  pk\\n   0         row_id          INT        1       None   1\\n   1     subject_id          INT        1       None   0\\n   2        hadm_id          INT        1       None   0\\n   3      charttime TIMESTAMP(0)        1       None   0\\n   4 spec_type_desc VARCHAR(100)        0       None   0\\n   5      test_name VARCHAR(100)        0       None   0\\n   6       org_name VARCHAR(100)        0       None   0\\n\\n📊 **Sample Data (first 3 rows):**\\n row_id  subject_id  hadm_id           charttime spec_type_desc                             test_name org_name\\n      0    10000032 25742920 2100-08-26 20:35:00           swab r/o vancomycin resistant enterococcus     None\\n      1    10000032 22595853 2100-05-27 00:19:00           swab r/o vancomycin resistant enterococcus     None\\n      2    10000032 29079034 2100-08-13 00:55:00           swab r/o vancomycin resistant enterococcus     None\"}]"
                 }
               ],
               "roleOverride": "tool",
@@ -1244,7 +1244,7 @@
                   "type": "toolCallResult",
                   "callId": 849489520600374,
                   "toolCallRequestId": "806946625",
-                  "content": "[{\"type\":\"text\",\"text\":\"🔧 **Current Backend:** SQLite (local database)\\n📁 **Database Path:** /Users/rafraf/Documents/code/MIT/m3/data/databases/mimic_iv.sqlite\\n❌ Error examining table 'd_procedures': Execution failed on sql 'SELECT * FROM d_procedures LIMIT 3': no such table: d_procedures\\n\\n💡 Use get_database_schema() to see available tables.\"}]"
+                  "content": "[{\"type\":\"text\",\"text\":\"🔧 **Current Backend:** SQLite (local database)\\n📁 **Database Path:** mimic_iv.sqlite\\n❌ Error examining table 'd_procedures': Execution failed on sql 'SELECT * FROM d_procedures LIMIT 3': no such table: d_procedures\\n\\n💡 Use get_database_schema() to see available tables.\"}]"
                 }
               ],
               "roleOverride": "tool",
@@ -1551,7 +1551,7 @@
                   "type": "toolCallResult",
                   "callId": 849489520600375,
                   "toolCallRequestId": "556364596",
-                  "content": "[{\"type\":\"text\",\"text\":\"🔧 **Current Backend:** SQLite (local database)\\n📁 **Database Path:** /Users/rafraf/Documents/code/MIT/m3/data/databases/mimic_iv.sqlite\\n📋 **Table:** d_icd_procedures\\n\\n**Column Information:**\\n cid       name         type  notnull dflt_value  pk\\n   0     row_id          INT        1       None   1\\n   1   icd_code  VARCHAR(10)        1       None   0\\n   2 long_title VARCHAR(255)        1       None   0\\n\\n📊 **Sample Data (first 3 rows):**\\n row_id  icd_code                                 long_title\\n      0 icd9|0039            other computer assisted surgery\\n      1 icd9|0048  insertion of four or more vascular stents\\n      2 icd9|0074 hip bearing surface, metal-on-polyethylene\"}]"
+                  "content": "[{\"type\":\"text\",\"text\":\"🔧 **Current Backend:** SQLite (local database)\\n📁 **Database Path:** mimic_iv.sqlite\\n📋 **Table:** d_icd_procedures\\n\\n**Column Information:**\\n cid       name         type  notnull dflt_value  pk\\n   0     row_id          INT        1       None   1\\n   1   icd_code  VARCHAR(10)        1       None   0\\n   2 long_title VARCHAR(255)        1       None   0\\n\\n📊 **Sample Data (first 3 rows):**\\n row_id  icd_code                                 long_title\\n      0 icd9|0039            other computer assisted surgery\\n      1 icd9|0048  insertion of four or more vascular stents\\n      2 icd9|0074 hip bearing surface, metal-on-polyethylene\"}]"
                 }
               ],
               "roleOverride": "tool",
@@ -1858,7 +1858,7 @@
                   "type": "toolCallResult",
                   "callId": 849489520600376,
                   "toolCallRequestId": "143303839",
-                  "content": "[{\"type\":\"text\",\"text\":\"🔧 **Current Backend:** SQLite (local database)\\n📁 **Database Path:** /Users/rafraf/Documents/code/MIT/m3/data/databases/mimic_iv.sqlite\\n📋 **Table:** procedures_icd\\n\\n**Column Information:**\\n cid       name         type  notnull dflt_value  pk\\n   0     row_id          INT        1       None   1\\n   1 subject_id          INT        1       None   0\\n   2    hadm_id          INT        1       None   0\\n   3   icd_code  VARCHAR(10)        1       None   0\\n   4  charttime TIMESTAMP(0)        1       None   0\\n\\n📊 **Sample Data (first 3 rows):**\\n row_id  subject_id  hadm_id  icd_code           charttime\\n      0    10011398 27505812 icd9|3961 2100-12-30 13:37:00\\n      1    10011398 27505812 icd9|3615 2100-12-30 13:37:00\\n      2    10011398 27505812 icd9|3614 2100-12-30 13:37:00\"}]"
+                  "content": "[{\"type\":\"text\",\"text\":\"🔧 **Current Backend:** SQLite (local database)\\n📁 **Database Path:** mimic_iv.sqlite\\n📋 **Table:** procedures_icd\\n\\n**Column Information:**\\n cid       name         type  notnull dflt_value  pk\\n   0     row_id          INT        1       None   1\\n   1 subject_id          INT        1       None   0\\n   2    hadm_id          INT        1       None   0\\n   3   icd_code  VARCHAR(10)        1       None   0\\n   4  charttime TIMESTAMP(0)        1       None   0\\n\\n📊 **Sample Data (first 3 rows):**\\n row_id  subject_id  hadm_id  icd_code           charttime\\n      0    10011398 27505812 icd9|3961 2100-12-30 13:37:00\\n      1    10011398 27505812 icd9|3615 2100-12-30 13:37:00\\n      2    10011398 27505812 icd9|3614 2100-12-30 13:37:00\"}]"
                 }
               ],
               "roleOverride": "tool",

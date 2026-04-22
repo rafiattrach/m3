@@ -324,7 +324,7 @@
                   "type": "toolCallResult",
                   "callId": 849489520601313,
                   "toolCallRequestId": "600010530",
-                  "content": "[{\"type\":\"text\",\"text\":\"🔧 **Current Backend:** SQLite (local database)\\n📁 **Database Path:** /Users/rafraf/Documents/code/MIT/m3/data/databases/mimic_iv.sqlite\\n\\n📋 **Available Tables:**\\n              name\\n        admissions\\n       chartevents\\n              cost\\n   d_icd_diagnoses\\n  d_icd_procedures\\n           d_items\\n        d_labitems\\n     diagnoses_icd\\n          icustays\\n       inputevents\\n         labevents\\nmicrobiologyevents\\n      outputevents\\n          patients\\n     prescriptions\\n    procedures_icd\\n         transfers\"}]"
+                  "content": "[{\"type\":\"text\",\"text\":\"🔧 **Current Backend:** SQLite (local database)\\n📁 **Database Path:** mimic_iv.sqlite\\n\\n📋 **Available Tables:**\\n              name\\n        admissions\\n       chartevents\\n              cost\\n   d_icd_diagnoses\\n  d_icd_procedures\\n           d_items\\n        d_labitems\\n     diagnoses_icd\\n          icustays\\n       inputevents\\n         labevents\\nmicrobiologyevents\\n      outputevents\\n          patients\\n     prescriptions\\n    procedures_icd\\n         transfers\"}]"
                 }
               ],
               "roleOverride": "tool",
@@ -631,7 +631,7 @@
                   "type": "toolCallResult",
                   "callId": 849489520601314,
                   "toolCallRequestId": "661693456",
-                  "content": "[{\"type\":\"text\",\"text\":\"🔧 **Current Backend:** SQLite (local database)\\n📁 **Database Path:** /Users/rafraf/Documents/code/MIT/m3/data/databases/mimic_iv.sqlite\\n📋 **Table:** labevents\\n\\n**Column Information:**\\n cid       name             type  notnull dflt_value  pk\\n   0     row_id              INT        1       None   1\\n   1 subject_id              INT        1       None   0\\n   2    hadm_id              INT        1       None   0\\n   3     itemid              INT        1       None   0\\n   4  charttime     TIMESTAMP(0)        0       None   0\\n   5   valuenum DOUBLE PRECISION        0       None   0\\n   6   valueuom      VARCHAR(20)        0       None   0\\n\\n📊 **Sample Data (first 3 rows):**\\n row_id  subject_id  hadm_id  itemid           charttime  valuenum valueuom\\n      0    10031757 28477280   50970 2100-10-25 02:00:00       2.8    mg/dl\\n      1    10031757 28477280   50931 2100-10-25 02:00:00      91.0    mg/dl\\n      2    10031757 28477280   50868 2100-10-25 02:00:00      14.0    meq/l\"}]"
+                  "content": "[{\"type\":\"text\",\"text\":\"🔧 **Current Backend:** SQLite (local database)\\n📁 **Database Path:** mimic_iv.sqlite\\n📋 **Table:** labevents\\n\\n**Column Information:**\\n cid       name             type  notnull dflt_value  pk\\n   0     row_id              INT        1       None   1\\n   1 subject_id              INT        1       None   0\\n   2    hadm_id              INT        1       None   0\\n   3     itemid              INT        1       None   0\\n   4  charttime     TIMESTAMP(0)        0       None   0\\n   5   valuenum DOUBLE PRECISION        0       None   0\\n   6   valueuom      VARCHAR(20)        0       None   0\\n\\n📊 **Sample Data (first 3 rows):**\\n row_id  subject_id  hadm_id  itemid           charttime  valuenum valueuom\\n      0    10031757 28477280   50970 2100-10-25 02:00:00       2.8    mg/dl\\n      1    10031757 28477280   50931 2100-10-25 02:00:00      91.0    mg/dl\\n      2    10031757 28477280   50868 2100-10-25 02:00:00      14.0    meq/l\"}]"
                 }
               ],
               "roleOverride": "tool",
@@ -938,7 +938,7 @@
                   "type": "toolCallResult",
                   "callId": 849489520601315,
                   "toolCallRequestId": "260996675",
-                  "content": "[{\"type\":\"text\",\"text\":\"🔧 **Current Backend:** SQLite (local database)\\n📁 **Database Path:** /Users/rafraf/Documents/code/MIT/m3/data/databases/mimic_iv.sqlite\\n📋 **Table:** d_labitems\\n\\n**Column Information:**\\n cid   name         type  notnull dflt_value  pk\\n   0 row_id          INT        1       None   1\\n   1 itemid          INT        1       None   0\\n   2  label VARCHAR(200)        0       None   0\\n\\n📊 **Sample Data (first 3 rows):**\\n row_id  itemid        label\\n      0   50808 free calcium\\n      1   50826 tidal volume\\n      2   50813      lactate\"}]"
+                  "content": "[{\"type\":\"text\",\"text\":\"🔧 **Current Backend:** SQLite (local database)\\n📁 **Database Path:** mimic_iv.sqlite\\n📋 **Table:** d_labitems\\n\\n**Column Information:**\\n cid   name         type  notnull dflt_value  pk\\n   0 row_id          INT        1       None   1\\n   1 itemid          INT        1       None   0\\n   2  label VARCHAR(200)        0       None   0\\n\\n📊 **Sample Data (first 3 rows):**\\n row_id  itemid        label\\n      0   50808 free calcium\\n      1   50826 tidal volume\\n      2   50813      lactate\"}]"
                 }
               ],
               "roleOverride": "tool",
